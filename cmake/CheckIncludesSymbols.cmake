@@ -38,7 +38,7 @@ if ( HAVE_LIBM )
     link_libraries( m )
 endif ()
 
-include(CheckLibraryExists)
+include( CheckLibraryExists )
 check_library_exists( m pow "" HAVE_POW )
 
 find_package( CUDAToolkit REQUIRED )
@@ -54,28 +54,27 @@ if ( NOT Python_FOUND )
   string( CONCAT PYABI_WARN "Could not locate Python ABI"
     ", using shared libraries and header file instead."
     " Please clear your CMake cache and build folder and verify that CMake"
-    " is up-to-date (3.18+)."
-  )
-  printWarning("${PYABI_WARN}")
+    " is up-to-date (3.18+)." )
+  printWarning( "${PYABI_WARN}" )
 else()
   find_package( Python 3.8 REQUIRED Interpreter Development.Module )
 endif()
 
 if ( Python_FOUND )
-  if ( CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
-    execute_process( COMMAND "${Python_EXECUTABLE}" "-c"
-      "import sys, os; print(int(bool(os.environ.get('CONDA_DEFAULT_ENV', False)) or (sys.prefix != sys.base_prefix)))"
-      OUTPUT_VARIABLE Python_InVirtualEnv OUTPUT_STRIP_TRAILING_WHITESPACE )
+  #if ( CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
+  #  execute_process( COMMAND "${Python_EXECUTABLE}" "-c"
+  #    "import sys, os; print(int(bool(os.environ.get('CONDA_DEFAULT_ENV', False)) or (sys.prefix != sys.base_prefix)))"
+  #    OUTPUT_VARIABLE Python_InVirtualEnv OUTPUT_STRIP_TRAILING_WHITESPACE )
 
-    if ( NOT Python_InVirtualEnv AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
-      printError( "No virtual Python environment found and no installation prefix specified. "
-        "Please either build and install NEST in a virtual Python environment or specify CMake option -DCMAKE_INSTALL_PREFIX=<nest_install_dir>.")
-    endif()
+  #  if ( NOT Python_InVirtualEnv AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
+  #    printError( "No virtual Python environment found and no installation prefix specified. "
+  #      "Please either build and install NEST in a virtual Python environment or specify CMake option -DCMAKE_INSTALL_PREFIX=<nest_install_dir>.")
+  #  endif()
 
-    # Setting CMAKE_INSTALL_PREFIX effects the inclusion of GNUInstallDirs defining CMAKE_INSTALL_<dir> and CMAKE_INSTALL_FULL_<dir>
-    get_filename_component( Python_EnvRoot "${Python_SITELIB}/../../.." ABSOLUTE)
-    set ( CMAKE_INSTALL_PREFIX "${Python_EnvRoot}" CACHE PATH "Default install prefix for the active Python interpreter" FORCE )
-  endif ( CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
+  #  # Setting CMAKE_INSTALL_PREFIX effects the inclusion of GNUInstallDirs defining CMAKE_INSTALL_<dir> and CMAKE_INSTALL_FULL_<dir>
+  #  get_filename_component( Python_EnvRoot "${Python_SITELIB}/../../.." ABSOLUTE)
+  #  set ( CMAKE_INSTALL_PREFIX "${Python_EnvRoot}" CACHE PATH "Default install prefix for the active Python interpreter" FORCE )
+  #endif ( CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
 
   # export found variables to parent scope
   set( HAVE_PYTHON ON )
@@ -101,67 +100,29 @@ if ( Python_FOUND )
 endif ()
 
 # define python excecution path
-function( NEST_POST_PROCESS_WITH_PYTHON )
-  if ( Python_FOUND )
-    set( PYEXECDIR "${CMAKE_INSTALL_LIBDIR}/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages" PARENT_SCOPE )
-  endif()
-endfunction()
-
+#function( NEST_POST_PROCESS_WITH_PYTHON )
+#  if ( Python_FOUND )
+#    set( PYEXECDIR "${CMAKE_INSTALL_LIBDIR}/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages" PARENT_SCOPE )
+#  endif()
+#endfunction()
 
 # Enable dynamic library compiling with run-time search PATH
 set( BUILD_SHARED_LIBS ON )
-
-# set RPATH stuff
-set( CMAKE_SKIP_RPATH FALSE )
-# use, i.e. don't skip the full RPATH for the build tree
-set( CMAKE_SKIP_BUILD_RPATH FALSE )
-
-# when building, don't use the install RPATH already
-# (but later on when installing)
-set( CMAKE_BUILD_WITH_INSTALL_RPATH FALSE )
-
-# set run-time search path (RPATH) so that dynamic libraries in ``lib/nest`` can be located
-
-# Note: "$ORIGIN" (on Linux) and "@loader_path" (on MacOS) are not CMake variables, but special keywords for the
-# Linux resp. the macOS dynamic loader. They refer to the path in which the object is located, e.g.
-# ``${CMAKE_INSTALL_PREFIX}/bin`` for the nest and sli executables, ``${CMAKE_INSTALL_PREFIX}/lib/nest`` for all
-# dynamic libraries except PyNEST (libnestkernel.so, etc.), and  something like
-# ``${CMAKE_INSTALL_PREFIX}/lib/python3.x/site-packages/nest`` for ``pynestkernel.so``. The RPATH is relative to
-# this origin, so the binary ``bin/nest`` can find the files in the relative location ``../lib/nest``, and
-# similarly for PyNEST and the other libraries. For simplicity, we set all the possibilities on all generated
-# objects.
-
-# PyNEST can only act as an entry point; it does not need to be included in the other objects' RPATH itself.
-
-set( CMAKE_INSTALL_RPATH
-      # for binaries
-      "\$ORIGIN/../${CMAKE_INSTALL_LIBDIR}/nestgpu"
-      # for libraries (except pynestkernel)
-      "\$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}/nestgpu"
-      # for pynestkernel: origin at <prefix>/lib/python3.x/site-packages/nestgpu
-      "\$ORIGIN/../../../nestgpu"
-      )
-
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-set( CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE )
-
 # reverse the search order for lib extensions
 set( CMAKE_FIND_LIBRARY_SUFFIXES ".so;.dylib;.a;.lib" )
 
-
 # given a list, filter all header files
-function( FILTER_HEADERS in_list out_list )
-    if( ${CMAKE_VERSION} VERSION_LESS "3.6" )
-        unset( tmp_list )
-        foreach( fname ${in_list} )
-            if( "${fname}" MATCHES "^.*\\.h(pp)?$" )
-                list( APPEND tmp_list "${fname}" )
-            endif ()
-        endforeach ()
-    else ()
-        set( tmp_list ${in_list} )
-        list( FILTER tmp_list INCLUDE REGEX "^.*\\.h(pp)?$")
-    endif ()
-    set( ${out_list} ${tmp_list} PARENT_SCOPE )
-endfunction ()
+#function( FILTER_HEADERS in_list out_list )
+#    if( ${CMAKE_VERSION} VERSION_LESS "3.6" )
+#        unset( tmp_list )
+#        foreach( fname ${in_list} )
+#            if( "${fname}" MATCHES "^.*\\.h(pp)?$" )
+#                list( APPEND tmp_list "${fname}" )
+#            endif ()
+#        endforeach ()
+#    else ()
+#        set( tmp_list ${in_list} )
+#        list( FILTER tmp_list INCLUDE REGEX "^.*\\.h(pp)?$")
+#    endif ()
+#    set( ${out_list} ${tmp_list} PARENT_SCOPE )
+#endfunction ()

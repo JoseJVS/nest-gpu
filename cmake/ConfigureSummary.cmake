@@ -68,6 +68,7 @@ function( NEST_PRINT_CONFIG_SUMMARY )
     message( "Use libltdl         : No" )
   endif ()
 
+  # TODO: adapt for later PR
   #message( "" )
   #if ( DOXYGEN_FOUND )
   #  message( "Use doxygen         : Yes (${DOXYGEN_EXECUTABLE}); make target `doc` is available" )

@@ -28,17 +28,17 @@ set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
 include( ColorMessages )
 
 # check if the given CMAKE_INSTALL_PREFIX is not empty
-if("${CMAKE_INSTALL_PREFIX}" STREQUAL "")
-  printError("CMAKE_INSTALL_PREFIX cannot be an empty string")
-endif()
+#if("${CMAKE_INSTALL_PREFIX}" STREQUAL "")
+#  printError("CMAKE_INSTALL_PREFIX cannot be an empty string")
+#endif()
 
 # handle relative installation prefixes
-if( NOT IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})
+#if( NOT IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})
     # convert relative path to absolute path
-    get_filename_component(absPath ${CMAKE_INSTALL_PREFIX} ABSOLUTE BASE_DIR ${CMAKE_BINARY_DIR})
-    set(CMAKE_INSTALL_PREFIX ${absPath})
-    printInfo("Relative CMAKE_INSTALL_PREFIX has been converted to absolute path ${CMAKE_INSTALL_PREFIX}")
-endif()
+#    get_filename_component(absPath ${CMAKE_INSTALL_PREFIX} ABSOLUTE BASE_DIR ${CMAKE_BINARY_DIR})
+#    set(CMAKE_INSTALL_PREFIX ${absPath})
+#    printInfo("Relative CMAKE_INSTALL_PREFIX has been converted to absolute path ${CMAKE_INSTALL_PREFIX}")
+#endif()
 
 ################################################################################
 ##################         All User Defined options           ##################
@@ -81,7 +81,7 @@ set( with-version-suffix OFF CACHE STRING "Set a user defined version suffix [de
 # GNUInstallDirs (included after calling nest_process_with_python()), but the
 # CMAKE_INSTALL_DATADIR is usually just CMAKE_INSTALL_DATAROOTDIR
 # and we want it to be CMAKE_INSTALL_DATAROOTDIR/PROJECT_NAME
-set( CMAKE_INSTALL_DATADIR "share/${PROJECT_NAME}" CACHE STRING "Relative directory, where NEST GPU installs its data (share/nest)" )
+#set( CMAKE_INSTALL_DATADIR "share/${PROJECT_NAME}" CACHE STRING "Relative directory, where NEST GPU installs its data (share/nest)" )
 
 ################################################################################
 ##################  Find utility programs (#TODO adapt for later PR)  #########
@@ -112,8 +112,8 @@ include( GetTriple )
 get_host_triple( NEST_HOST_TRIPLE NEST_HOST_ARCH NEST_HOST_VENDOR NEST_HOST_OS )
 get_target_triple( NEST_TARGET_TRIPLE NEST_TARGET_ARCH NEST_TARGET_VENDOR NEST_TARGET_OS )
 
-include( GNUInstallDirs )
-nest_post_process_with_python()
+#include( GNUInstallDirs )
+#nest_post_process_with_python()
 
 nest_process_with_openmp()
 nest_process_with_mpi()
@@ -173,10 +173,10 @@ printInfo("-- NEST GPU version: ${NEST_VERSION_STRING}")
 ################################################################################
 
 #add_subdirectory( doc )
-add_subdirectory( bin )
+#add_subdirectory( bin )
 add_subdirectory( src )
-add_subdirectory( libnestutil )
-add_subdirectory( pythonlib )
+#add_subdirectory( libnestutil )
+#add_subdirectory( pythonlib )
 
 ################################################################################
 ##################           Summary of flags                 ##################
@@ -237,7 +237,6 @@ set( ALL_LIBS
   # "-lnestgpu"  # main function is inside src folder, in the future we will separate files following NEST structure
   ${MODULE_LINK_LIBS} )
 
-
 # all includes
 set( ALL_INCLUDES_tmp
   "${CMAKE_INSTALL_FULL_INCLUDEDIR}/nestgpu"
@@ -259,20 +258,19 @@ set( ALL_INCLUDES "${ALL_INCLUDES}" )
 configure_file(
     "${PROJECT_SOURCE_DIR}/libnestutil/config.h.in"
     "${PROJECT_BINARY_DIR}/libnestutil/config.h" @ONLY
-)
+    )
 
-configure_file(
-    "${PROJECT_SOURCE_DIR}/bin/nestgpu_vars.sh.in"
-    "${PROJECT_BINARY_DIR}/bin/nestgpu_vars.sh" @ONLY
-)
+file( COPY "nestgpu" DESTINATION "." )
+
+file( COPY "setup.py" DESTINATION "." )
 
 ################################################################################
 ##################            Install Extra Files             ##################
 ################################################################################
 
-install( FILES LICENSE README.md
-    DESTINATION ${CMAKE_INSTALL_DOCDIR}
-    )
+#install( FILES LICENSE README.md
+#    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+#    )
 
 #TODO adapt for later PR
 #add_custom_target( install-nodoc

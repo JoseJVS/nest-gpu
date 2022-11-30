@@ -159,12 +159,12 @@ set_target_properties(nestgpukernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(nestgpukernel PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 
-install( TARGETS nestgpukernel
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/nestgpu
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/nestgpu
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+#install( TARGETS nestgpukernel
+#    LIBRARY DESTINATION ${CMAKE_BINARY_DIR}/nestgpu
+#    ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/nestgpu
+#    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#)
 
-FILTER_HEADERS("${nestgpu_sources}" install_headers )
-install( FILES ${install_headers}
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nestgpu )
+#FILTER_HEADERS("${nestgpu_sources}" install_headers )
+#install( FILES ${install_headers}
+#    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nestgpu )

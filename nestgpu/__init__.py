@@ -5,6 +5,8 @@ import os
 import unicodedata
 import gc
 
+from pathlib import Path
+
 
 print('\n              -- NEST GPU --\n')
 print('  Copyright (C) 2004 The NEST Initiative\n')
@@ -14,8 +16,7 @@ print(' Homepage: https://github.com/nest/nest-gpu')
 print()
 
 
-lib_path=os.environ["NESTGPU_LIB"]
-_nestgpu=ctypes.CDLL(lib_path)
+_nestgpu=ctypes.CDLL(Path(__file__).parent / "libnestgpukernel.so")
 
 c_float_p = ctypes.POINTER(ctypes.c_float)
 c_int_p = ctypes.POINTER(ctypes.c_int)
