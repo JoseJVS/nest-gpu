@@ -27,26 +27,27 @@ set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
 
 include( ColorMessages )
 
-# check if the given CMAKE_INSTALL_PREFIX is not empty
-#if("${CMAKE_INSTALL_PREFIX}" STREQUAL "")
-#  printError("CMAKE_INSTALL_PREFIX cannot be an empty string")
-#endif()
+find_library( HAVE_LIBM m )
+if ( HAVE_LIBM )
+    link_libraries( m )
+endif ()
 
-# handle relative installation prefixes
-#if( NOT IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})
-    # convert relative path to absolute path
-#    get_filename_component(absPath ${CMAKE_INSTALL_PREFIX} ABSOLUTE BASE_DIR ${CMAKE_BINARY_DIR})
-#    set(CMAKE_INSTALL_PREFIX ${absPath})
-#    printInfo("Relative CMAKE_INSTALL_PREFIX has been converted to absolute path ${CMAKE_INSTALL_PREFIX}")
-#endif()
+include( CheckLibraryExists )
+check_library_exists( m pow "" HAVE_POW )
+
+find_package( CUDAToolkit REQUIRED )
+link_libraries( cuda )
+link_libraries( CUDA::cudart )
+link_libraries( CUDA::curand )
+
+# Enable dynamic library compiling with run-time search PATH
+set( BUILD_SHARED_LIBS ON )
+# reverse the search order for lib extensions
+set( CMAKE_FIND_LIBRARY_SUFFIXES ".so;.dylib;.a;.lib" )
 
 ################################################################################
 ##################         All User Defined options           ##################
 ################################################################################
-
-# Cython enabled by default to prepare for the upcoming cython interface.
-# Not yet needed, however in the future it will be a requirement.
-option( cythonize-pynest "Use Cython to cythonize pynestkernel.pyx [default=ON]. If OFF, PyNEST has to be build from a pre-cythonized pynestkernel.pyx." ON )
 
 # select parallelization scheme
 set( with-gpu-arch "70" CACHE STRING "Specify the GPU compute architecture [default=70]." )
@@ -72,16 +73,6 @@ set( with-ptxas-options OFF CACHE STRING "Options for ptxas compiling [default=O
 
 # generic build configuration
 set( with-version-suffix OFF CACHE STRING "Set a user defined version suffix [default='']." )
-
-################################################################################
-##################      Project Directory variables           ##################
-################################################################################
-
-# In general use the CMAKE_INSTALL_<dir> and CMAKE_INSTALL_FULL_<dir> vars from
-# GNUInstallDirs (included after calling nest_process_with_python()), but the
-# CMAKE_INSTALL_DATADIR is usually just CMAKE_INSTALL_DATAROOTDIR
-# and we want it to be CMAKE_INSTALL_DATAROOTDIR/PROJECT_NAME
-#set( CMAKE_INSTALL_DATADIR "share/${PROJECT_NAME}" CACHE STRING "Relative directory, where NEST GPU installs its data (share/nest)" )
 
 ################################################################################
 ##################  Find utility programs (#TODO adapt for later PR)  #########
@@ -173,10 +164,7 @@ printInfo("-- NEST GPU version: ${NEST_VERSION_STRING}")
 ################################################################################
 
 #add_subdirectory( doc )
-#add_subdirectory( bin )
 add_subdirectory( src )
-#add_subdirectory( libnestutil )
-#add_subdirectory( pythonlib )
 
 ################################################################################
 ##################           Summary of flags                 ##################
@@ -260,17 +248,13 @@ configure_file(
     "${PROJECT_BINARY_DIR}/libnestutil/config.h" @ONLY
     )
 
-file( COPY "nestgpu" DESTINATION "." )
-
-file( COPY "setup.py" DESTINATION "." )
-
 ################################################################################
 ##################            Install Extra Files             ##################
 ################################################################################
 
-#install( FILES LICENSE README.md
-#    DESTINATION ${CMAKE_INSTALL_DOCDIR}
-#    )
+install( FILES LICENSE README.md
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+    )
 
 #TODO adapt for later PR
 #add_custom_target( install-nodoc

@@ -37,3 +37,8 @@ libtool
 /.settings/
 doxygen
 python/test/log.txt
+
+# Python packaging artifacts
+*.egg-info
+_skbuild/
+MANIFEST.in
