@@ -87,7 +87,8 @@ user_m1_kernel.h \
 user_m1_rk5.h \
 user_m2.h \
 user_m2_kernel.h \
-user_m2_rk5.h
+user_m2_rk5.h \
+nvtx_macros.h
 
 CUSRC=\
 aeif_cond_alpha.cu \
