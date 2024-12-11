@@ -7,16 +7,14 @@ import gc
 
 
 print('\n              -- NEST GPU --\n')
-print('  Copyright (C) 2004 The NEST Initiative\n')
+print('  Copyright (C) 2021 The NEST Initiative\n')
 print(' This program is provided AS IS and comes with')
 print(' NO WARRANTY. See the file LICENSE for details.\n')
 print(' Homepage: https://github.com/nest/nest-gpu')
 print()
 
 
-lib_dir=os.environ["NEST_GPU"]
-lib_path=lib_dir + "/lib/libnestgpu.so"
-#lib_path="/usr/local/lib/libnestgpu.so"
+lib_path=os.environ["NESTGPU_LIB"]
 _nestgpu=ctypes.CDLL(lib_path)
 
 c_float_p = ctypes.POINTER(ctypes.c_float)
@@ -1217,7 +1215,6 @@ NESTGPU_ConnectMpiInit.argtypes = (ctypes.c_int, ctypes.POINTER(c_char_p))
 NESTGPU_ConnectMpiInit.restype = ctypes.c_int
 def ConnectMpiInit():
     "Initialize MPI connections"
-    from mpi4py import MPI
     argc=len(sys.argv)
     array_char_pt_type = c_char_p * argc
     c_var_name_list=[]
@@ -1320,25 +1317,6 @@ def RandomNormalClipped(n, mean, stddev, vmin, vmax, vstep=0):
                                         ctypes.c_float(vmin),
                                         ctypes.c_float(vmax),
                                         ctypes.c_float(vstep))
-    if GetErrorCode() != 0:
-        raise ValueError(GetErrorMessage())
-    return ret
-
-
-NESTGPU_ConnectMpiInit = _nestgpu.NESTGPU_ConnectMpiInit
-NESTGPU_ConnectMpiInit.argtypes = (ctypes.c_int, ctypes.POINTER(c_char_p))
-NESTGPU_ConnectMpiInit.restype = ctypes.c_int
-def ConnectMpiInit():
-    "Initialize MPI connections"
-    from mpi4py import MPI
-    argc=len(sys.argv)
-    array_char_pt_type = c_char_p * argc
-    c_var_name_list=[]
-    for i in range(argc):
-        c_arg = ctypes.create_string_buffer(to_byte_str(sys.argv[i]), 100)
-        c_var_name_list.append(c_arg)        
-    ret = NESTGPU_ConnectMpiInit(ctypes.c_int(argc),
-                                   array_char_pt_type(*c_var_name_list))
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
@@ -2204,6 +2182,80 @@ def SetNeuronGroupParam(nodes, param_name, val):
     return ret
 
 
+NESTGPU_GetNBoolParam = _nestgpu.NESTGPU_GetNBoolParam
+NESTGPU_GetNBoolParam.restype = ctypes.c_int
+def GetNBoolParam():
+    "Get number of kernel boolean parameters"
+    
+    ret = NESTGPU_GetNBoolParam()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ret
+
+
+NESTGPU_GetBoolParamNames = _nestgpu.NESTGPU_GetBoolParamNames
+NESTGPU_GetBoolParamNames.restype = ctypes.POINTER(c_char_p)
+def GetBoolParamNames():
+    "Get list of kernel boolean parameter names"
+
+    n_param = GetNBoolParam()
+    param_name_pp = ctypes.cast(NESTGPU_GetBoolParamNames(),
+                                ctypes.POINTER(c_char_p))
+    param_name_list = []
+    for i in range(n_param):
+        param_name_p = param_name_pp[i]
+        param_name = ctypes.cast(param_name_p, ctypes.c_char_p).value
+        param_name_list.append(to_def_str(param_name))
+    
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return param_name_list
+
+
+NESTGPU_IsBoolParam = _nestgpu.NESTGPU_IsBoolParam
+NESTGPU_IsBoolParam.argtypes = (c_char_p,)
+NESTGPU_IsBoolParam.restype = ctypes.c_int
+def IsBoolParam(param_name):
+    "Check name of kernel boolean parameter"
+
+    c_param_name = ctypes.create_string_buffer(to_byte_str(param_name),
+                                               len(param_name)+1)
+    ret = (NESTGPU_IsBoolParam(c_param_name)!=0) 
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ret
+
+    
+NESTGPU_GetBoolParam = _nestgpu.NESTGPU_GetBoolParam
+NESTGPU_GetBoolParam.argtypes = (c_char_p,)
+NESTGPU_GetBoolParam.restype = ctypes.c_bool
+def GetBoolParam(param_name):
+    "Get kernel boolean parameter value"
+
+    c_param_name = ctypes.create_string_buffer(to_byte_str(param_name),
+                                               len(param_name)+1)
+
+    ret = NESTGPU_GetBoolParam(c_param_name)
+    
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ret
+
+  
+NESTGPU_SetBoolParam = _nestgpu.NESTGPU_SetBoolParam
+NESTGPU_SetBoolParam.argtypes = (c_char_p, ctypes.c_bool)
+NESTGPU_SetBoolParam.restype = ctypes.c_int
+def SetBoolParam(param_name, val):
+    "Set kernel boolean parameter value"
+
+    c_param_name = ctypes.create_string_buffer(to_byte_str(param_name),
+                                               len(param_name)+1)
+    ret = NESTGPU_SetBoolParam(c_param_name, ctypes.c_bool(val))
+    
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ret
+
 NESTGPU_GetNFloatParam = _nestgpu.NESTGPU_GetNFloatParam
 NESTGPU_GetNFloatParam.restype = ctypes.c_int
 def GetNFloatParam():
@@ -2363,7 +2415,7 @@ def GetKernelStatus(var_key=None):
         return status_list
     elif (var_key==None):
         status_dict = {}
-        name_list = GetFloatParamNames() + GetIntParamNames()
+        name_list = GetFloatParamNames() + GetIntParamNames() + GetBoolParamNames()
         for param_name in name_list:
             val = GetKernelStatus(param_name)
             status_dict[param_name] = val
@@ -2373,6 +2425,8 @@ def GetKernelStatus(var_key=None):
             return GetFloatParam(var_key)        
         elif IsIntParam(var_key):
             return GetIntParam(var_key)
+        elif IsBoolParam(var_key):
+            return GetBoolParam(var_key)
         else:
             raise ValueError("Unknown parameter in GetKernelStatus", var_key)
     else:
@@ -2388,6 +2442,8 @@ def SetKernelStatus(params, val=None):
             return SetFloatParam(params, val)        
         elif IsIntParam(params):
             return SetIntParam(params, val)
+        elif IsBoolParam(params):
+            return SetBoolParam(params, val)
         else:
             raise ValueError("Unknown parameter in SetKernelStatus", params)
     else:

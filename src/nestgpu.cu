@@ -1,20 +1,22 @@
 /*
- *  This file is part of NESTGPU.
+ *  nestgpu.cu
+ *
+ *  This file is part of NEST GPU.
  *
  *  Copyright (C) 2021 The NEST Initiative
  *
- *  NESTGPU is free software: you can redistribute it and/or modify
+ *  NEST GPU is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  NESTGPU is distributed in the hope that it will be useful,
+ *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NESTGPU.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -51,14 +53,8 @@
 #include <mpi.h>
 #endif
 
-#ifdef _OPENMP
-#include <omp.h>
-#define THREAD_MAXNUM omp_get_max_threads()
-#define THREAD_IDX omp_get_thread_num()
-#else
 #define THREAD_MAXNUM 1
 #define THREAD_IDX 0
-#endif
 
 				    //#define VERBOSE_TIME
 
@@ -81,6 +77,11 @@ enum KernelIntParamIndexes {
   N_KERNEL_INT_PARAM
 };
 
+enum KernelBoolParamIndexes {
+  i_print_time,
+  N_KERNEL_BOOL_PARAM
+};
+
 const std::string kernel_float_param_name[N_KERNEL_FLOAT_PARAM] = {
   "time_resolution",
   "max_spike_num_fact",
@@ -94,6 +95,10 @@ const std::string kernel_int_param_name[N_KERNEL_INT_PARAM] = {
   "remote_spike_height_flag"
 };
 
+const std::string kernel_bool_param_name[N_KERNEL_BOOL_PARAM] = {
+  "print_time"
+};
+
 NESTGPU::NESTGPU()
 {
   random_generator_ = new curandGenerator_t;
@@ -103,7 +108,6 @@ NESTGPU::NESTGPU()
   multimeter_ = new Multimeter;
   net_connection_ = new NetConnection;
   
-  SetRandomSeed(54321ULL);
   
   calibrate_flag_ = false;
 
@@ -124,6 +128,7 @@ NESTGPU::NESTGPU()
   on_exception_ = ON_EXCEPTION_EXIT;
 
   verbosity_level_ = 4;
+  print_time_ = false;
   
   mpi_flag_ = false;
 #ifdef HAVE_MPI
@@ -131,8 +136,9 @@ NESTGPU::NESTGPU()
   connect_mpi_->net_connection_ = net_connection_;
   connect_mpi_->remote_spike_height_ = false;
 #endif
-  
+
   NestedLoop::Init();
+  SetRandomSeed(54321ULL);
 
   SpikeBufferUpdate_time_ = 0;
   poisson_generator_time_ = 0;
@@ -178,6 +184,9 @@ NESTGPU::~NESTGPU()
 int NESTGPU::SetRandomSeed(unsigned long long seed)
 {
   kernel_seed_ = seed + 12345;
+  #ifdef HAVE_MPI
+  kernel_seed_ += connect_mpi_->mpi_id_;
+  #endif
   CURAND_CALL(curandDestroyGenerator(*random_generator_));
   random_generator_ = new curandGenerator_t;
   CURAND_CALL(curandCreateGenerator(random_generator_,
@@ -291,7 +300,9 @@ int NESTGPU::Calibrate()
   calibrate_flag_ = true;
   BuildDirectConnections();
 
-  gpuErrchk(cudaMemcpyToSymbol(NESTGPUMpiFlag, &mpi_flag_, sizeof(bool)));
+#ifdef HAVE_MPI
+  gpuErrchk(cudaMemcpyToSymbolAsync(NESTGPUMpiFlag, &mpi_flag_, sizeof(bool)));
+#endif
 
   if (verbosity_level_>=1) {
     std::cout << MpiRankStr() << "Calibrating ...\n";
@@ -335,7 +346,7 @@ int NESTGPU::Calibrate()
   
   SynGroupCalibrate();
   
-  gpuErrchk(cudaMemcpyToSymbol(NESTGPUTimeResolution, &time_resolution_,
+  gpuErrchk(cudaMemcpyToSymbolAsync(NESTGPUTimeResolution, &time_resolution_,
 			       sizeof(float)));
 ///////////////////////////////////
 
@@ -352,8 +363,8 @@ int NESTGPU::Simulate()
   StartSimulation();
   
   for (long long it=0; it<Nt_; it++) {
-    if (it%100==0 && verbosity_level_>=2) {
-      printf("%.3lf\n", neural_time_);
+    if (it%100==0 && verbosity_level_>=2 && print_time_==true) {
+      printf("\r[%.2lf %%] Model time: %.3lf ms", 100.0*(neural_time_-neur_t0_)/sim_time_, neural_time_);
     }
     SimulationStep();
   }
@@ -373,14 +384,14 @@ int NESTGPU::StartSimulation()
   }
 #endif
   if (first_simulation_flag_) {
-    gpuErrchk(cudaMemcpyToSymbol(NESTGPUTime, &neural_time_, sizeof(double)));
+    gpuErrchk(cudaMemcpyToSymbolAsync(NESTGPUTime, &neural_time_, sizeof(double)));
     multimeter_->WriteRecords(neural_time_);
     build_real_time_ = getRealTime();
     first_simulation_flag_ = false;
   }
   if (verbosity_level_>=1) {
     std::cout << MpiRankStr() << "Simulating ...\n";
-    printf("Neural activity simulation time: %.3lf\n", sim_time_);
+    printf("Neural activity simulation time: %.3lf ms\n", sim_time_);
   }
   
   neur_t0_ = neural_time_;
@@ -392,8 +403,8 @@ int NESTGPU::StartSimulation()
 
 int NESTGPU::EndSimulation()
 {
-  if (verbosity_level_>=2) {
-    printf("%.3lf\n", neural_time_);
+  if (verbosity_level_>=2  && print_time_==true) {
+    printf("\r[%.2lf %%] Model time: %.3lf ms", 100.0*(neural_time_-neur_t0_)/sim_time_, neural_time_);
   }
 #ifdef HAVE_MPI                                        
   if (mpi_flag_) {
@@ -431,6 +442,7 @@ int NESTGPU::EndSimulation()
     std::cout << MpiRankStr() << "  ExternalSpikeReset_time: " <<
       ExternalSpikeReset_time_ << "\n";
   }
+#ifdef HAVE_MPI
   if (mpi_flag_ && verbosity_level_>=4) {
     std::cout << MpiRankStr() << "  SendSpikeToRemote_MPI_time: " <<
       connect_mpi_->SendSpikeToRemote_MPI_time_ << "\n";
@@ -443,6 +455,7 @@ int NESTGPU::EndSimulation()
     std::cout << MpiRankStr() << "  JoinSpike_time: " <<
       connect_mpi_->JoinSpike_time_  << "\n";
   }
+#endif
   
   if (verbosity_level_>=1) {
     std::cout << MpiRankStr() << "Building time: " <<
@@ -466,7 +479,6 @@ int NESTGPU::SimulationStep()
   SpikeBufferUpdate<<<(net_connection_->connection_.size()+1023)/1024,
     1024>>>();
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
   SpikeBufferUpdate_time_ += (getRealTime() - time_mark);
   time_mark = getRealTime();
   if (n_poiss_node_>0) {
@@ -475,9 +487,9 @@ int NESTGPU::SimulationStep()
   }
   time_mark = getRealTime();
   neural_time_ = neur_t0_ + (double)time_resolution_*(it_+1);
-  gpuErrchk(cudaMemcpyToSymbol(NESTGPUTime, &neural_time_, sizeof(double)));
+  gpuErrchk(cudaMemcpyToSymbolAsync(NESTGPUTime, &neural_time_, sizeof(double)));
   long long time_idx = (int)round(neur_t0_/time_resolution_) + it_ + 1;
-  gpuErrchk(cudaMemcpyToSymbol(NESTGPUTimeIdx, &time_idx, sizeof(long long)));
+  gpuErrchk(cudaMemcpyToSymbolAsync(NESTGPUTimeIdx, &time_idx, sizeof(long long)));
 
   if (ConnectionSpikeTimeFlag) {
     if ( (time_idx & 0xffff) == 0x8000) {
@@ -492,7 +504,6 @@ int NESTGPU::SimulationStep()
     node_vect_[i]->Update(it_, neural_time_);
   }
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
   
   neuron_Update_time_ += (getRealTime() - time_mark);
   multimeter_->WriteRecords(neural_time_);
@@ -509,7 +520,6 @@ int NESTGPU::SimulationStep()
       time_mark = getRealTime();
       SendExternalSpike<<<(n_ext_spike+1023)/1024, 1024>>>();
       gpuErrchk( cudaPeekAtLastError() );
-      gpuErrchk( cudaDeviceSynchronize() );
       SendExternalSpike_time_ += (getRealTime() - time_mark);
     }
     //for (int ih=0; ih<connect_mpi_->mpi_np_; ih++) {
@@ -532,10 +542,13 @@ int NESTGPU::SimulationStep()
     
   int n_spikes;
   time_mark = getRealTime();
-  gpuErrchk(cudaMemcpy(&n_spikes, d_SpikeNum, sizeof(int),
+  // Call will get delayed until ClearGetSpikesArrays()
+  // afterwards the value of n_spikes will be available
+  gpuErrchk(cudaMemcpyAsync(&n_spikes, d_SpikeNum, sizeof(int),
 		       cudaMemcpyDeviceToHost));
 
-  ClearGetSpikeArrays();    
+  ClearGetSpikeArrays(); 
+  gpuErrchk( cudaDeviceSynchronize() );   
   if (n_spikes > 0) {
     time_mark = getRealTime();
     NestedLoop::Run(n_spikes, d_SpikeTargetNum, 0);
@@ -567,19 +580,15 @@ int NESTGPU::SimulationStep()
 	 node_vect_[i]->port_input_arr_,
 	 node_vect_[i]->port_input_arr_step_,
 	 node_vect_[i]->port_input_port_step_);
-      // gpuErrchk( cudaPeekAtLastError() );
-      // gpuErrchk( cudaDeviceSynchronize() );
     }
   }
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
 
   GetSpike_time_ += (getRealTime() - time_mark);
 
   time_mark = getRealTime();
   SpikeReset<<<1, 1>>>();
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
   SpikeReset_time_ += (getRealTime() - time_mark);
 
 #ifdef HAVE_MPI
@@ -587,7 +596,6 @@ int NESTGPU::SimulationStep()
     time_mark = getRealTime();
     ExternalSpikeReset<<<1, 1>>>();
     gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
     ExternalSpikeReset_time_ += (getRealTime() - time_mark);
   }
 #endif
@@ -596,11 +604,9 @@ int NESTGPU::SimulationStep()
     //time_mark = getRealTime();
     RevSpikeReset<<<1, 1>>>();
     gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
     RevSpikeBufferUpdate<<<(net_connection_->connection_.size()+1023)/1024,
       1024>>>(net_connection_->connection_.size());
     gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
     unsigned int n_rev_spikes;
     gpuErrchk(cudaMemcpy(&n_rev_spikes, d_RevSpikeNum, sizeof(unsigned int),
 			 cudaMemcpyDeviceToHost));
@@ -616,8 +622,8 @@ int NESTGPU::SimulationStep()
       // and if buffering is activated every n_step time steps...
       int n_step = node_vect_[i]->rec_spike_times_step_;
       if (n_step>0 && (time_idx%n_step == n_step-1)) {
-	// extract recorded spike times and put them in buffers
-	node_vect_[i]->BufferRecSpikeTimes();
+        // extract recorded spike times and put them in buffers
+        node_vect_[i]->BufferRecSpikeTimes();
       }
     }
   }
@@ -1112,6 +1118,7 @@ int NESTGPU::MpiFinalize()
 
 std::string NESTGPU::MpiRankStr()
 {
+#ifdef HAVE_MPI
   if (mpi_flag_) {
     return std::string("MPI rank ") + std::to_string(connect_mpi_->mpi_id_)
       + " : ";
@@ -1119,6 +1126,9 @@ std::string NESTGPU::MpiRankStr()
   else {
     return "";
   }
+#else
+  return "";
+#endif
 }
 
 unsigned int *NESTGPU::RandomInt(size_t n)
@@ -1551,9 +1561,10 @@ int NESTGPU::PushSpikesToNodes(int n_spikes, int *node_id,
   float *d_spike_height;
   gpuErrchk(cudaMalloc(&d_node_id, n_spikes*sizeof(int)));
   gpuErrchk(cudaMalloc(&d_spike_height, n_spikes*sizeof(float)));
-  gpuErrchk(cudaMemcpy(d_node_id, node_id, n_spikes*sizeof(int),
+  // Memcpy are synchronized by PushSpikeFromRemote kernel
+  gpuErrchk(cudaMemcpyAsync(d_node_id, node_id, n_spikes*sizeof(int),
 		       cudaMemcpyHostToDevice));
-  gpuErrchk(cudaMemcpy(d_spike_height, spike_height, n_spikes*sizeof(float),
+  gpuErrchk(cudaMemcpyAsync(d_spike_height, spike_height, n_spikes*sizeof(float),
 		       cudaMemcpyHostToDevice));
   PushSpikeFromRemote<<<(n_spikes+1023)/1024, 1024>>>(n_spikes, d_node_id,
 						     d_spike_height);
@@ -1575,7 +1586,8 @@ int NESTGPU::PushSpikesToNodes(int n_spikes, int *node_id)
 
   int *d_node_id;
   gpuErrchk(cudaMalloc(&d_node_id, n_spikes*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_node_id, node_id, n_spikes*sizeof(int),
+  // memcopy data transfer is overlapped with PushSpikeFromRemote kernel
+  gpuErrchk(cudaMemcpyAsync(d_node_id, node_id, n_spikes*sizeof(int),
 		       cudaMemcpyHostToDevice));  
   PushSpikeFromRemote<<<(n_spikes+1023)/1024, 1024>>>(n_spikes, d_node_id);
   gpuErrchk( cudaPeekAtLastError() );
@@ -1687,6 +1699,74 @@ int NESTGPU::ConnectRemoteNodes()
   
   return 0;
 }
+
+
+int NESTGPU::GetNBoolParam()
+{
+  return N_KERNEL_BOOL_PARAM;
+}
+
+std::vector<std::string> NESTGPU::GetBoolParamNames()
+{
+  std::vector<std::string> param_name_vect;
+  for (int i=0; i<N_KERNEL_BOOL_PARAM; i++) {
+    param_name_vect.push_back(kernel_bool_param_name[i]);
+  }
+  
+  return param_name_vect;
+}
+
+bool NESTGPU::IsBoolParam(std::string param_name)
+{
+  int i_param;
+  for (i_param=0; i_param<N_KERNEL_BOOL_PARAM; i_param++) {
+    if (param_name == kernel_bool_param_name[i_param]) return true;
+  }
+  return false;
+}
+
+int NESTGPU::GetBoolParamIdx(std::string param_name)
+{
+  int i_param;
+  for (i_param=0; i_param<N_KERNEL_BOOL_PARAM; i_param++) {
+    if (param_name == kernel_bool_param_name[i_param]) break;
+  }
+  if (i_param == N_KERNEL_BOOL_PARAM) {
+    throw ngpu_exception(std::string("Unrecognized kernel boolean parameter ")
+			 + param_name);
+  }
+  
+  return i_param;
+}
+
+bool NESTGPU::GetBoolParam(std::string param_name)
+{
+  int i_param =  GetBoolParamIdx(param_name);
+  switch (i_param) {
+  case i_print_time:
+    return print_time_;
+  default:
+    throw ngpu_exception(std::string("Unrecognized kernel boolean parameter ")
+			 + param_name);
+  }
+}
+
+int NESTGPU::SetBoolParam(std::string param_name, bool val)
+{
+  int i_param =  GetBoolParamIdx(param_name);
+
+  switch (i_param) {
+  case i_time_resolution:
+    print_time_ = val;
+    break;
+  default:
+    throw ngpu_exception(std::string("Unrecognized kernel boolean parameter ")
+			 + param_name);
+  }
+  
+  return 0;
+}
+
 
 int NESTGPU::GetNFloatParam()
 {

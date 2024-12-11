@@ -1,20 +1,22 @@
 /*
- *  This file is part of NESTGPU.
+ *  node_group.cu
+ *
+ *  This file is part of NEST GPU.
  *
  *  Copyright (C) 2021 The NEST Initiative
  *
- *  NESTGPU is free software: you can redistribute it and/or modify
+ *  NEST GPU is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  NESTGPU is distributed in the hope that it will be useful,
+ *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NESTGPU.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -61,13 +63,15 @@ int NESTGPU::NodeGroupArrayInit()
     
     ngs_vect.push_back(ngs);
   }
-  gpuErrchk(cudaMemcpyToSymbol(NodeGroupArray, ngs_vect.data(),
+  gpuErrchk(cudaMemcpyToSymbolAsync(NodeGroupArray, ngs_vect.data(),
 			       ngs_vect.size()*sizeof(NodeGroupStruct)));
 
-  gpuErrchk(cudaMemcpy(d_node_group_map_, node_group_map_.data(),
+  // Memcopy will be synchronized with NodeGroupMapInit kernel
+  gpuErrchk(cudaMemcpyAsync(d_node_group_map_, node_group_map_.data(),
 		       node_group_map_.size()*sizeof(signed char),
 		       cudaMemcpyHostToDevice));
   NodeGroupMapInit<<<1, 1>>>(d_node_group_map_);
+  gpuErrchk( cudaPeekAtLastError() );
 
   return 0;
 }

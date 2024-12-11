@@ -1,20 +1,22 @@
 /*
- *  This file is part of NESTGPU.
+ *  poisson.cu
+ *
+ *  This file is part of NEST GPU.
  *
  *  Copyright (C) 2021 The NEST Initiative
  *
- *  NESTGPU is free software: you can redistribute it and/or modify
+ *  NEST GPU is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  NESTGPU is distributed in the hope that it will be useful,
+ *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NESTGPU.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -89,10 +91,8 @@ int PoissonGenerator::Generate(int max_n_steps)
   // Generate N floats on device
   CURAND_CALL(curandGeneratePoisson(*random_generator_, dev_poisson_data_,
 				    n_node_*more_steps_, lambda_));
-  cudaDeviceSynchronize();
   FixPoissonGenerator<<<(n_node_+1023)/1024, 1024>>>
     (dev_poisson_data_,n_node_*more_steps_, lambda_);
-  cudaDeviceSynchronize();
 
   return 0;
 }
@@ -144,15 +144,12 @@ int PoissonGenerator::Update(int max_n_steps)
   
   PoissonUpdate<<<1, 1>>>(&dev_poisson_data_[i_step_*n_node_]);
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
 
   PoissonSendSpikes<<<(n_node_+1023)/1024, 1024>>>(i_node_0_, n_node_);
   gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
 
   i_step_++;
   if (i_step_ == n_steps_) i_step_ = 0;
 
   return 0;
 }
-

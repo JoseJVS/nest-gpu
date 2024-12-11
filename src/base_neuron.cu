@@ -1,20 +1,22 @@
 /*
- *  This file is part of NESTGPU.
+ *  base_neuron.cu
+ *
+ *  This file is part of NEST GPU.
  *
  *  Copyright (C) 2021 The NEST Initiative
  *
- *  NESTGPU is free software: you can redistribute it and/or modify
+ *  NEST GPU is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  NESTGPU is distributed in the hope that it will be useful,
+ *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NESTGPU.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -28,9 +30,9 @@
 #include "cuda_error.h"
 #include "base_neuron.h"
 #include "spike_buffer.h"
-#include "scan.cuh"
+#include "scan.h"
+#include "locate.h"
 
-__device__ int locate(int val, int *data, int n);
 
 // set equally spaced (index i*step) elements of array arr to value val
 __global__ void BaseNeuronSetIntArray(int *arr, int n_elem, int step,
@@ -244,7 +246,8 @@ int BaseNeuron::SetScalParam(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronSetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   float *param_pt = GetParamPt(0, param_name);
   BaseNeuronSetFloatPtArray<<<(n_neuron+1023)/1024, 1024>>>
@@ -302,7 +305,8 @@ int BaseNeuron::SetPortParam(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronSetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   for (int i_vect=0; i_vect<vect_size; i_vect++) {
     float *param_pt = GetParamPt(0, param_name, i_vect);
@@ -387,7 +391,8 @@ int BaseNeuron::SetIntVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronSetIntPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   int *var_pt = GetIntVarPt(0, var_name);
   BaseNeuronSetIntPtArray<<<(n_neuron+1023)/1024, 1024>>>
@@ -432,7 +437,8 @@ int BaseNeuron::SetScalVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronSetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   float *var_pt = GetVarPt(0, var_name);
   BaseNeuronSetFloatPtArray<<<(n_neuron+1023)/1024, 1024>>>
@@ -490,7 +496,8 @@ int BaseNeuron::SetPortVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronSetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   for (int i_vect=0; i_vect<vect_size; i_vect++) {
     float *var_pt = GetVarPt(0, var_name, i_vect);
@@ -568,7 +575,8 @@ float *BaseNeuron::GetScalParam(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronGetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   float *param_pt = GetParamPt(0, param_name);
 
@@ -632,7 +640,8 @@ float *BaseNeuron::GetPortParam(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronGetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
 
   float *d_param_arr;
@@ -719,7 +728,8 @@ int *BaseNeuron::GetIntVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronGetIntPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   int *var_pt = GetIntVarPt(0, var_name);
 
@@ -780,7 +790,8 @@ float *BaseNeuron::GetScalVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronGetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
   float *var_pt = GetVarPt(0, var_name);
 
@@ -844,7 +855,8 @@ float *BaseNeuron::GetPortVar(int *i_neuron, int n_neuron,
   }
   int *d_i_neuron;
   gpuErrchk(cudaMalloc(&d_i_neuron, n_neuron*sizeof(int)));
-  gpuErrchk(cudaMemcpy(d_i_neuron, i_neuron, n_neuron*sizeof(int),
+  // Memcopy will be synchronized with BaseNeuronGetFloatPtArray kernel
+  gpuErrchk(cudaMemcpyAsync(d_i_neuron, i_neuron, n_neuron*sizeof(int),
 		       cudaMemcpyHostToDevice));
 
   float *d_var_arr;
@@ -1482,7 +1494,7 @@ int BaseNeuron::BufferRecSpikeTimes()
   prefix_scan(n_rec_spike_times_cumul_, n_rec_spike_times_,
 	      n_node_+1, true);
   int *h_n_rec_spike_times_cumul = new int[n_node_+1];
-  gpuErrchk(cudaMemcpyAsync(h_n_rec_spike_times_cumul,
+  gpuErrchk(cudaMemcpy(h_n_rec_spike_times_cumul,
 			    n_rec_spike_times_cumul_,
 			    (n_node_+1)*sizeof(int), cudaMemcpyDeviceToHost));
   // the last element of the cumulative sum is the total number of spikes

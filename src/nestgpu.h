@@ -1,20 +1,22 @@
 /*
- *  This file is part of NESTGPU.
+ *  nestgpu.h
+ *
+ *  This file is part of NEST GPU.
  *
  *  Copyright (C) 2021 The NEST Initiative
  *
- *  NESTGPU is free software: you can redistribute it and/or modify
+ *  NEST GPU is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  NESTGPU is distributed in the hope that it will be useful,
+ *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NESTGPU.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -151,6 +153,7 @@ class NESTGPU
   int on_exception_;
 
   int verbosity_level_;
+  bool print_time_;
 
   std::vector<RemoteConnection> remote_connection_vect_;
   std::vector<int> ext_neuron_input_spike_node_;
@@ -286,8 +289,21 @@ class NESTGPU
     return 0;
   }
 
+  inline int SetPrintTime(bool print_time) {
+    print_time_ = print_time;
+    return 0;
+  }
+
+
   int SetMaxSpikeBufferSize(int max_size);
   int GetMaxSpikeBufferSize();
+
+  int GetNBoolParam();
+  std::vector<std::string> GetBoolParamNames();
+  bool IsBoolParam(std::string param_name);
+  int GetBoolParamIdx(std::string param_name);
+  bool GetBoolParam(std::string param_name);
+  int SetBoolParam(std::string param_name, bool val);
 
   int GetNFloatParam();
   std::vector<std::string> GetFloatParamNames();
