@@ -702,7 +702,7 @@ int
 ConnectionTemplate< ConnKeyT, ConnStructT >::_setSpikeBufferAlgo( int spike_buffer_algo )
 {
   spike_buffer_algo_ = spike_buffer_algo;
-  gpuErrchk( cudaMemcpyToSymbol( algo_, &spike_buffer_algo_, sizeof( int ) ) );
+  //gpuErrchk( cudaMemcpyToSymbol( algo_, &spike_buffer_algo_, sizeof( int ) ) );
 
   return 0;
 }

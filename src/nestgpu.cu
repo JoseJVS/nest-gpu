@@ -157,10 +157,10 @@ NESTGPU::NESTGPU()
 
   time_resolution_ = 0.1; // time resolution in ms
 
-  random_generator_ = new curandGenerator_t;
-  CURAND_CALL( curandCreateGenerator( random_generator_, CURAND_RNG_PSEUDO_DEFAULT ) );
-  kernel_seed_ = 123456789ULL;
-  CURAND_CALL( curandSetPseudoRandomGeneratorSeed( *random_generator_, kernel_seed_ + this_host_ ) );
+  //random_generator_ = new curandGenerator_t;
+  //CURAND_CALL( curandCreateGenerator( random_generator_, CURAND_RNG_PSEUDO_DEFAULT ) );
+  //kernel_seed_ = 123456789ULL;
+  //CURAND_CALL( curandSetPseudoRandomGeneratorSeed( *random_generator_, kernel_seed_ + this_host_ ) );
 
   conn_ = nullptr;
   // by default, connection structure type used is the 12-byte type

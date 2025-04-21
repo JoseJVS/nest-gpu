@@ -71,10 +71,12 @@ ConnectionTemplate< conn16b_key, conn16b_struct >::_setMaxDelayNBits( int max_de
   port_mask_ = ( ( 1 << max_port_nbits_ ) - 1 ) << ( max_syn_nbits_ + 1 );
 
   // call CUDA kernel to initialize variables in device memory
+  /*
   setMaxDelayNBits16bKernel<<< 1, 1 >>>(
     max_delay_nbits_, max_port_syn_nbits_, max_port_nbits_, port_syn_mask_, delay_mask_, source_mask_, port_mask_ );
 
   DBGCUDASYNC;
+  */
 
   return 0;
 }
@@ -98,8 +100,10 @@ ConnectionTemplate< conn16b_key, conn16b_struct >::_setMaxSynNBits( int max_syn_
   port_mask_ = ( ( 1 << max_port_nbits_ ) - 1 ) << ( max_syn_nbits_ + 1 );
 
   // call CUDA kernel to initialize variables in device memory
+  /*
   setMaxSynNBits16bKernel<<< 1, 1 >>>( max_syn_nbits_, max_port_nbits_, syn_mask_, port_mask_ );
   DBGCUDASYNC;
+  */
 
   return 0;
 }

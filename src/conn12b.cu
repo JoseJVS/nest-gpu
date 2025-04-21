@@ -69,6 +69,7 @@ ConnectionTemplate< conn12b_key, conn12b_struct >::_setMaxNodeNBits( int max_nod
   port_mask_ = ( ( 1 << max_port_nbits_ ) - 1 ) << ( max_syn_nbits_ + 1 );
 
   // call CUDA kernel to initialize variables in device memory
+  /*
   setMaxNodeNBitsKernel<<< 1, 1 >>>( max_node_nbits_,
     max_port_syn_nbits_,
     max_delay_nbits_,
@@ -80,6 +81,7 @@ ConnectionTemplate< conn12b_key, conn12b_struct >::_setMaxNodeNBits( int max_nod
     port_mask_ );
 
   DBGCUDASYNC;
+  */
 
   return 0;
 }
@@ -112,8 +114,8 @@ ConnectionTemplate< conn12b_key, conn12b_struct >::_setMaxSynNBits( int max_syn_
   port_mask_ = ( ( 1 << max_port_nbits_ ) - 1 ) << ( max_syn_nbits_ + 1 );
 
   // call CUDA kernel to initialize variables in device memory
-  setMaxSynNBitsKernel<<< 1, 1 >>>( max_syn_nbits_, max_port_nbits_, syn_mask_, port_mask_ );
-  DBGCUDASYNC;
+  //setMaxSynNBitsKernel<<< 1, 1 >>>( max_syn_nbits_, max_port_nbits_, syn_mask_, port_mask_ );
+  //DBGCUDASYNC;
 
   return 0;
 }
