@@ -157,8 +157,8 @@ iaf_psc_exp::Init( int i_node_0, int n_node, int /*n_port*/, int i_group )
 
   // multiplication factor of input signal is always 1 for all nodes
   float input_weight = 1.0;
-  CUDAMALLOCCTRL( "&port_weight_arr_", &port_weight_arr_, sizeof( float ) );
-  gpuErrchk( cudaMemcpy( port_weight_arr_, &input_weight, sizeof( float ), cudaMemcpyHostToDevice ) );
+  //CUDAMALLOCCTRL( "&port_weight_arr_", &port_weight_arr_, sizeof( float ) );
+  //gpuErrchk( cudaMemcpy( port_weight_arr_, &input_weight, sizeof( float ), cudaMemcpyHostToDevice ) );
   port_weight_arr_step_ = 0;
   port_weight_port_step_ = 0;
 

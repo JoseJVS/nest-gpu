@@ -93,7 +93,7 @@ NESTGPU::InitGetSpikeArray( int n_node, int n_port )
   double* d_get_spike_array = nullptr;
   if ( n_node * n_port > 0 )
   {
-    CUDAMALLOCCTRL( "&d_get_spike_array", &d_get_spike_array, n_node * n_port * sizeof( double ) );
+    //CUDAMALLOCCTRL( "&d_get_spike_array", &d_get_spike_array, n_node * n_port * sizeof( double ) );
   }
 
   return d_get_spike_array;

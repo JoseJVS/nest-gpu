@@ -208,7 +208,7 @@ BaseNeuron::Init( int i_node_0, int n_node, int n_port, int i_group )
 int
 BaseNeuron::AllocVarArr()
 {
-  CUDAMALLOCCTRL( "&var_arr_", &var_arr_, n_node_ * n_var_ * sizeof( float ) );
+  //CUDAMALLOCCTRL( "&var_arr_", &var_arr_, n_node_ * n_var_ * sizeof( float ) );
   return 0;
 }
 
@@ -216,7 +216,7 @@ BaseNeuron::AllocVarArr()
 int
 BaseNeuron::AllocParamArr()
 {
-  CUDAMALLOCCTRL( "&param_arr_", &param_arr_, n_node_ * n_param_ * sizeof( float ) );
+  //CUDAMALLOCCTRL( "&param_arr_", &param_arr_, n_node_ * n_param_ * sizeof( float ) );
   return 0;
 }
 
@@ -257,9 +257,9 @@ BaseNeuron::SetScalParam( int i_neuron, int n_neuron, std::string param_name, fl
   CheckNeuronIdx( i_neuron );
   CheckNeuronIdx( i_neuron + n_neuron - 1 );
   float* param_pt = GetParamPt( i_neuron, param_name );
-  BaseNeuronSetFloatArray<<< ( n_neuron + 1023 ) / 1024, 1024 >>>( param_pt, n_neuron, n_param_, val );
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
+  //BaseNeuronSetFloatArray<<< ( n_neuron + 1023 ) / 1024, 1024 >>>( param_pt, n_neuron, n_param_, val );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
 
   return 0;
 }
@@ -442,9 +442,9 @@ BaseNeuron::SetScalVar( int i_neuron, int n_neuron, std::string var_name, float 
   CheckNeuronIdx( i_neuron );
   CheckNeuronIdx( i_neuron + n_neuron - 1 );
   float* var_pt = GetVarPt( i_neuron, var_name );
-  BaseNeuronSetFloatArray<<< ( n_neuron + 1023 ) / 1024, 1024 >>>( var_pt, n_neuron, n_var_, val );
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
+  //BaseNeuronSetFloatArray<<< ( n_neuron + 1023 ) / 1024, 1024 >>>( var_pt, n_neuron, n_var_, val );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
 
   return 0;
 }
