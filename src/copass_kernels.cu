@@ -127,7 +127,7 @@ GPUMemCpyOverlap( char* t_addr, char* s_addr, position_t size )
   }
   if ( diff >= size )
   {
-    gpuErrchk( cudaMemcpyAsync( t_addr, s_addr, size, cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( t_addr, s_addr, size, cudaMemcpyDeviceToDevice ) );
   }
   int nb = ( int ) ( ( size + diff - 1 ) / diff );
   for ( int ib = nb - 1; ib >= 0; ib-- )
@@ -135,7 +135,7 @@ GPUMemCpyOverlap( char* t_addr, char* s_addr, position_t size )
     position_t b_size = ib < nb - 1 ? diff : size - diff * ( nb - 1 );
     char* s_b_addr = s_addr + diff * ib;
     char* t_b_addr = s_b_addr + diff;
-    gpuErrchk( cudaMemcpyAsync( t_b_addr, s_b_addr, b_size, cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( t_b_addr, s_b_addr, b_size, cudaMemcpyDeviceToDevice ) );
   }
 }
 
@@ -154,7 +154,7 @@ GPUMemCpyBuffered( char* t_addr, char* s_addr, position_t size, char* d_buffer, 
   }
   if ( diff >= size )
   {
-    gpuErrchk( cudaMemcpyAsync( t_addr, s_addr, size, cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( t_addr, s_addr, size, cudaMemcpyDeviceToDevice ) );
     return;
   }
   if ( diff > buffer_size / 2 )
@@ -168,7 +168,7 @@ GPUMemCpyBuffered( char* t_addr, char* s_addr, position_t size, char* d_buffer, 
     position_t b_size = ib < nb - 1 ? buffer_size : size - buffer_size * ( nb - 1 );
     char* s_b_addr = s_addr + buffer_size * ib;
     char* t_b_addr = s_b_addr + diff;
-    gpuErrchk( cudaMemcpyAsync( d_buffer, s_b_addr, b_size, cudaMemcpyDeviceToDevice ) );
-    gpuErrchk( cudaMemcpyAsync( t_b_addr, d_buffer, b_size, cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( d_buffer, s_b_addr, b_size, cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( t_b_addr, d_buffer, b_size, cudaMemcpyDeviceToDevice ) );
   }
 }

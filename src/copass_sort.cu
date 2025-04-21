@@ -49,13 +49,13 @@ copass_sort::last_step( position_t* local_d_m_d,
   position_t* h_diff_cumul,
   position_t* d_num_down )
 {
-  diffKernel<<< 1, k>>>( d_diff, local_d_m_u, local_d_m_d, k );
-  DBGCUDASYNC
-  prefix_scan< position_t, 1024 > <<< 1, 512 >>>( d_diff, d_diff_cumul, k + 1, kp_next_pow_2 );
-  DBGCUDASYNC
+  //diffKernel<<< 1, k>>>( d_diff, local_d_m_u, local_d_m_d, k );
+  //DBGCUDASYNC
+  //prefix_scan< position_t, 1024 > <<< 1, 512 >>>( d_diff, d_diff_cumul, k + 1, kp_next_pow_2 );
+  //DBGCUDASYNC
 
-  gpuErrchk( cudaMemcpyAsync( h_diff, d_diff, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-  gpuErrchk( cudaMemcpy( h_diff_cumul, d_diff_cumul, ( k + 1 ) * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpyAsync( h_diff, d_diff, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpy( h_diff_cumul, d_diff_cumul, ( k + 1 ) * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
   if ( print_gpu_cpu_vrb )
   {
     printf( "h_diff: " );
@@ -72,10 +72,10 @@ copass_sort::last_step( position_t* local_d_m_d,
     printf( "\n" );
   }
   position_t tot_diff = tot_part_size - local_h_sum_m_d;
-  search_down< position_t, 1024 > <<< 1, 1024 >>>( d_diff_cumul + 1, k, tot_diff, d_num_down );
+  //search_down< position_t, 1024 > <<< 1, 1024 >>>( d_diff_cumul + 1, k, tot_diff, d_num_down );
 
-  copass_last_step_kernel<<< 1, 1024 >>>( d_part_size, local_d_m_d, k, tot_diff, d_diff, d_diff_cumul, d_num_down );
-  DBGCUDASYNC
+  //copass_last_step_kernel<<< 1, 1024 >>>( d_part_size, local_d_m_d, k, tot_diff, d_diff, d_diff_cumul, d_num_down );
+  //DBGCUDASYNC
 
   return 0;
 }

@@ -349,9 +349,9 @@ spikeBufferInit( uint n_spike_buffers, int max_spike_buffer_size, int spike_buff
   // unsigned int n_spike_buffers = net_connection->connection_.size();
   h_NSpikeBuffer = n_spike_buffers;
 
-  CUDAMALLOCCTRL( "&d_LastSpikeTimeIdx", &d_LastSpikeTimeIdx, n_spike_buffers * sizeof( long long ) );
-  CUDAMALLOCCTRL( "&d_LastSpikeMul", &d_LastSpikeMul, n_spike_buffers * sizeof( float ) );
-  CUDAMALLOCCTRL( "&d_LastRevSpikeTimeIdx", &d_LastRevSpikeTimeIdx, n_spike_buffers * sizeof( long long ) );
+  //CUDAMALLOCCTRL( "&d_LastSpikeTimeIdx", &d_LastSpikeTimeIdx, n_spike_buffers * sizeof( long long ) );
+  //CUDAMALLOCCTRL( "&d_LastSpikeMul", &d_LastSpikeMul, n_spike_buffers * sizeof( float ) );
+  //CUDAMALLOCCTRL( "&d_LastRevSpikeTimeIdx", &d_LastRevSpikeTimeIdx, n_spike_buffers * sizeof( long long ) );
   if ( spike_buffer_algo == INPUT_SPIKE_BUFFER_ALGO )
   {
     max_spike_buffer_size = 0;
@@ -363,32 +363,32 @@ spikeBufferInit( uint n_spike_buffers, int max_spike_buffer_size, int spike_buff
   }
   else
   {
-    CUDAMALLOCCTRL( "&d_SpikeBufferSize", &d_SpikeBufferSize, n_spike_buffers * sizeof( int ) );
-    CUDAMALLOCCTRL( "&d_SpikeBufferIdx0", &d_SpikeBufferIdx0, n_spike_buffers * sizeof( int ) );
-    CUDAMALLOCCTRL(
-      "&d_SpikeBufferTimeIdx", &d_SpikeBufferTimeIdx, n_spike_buffers * max_spike_buffer_size * sizeof( int ) );
-    CUDAMALLOCCTRL(
-      "&d_SpikeBufferConnIdx", &d_SpikeBufferConnIdx, n_spike_buffers * max_spike_buffer_size * sizeof( int ) );
-    CUDAMALLOCCTRL( "&d_SpikeBufferMul", &d_SpikeBufferMul, n_spike_buffers * max_spike_buffer_size * sizeof( float ) );
-    gpuErrchk( cudaMemsetAsync( d_SpikeBufferSize, 0, n_spike_buffers * sizeof( int ) ) );
-    gpuErrchk( cudaMemsetAsync( d_SpikeBufferIdx0, 0, n_spike_buffers * sizeof( int ) ) );
+    //CUDAMALLOCCTRL( "&d_SpikeBufferSize", &d_SpikeBufferSize, n_spike_buffers * sizeof( int ) );
+    //CUDAMALLOCCTRL( "&d_SpikeBufferIdx0", &d_SpikeBufferIdx0, n_spike_buffers * sizeof( int ) );
+    //CUDAMALLOCCTRL(
+    //  "&d_SpikeBufferTimeIdx", &d_SpikeBufferTimeIdx, n_spike_buffers * max_spike_buffer_size * sizeof( int ) );
+    //CUDAMALLOCCTRL(
+    //  "&d_SpikeBufferConnIdx", &d_SpikeBufferConnIdx, n_spike_buffers * max_spike_buffer_size * sizeof( int ) );
+    //CUDAMALLOCCTRL( "&d_SpikeBufferMul", &d_SpikeBufferMul, n_spike_buffers * max_spike_buffer_size * sizeof( float ) );
+    //gpuErrchk( cudaMemsetAsync( d_SpikeBufferSize, 0, n_spike_buffers * sizeof( int ) ) );
+    //gpuErrchk( cudaMemsetAsync( d_SpikeBufferIdx0, 0, n_spike_buffers * sizeof( int ) ) );
   }
 
-  DeviceSpikeBufferInit<<< 1, 1 >>>( n_spike_buffers,
-    max_spike_buffer_size,
-    d_LastSpikeTimeIdx,
-    d_LastSpikeMul,
-    d_SpikeBufferSize,
-    d_SpikeBufferIdx0,
-    d_SpikeBufferTimeIdx,
-    d_SpikeBufferConnIdx,
-    d_SpikeBufferMul,
-    d_LastRevSpikeTimeIdx );
-  gpuErrchk( cudaPeekAtLastError() );
+  //DeviceSpikeBufferInit<<< 1, 1 >>>( n_spike_buffers,
+  //  max_spike_buffer_size,
+  //  d_LastSpikeTimeIdx,
+  //  d_LastSpikeMul,
+  //  d_SpikeBufferSize,
+  //  d_SpikeBufferIdx0,
+  //  d_SpikeBufferTimeIdx,
+  //  d_SpikeBufferConnIdx,
+  //  d_SpikeBufferMul,
+  //  d_LastRevSpikeTimeIdx );
+  //gpuErrchk( cudaPeekAtLastError() );
 
-  InitLastSpikeTimeIdx <<< ( n_spike_buffers + 1023 ) / 1024, 1024 >>>( n_spike_buffers, LAST_SPIKE_TIME_GUARD );
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaMemsetAsync( d_LastSpikeMul, 0, n_spike_buffers * sizeof( unsigned short ) ) );
+  //InitLastSpikeTimeIdx <<< ( n_spike_buffers + 1023 ) / 1024, 1024 >>>( n_spike_buffers, LAST_SPIKE_TIME_GUARD );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaMemsetAsync( d_LastSpikeMul, 0, n_spike_buffers * sizeof( unsigned short ) ) );
 
   return 0;
 }

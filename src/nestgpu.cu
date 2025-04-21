@@ -399,12 +399,12 @@ NESTGPU::Calibrate()
     std::cout << HostIdStr() << "Calibrating ...\n";
   }
 
-  gpuErrchk( cudaMemcpyToSymbol( NESTGPUTimeResolution, &time_resolution_, sizeof( float ) ) );
+  //gpuErrchk( cudaMemcpyToSymbol( NESTGPUTimeResolution, &time_resolution_, sizeof( float ) ) );
 
-  gpuErrchk( cudaMemcpyToSymbol( have_remote_spike_mul, &remote_spike_mul_, sizeof( bool ) ) );
+  //gpuErrchk( cudaMemcpyToSymbol( have_remote_spike_mul, &remote_spike_mul_, sizeof( bool ) ) );
   ///////////////////////////////////
   int n_nodes = GetNLocalNodes();
-  gpuErrchk( cudaMemcpyToSymbol( n_local_nodes, &n_nodes, sizeof( int ) ) );
+  //gpuErrchk( cudaMemcpyToSymbol( n_local_nodes, &n_nodes, sizeof( int ) ) );
 
   int n_image_nodes = conn_->getNImageNodes();
   // std::cout << "n_local_nodes: " << n_nodes << " n_image_nodes: "
@@ -465,8 +465,8 @@ NESTGPU::Calibrate()
   PRINT_TIME;
   
   // temporary
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
 
   neur_t0_ = t_min_;
   neural_time_ = t_min_;
@@ -516,7 +516,7 @@ NESTGPU::Calibrate()
 
   PRINT_TIME;
 
-  gpuErrchk( cudaMemcpyToSymbolAsync( NESTGPUTimeResolution, &time_resolution_, sizeof( float ) ) );
+  //gpuErrchk( cudaMemcpyToSymbolAsync( NESTGPUTimeResolution, &time_resolution_, sizeof( float ) ) );
 
   return 0;
 }

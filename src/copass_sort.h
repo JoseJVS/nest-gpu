@@ -120,14 +120,14 @@ copass_sort::extract_partitions( ArrayT* d_subarray,
   position_t* d_part_size_cumul,
   AuxArrayT d_aux_array )
 {
-  prefix_scan< position_t, 1024 > <<< 1, 512 >>>( d_part_size, d_part_size_cumul, k, k_next_pow_2 );
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
+  //prefix_scan< position_t, 1024 > <<< 1, 512 >>>( d_part_size, d_part_size_cumul, k, k_next_pow_2 );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
 
-  extract_partitions_kernel< ElementT, ArrayT, AuxArrayT > <<< k, 1024 >>>(
-    d_subarray, k, d_part_size, d_part_size_cumul, d_aux_array );
+  //extract_partitions_kernel< ElementT, ArrayT, AuxArrayT > <<< k, 1024 >>>(
+  //  d_subarray, k, d_part_size, d_part_size_cumul, d_aux_array );
 
-  DBGCUDASYNC
+  //DBGCUDASYNC
   // gpuErrchk(cudaPeekAtLastError());
   // gpuErrchk(cudaDeviceSynchronize());
 
@@ -149,21 +149,21 @@ copass_sort::last_step_case2( ArrayT* d_subarray,
   int* h_extra_elem_idx,
   int* d_n_extra_elems )
 {
-  gpuErrchk( cudaMemcpy( d_part_size, d_m_d, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
+  //gpuErrchk( cudaMemcpy( d_part_size, d_m_d, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
 
   position_t tot_diff = tot_part_size - h_sum_m_d;
   // printf("kernel tot_diff: %ld\n", tot_diff);
 
   if ( tot_diff > 0 )
   {
-    case2_extra_elems_kernel< KeyT, ArrayT > <<< 1, 1024 >>>(
-      d_subarray, k, d_m_d, d_m_u, d_extra_elem, d_extra_elem_idx, d_n_extra_elems );
+    //case2_extra_elems_kernel< KeyT, ArrayT > <<< 1, 1024 >>>(
+    //  d_subarray, k, d_m_d, d_m_u, d_extra_elem, d_extra_elem_idx, d_n_extra_elems );
 
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
+    //gpuErrchk( cudaPeekAtLastError() );
+    //gpuErrchk( cudaDeviceSynchronize() );
 
     int n_extra_elems;
-    gpuErrchk( cudaMemcpy( &n_extra_elems, d_n_extra_elems, sizeof( int ), cudaMemcpyDeviceToHost ) );
+    //gpuErrchk( cudaMemcpy( &n_extra_elems, d_n_extra_elems, sizeof( int ), cudaMemcpyDeviceToHost ) );
     if ( n_extra_elems < tot_diff )
     {
       printf(
@@ -174,10 +174,10 @@ copass_sort::last_step_case2( ArrayT* d_subarray,
 
     //// !!!!!!!!! temporarily sort in CPU side using std::sort
     //// replace with cub sort directly in the GPU
-    gpuErrchk( cudaMemcpy( h_extra_elem, d_extra_elem, n_extra_elems * sizeof( KeyT ), cudaMemcpyDeviceToHost ) );
-    gpuErrchk(
-      cudaMemcpy( h_extra_elem_idx, d_extra_elem_idx, n_extra_elems * sizeof( int ), cudaMemcpyDeviceToHost ) );
-    // build pair vector
+    //gpuErrchk( cudaMemcpy( h_extra_elem, d_extra_elem, n_extra_elems * sizeof( KeyT ), cudaMemcpyDeviceToHost ) );
+    //gpuErrchk(
+    //  cudaMemcpy( h_extra_elem_idx, d_extra_elem_idx, n_extra_elems * sizeof( int ), cudaMemcpyDeviceToHost ) );
+    //// build pair vector
     std::vector< std::pair< KeyT, int > > extra_elem_and_idx;
     for ( int i = 0; i < n_extra_elems; i++ )
     {
@@ -193,14 +193,14 @@ copass_sort::last_step_case2( ArrayT* d_subarray,
       h_extra_elem_idx[ i ] = extra_elem_and_idx[ i ].second;
     }
 
-    gpuErrchk(
-      cudaMemcpy( d_extra_elem_idx, h_extra_elem_idx, n_extra_elems * sizeof( int ), cudaMemcpyHostToDevice ) );
+    //gpuErrchk(
+    //  cudaMemcpy( d_extra_elem_idx, h_extra_elem_idx, n_extra_elems * sizeof( int ), cudaMemcpyHostToDevice ) );
 
     /////////////////////////////////////////////////
 
-    case2_inc_partitions_kernel<<< 1, 1024 >>>( d_part_size, d_extra_elem_idx, tot_diff );
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
+    //case2_inc_partitions_kernel<<< 1, 1024 >>>( d_part_size, d_extra_elem_idx, tot_diff );
+    //gpuErrchk( cudaPeekAtLastError() );
+    //gpuErrchk( cudaDeviceSynchronize() );
   }
 
   return 0;
@@ -346,7 +346,7 @@ copass_sort::sort_template( KeyArrayT key_array,
     return 0;
   }
 
-  gpuErrchk( cudaMemcpyAsync( d_subarray, h_subarray, k * sizeof( ArrayT ), cudaMemcpyHostToDevice ) );
+  //gpuErrchk( cudaMemcpyAsync( d_subarray, h_subarray, k * sizeof( ArrayT ), cudaMemcpyHostToDevice ) );
 
   ///// TEMPORARY, FOR TESTING
   k_ = k;
@@ -370,16 +370,16 @@ copass_sort::sort_template( KeyArrayT key_array,
   for ( uint i_sub = 0; i_sub < k - 1; i_sub++ )
   {
     tot_part_size = target_array[i_sub].size;
-    threshold_range_kernel< KeyT, ArrayT, 1024 > <<< 1, k>>>( d_subarray, tot_part_size, k, d_t_u, d_t_d );
+    //threshold_range_kernel< KeyT, ArrayT, 1024 > <<< 1, k>>>( d_subarray, tot_part_size, k, d_t_u, d_t_d );
 
     // DBGCUDASYNC
-    CUDASYNC
-    search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_u, d_m_u, d_sum_m_u );
-    CUDASYNC
-    search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_d, d_m_d, d_sum_m_d );
-    CUDASYNC
-    gpuErrchk( cudaMemcpyAsync( &h_sum_m_u, d_sum_m_u, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-    gpuErrchk( cudaMemcpy( &h_sum_m_d, d_sum_m_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+    //CUDASYNC
+    //search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_u, d_m_u, d_sum_m_u );
+    //CUDASYNC
+    //search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_d, d_m_d, d_sum_m_d );
+    //CUDASYNC
+    //gpuErrchk( cudaMemcpyAsync( &h_sum_m_u, d_sum_m_u, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+    //gpuErrchk( cudaMemcpy( &h_sum_m_d, d_sum_m_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
     if ( print_gpu_cpu_vrb )
     {
       printf( "kernel sum_m_u: %ld\tsum_m_d: %ld\n", h_sum_m_u, h_sum_m_d );
@@ -387,13 +387,13 @@ copass_sort::sort_template( KeyArrayT key_array,
     /////////////////////////////////////////////////////////////
     if ( tot_part_size >= h_sum_m_u )
     { // m_u -> m_d
-      search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_u, d_mu_u, d_sum_mu_u );
-      /////////////////////
-      gpuErrchk( cudaMemcpyAsync( h_m_u, d_m_u, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-      gpuErrchk( cudaMemcpyAsync( h_mu_u, d_mu_u, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+      //search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_u, d_mu_u, d_sum_mu_u );
+      ///////////////////////
+      //gpuErrchk( cudaMemcpyAsync( h_m_u, d_m_u, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+      //gpuErrchk( cudaMemcpyAsync( h_mu_u, d_mu_u, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
       if ( print_gpu_cpu_vrb )
       {
-        CUDASYNC
+        //CUDASYNC
         printf( "last step gpu cond 0 h_m_u: " );
         for ( uint i = 0; i < k; i++ )
         {
@@ -422,7 +422,7 @@ copass_sort::sort_template( KeyArrayT key_array,
         d_num_down );
       if ( print_gpu_cpu_vrb )
       {
-        CUDASYNC
+        //CUDASYNC
         printf( "Kernel Final step condition 0\n" );
         printf( "Kernel total partition size before final step: %ld\n", h_sum_m_u );
       }
@@ -431,11 +431,11 @@ copass_sort::sort_template( KeyArrayT key_array,
     //////////////////////////////////////////////////////////////
     else if ( tot_part_size <= h_sum_m_d )
     {
-      search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_d, d_mu_d, d_sum_mu_d );
-      /////////////////////
-      gpuErrchk( cudaMemcpyAsync( h_mu_d, d_mu_d, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-      gpuErrchk( cudaMemcpyAsync( h_m_d, d_m_d, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-      gpuErrchk( cudaMemcpy( &h_sum_mu_d, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+      //search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_d, d_mu_d, d_sum_mu_d );
+      ///////////////////////
+      //gpuErrchk( cudaMemcpyAsync( h_mu_d, d_mu_d, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+      //gpuErrchk( cudaMemcpyAsync( h_m_d, d_m_d, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+      //gpuErrchk( cudaMemcpy( &h_sum_mu_d, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
       if ( print_gpu_cpu_vrb )
       {
         printf( "last step gpu cond 1 h_mu_d: " );
@@ -466,7 +466,7 @@ copass_sort::sort_template( KeyArrayT key_array,
         d_num_down );
       if ( print_gpu_cpu_vrb )
       {
-        CUDASYNC
+        //CUDASYNC
         printf( "Kernel Final step condition 1\n" );
         printf( "Kernel total partition size before final step: %ld\n", h_sum_mu_d );
       }
@@ -475,13 +475,13 @@ copass_sort::sort_template( KeyArrayT key_array,
     {
       for ( ;; )
       {
-        max_diff_kernel< ArrayT, 1024 > <<< 1, 1024 >>>( d_m_u, d_m_d, k, d_subarray, d_max_diff, d_arg_max );
-        DBGCUDASYNC
+        //max_diff_kernel< ArrayT, 1024 > <<< 1, 1024 >>>( d_m_u, d_m_d, k, d_subarray, d_max_diff, d_arg_max );
+        //DBGCUDASYNC
         position_t h_max_diff;
-        gpuErrchk( cudaMemcpy( &h_max_diff, d_max_diff, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+        //gpuErrchk( cudaMemcpy( &h_max_diff, d_max_diff, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
         if ( h_max_diff <= 1 )
         {
-          gpuErrchk( cudaMemcpy( &h_sum_m_d, d_sum_m_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+          //gpuErrchk( cudaMemcpy( &h_sum_m_d, d_sum_m_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
           last_step_case2< KeyT, ArrayT >( d_subarray,
             tot_part_size,
             k,
@@ -496,28 +496,28 @@ copass_sort::sort_template( KeyArrayT key_array,
             d_n_extra_elems );
           if ( print_gpu_cpu_vrb )
           {
-            CUDASYNC
+            //CUDASYNC
             printf( "Kernel final step condition 2\n" );
             printf( "Total partition size before final step: %ld\n", h_sum_m_d );
           }
           break;
         }
-        eval_t_tilde_kernel< KeyT, ArrayT > <<< 1, 1 >>>( d_subarray, d_m_u, d_m_d, d_arg_max, d_t_tilde );
-        DBGCUDASYNC
+        //eval_t_tilde_kernel< KeyT, ArrayT > <<< 1, 1 >>>( d_subarray, d_m_u, d_m_d, d_arg_max, d_t_tilde );
+        //DBGCUDASYNC
 
-        search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_tilde, d_mu_u, d_sum_mu_u );
-        search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_tilde, d_mu_d, d_sum_mu_d );
-        gpuErrchk( cudaMemcpyAsync( &h_sum_mu_u, d_sum_mu_u, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
-        gpuErrchk( cudaMemcpy( &h_sum_mu_d, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+        //search_multi_up< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_tilde, d_mu_u, d_sum_mu_u );
+        //search_multi_down< KeyT, ArrayT, 1024 >( d_subarray, k, d_t_tilde, d_mu_d, d_sum_mu_d );
+        //gpuErrchk( cudaMemcpyAsync( &h_sum_mu_u, d_sum_mu_u, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+        //gpuErrchk( cudaMemcpy( &h_sum_mu_d, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToHost ) );
         if ( tot_part_size < h_sum_mu_d )
         {
-          gpuErrchk( cudaMemcpyAsync( d_m_u, d_mu_d, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
-          gpuErrchk( cudaMemcpyAsync( d_sum_m_u, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
+          //gpuErrchk( cudaMemcpyAsync( d_m_u, d_mu_d, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
+          //gpuErrchk( cudaMemcpyAsync( d_sum_m_u, d_sum_mu_d, sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
         }
         else if ( tot_part_size > h_sum_mu_u )
         {
-          gpuErrchk( cudaMemcpyAsync( d_m_d, d_mu_u, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
-          gpuErrchk( cudaMemcpyAsync( d_sum_m_d, d_sum_mu_u, sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
+          //gpuErrchk( cudaMemcpyAsync( d_m_d, d_mu_u, k * sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
+          //gpuErrchk( cudaMemcpyAsync( d_sum_m_d, d_sum_mu_u, sizeof( position_t ), cudaMemcpyDeviceToDevice ) );
         }
         else
         { // sum_mu_d <= tot_part_size <= sum_mu_u
@@ -536,7 +536,7 @@ copass_sort::sort_template( KeyArrayT key_array,
             d_num_down );
           if ( print_gpu_cpu_vrb )
           {
-            CUDASYNC
+            //CUDASYNC
             printf( "Kernel final step condition 3\n" );
             printf( "Kernel total part size before final step: %ld\n", h_sum_mu_d );
           }
@@ -549,18 +549,18 @@ copass_sort::sort_template( KeyArrayT key_array,
 
     //////////////////////////////////////////////////////////////////////
     //// USE THE INDEX OF THE ITERATION ON the k -1 target arrays
-    gpuErrchk( cudaMemcpy( h_part_size, d_part_size_, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
+    //gpuErrchk( cudaMemcpy( h_part_size, d_part_size_, k * sizeof( position_t ), cudaMemcpyDeviceToHost ) );
 
     repack( h_subarray, k, h_part_size, d_buffer, buffer_size );
 
-    gpuErrchk( cudaMemcpyAsync( d_subarray, h_subarray, k * sizeof( ArrayT ), cudaMemcpyHostToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( d_subarray, h_subarray, k * sizeof( ArrayT ), cudaMemcpyHostToDevice ) );
     if ( compare_with_serial && i_sub == last_i_sub )
     {
       return 0;
     }
 
-    CopyArray< ElementT, ArrayT, AuxArrayT > <<< ( tot_part_size + 1023 ) / 1024, 1024 >>>
-      (target_array[ i_sub ], d_aux_array, tot_part_size );
+    //CopyArray< ElementT, ArrayT, AuxArrayT > <<< ( tot_part_size + 1023 ) / 1024, 1024 >>>
+    //  (target_array[ i_sub ], d_aux_array, tot_part_size );
 
     
   }
@@ -849,14 +849,14 @@ copass_sort::sort( KeyT** key_subarray, ValueT** value_subarray, position_t n,
 
   if ( d_storage != NULL )
   {
-    gpuErrchk( cudaMemcpy( d_key_array_data_pt, key_subarray, k * sizeof( KeyT* ), cudaMemcpyHostToDevice ) );
+    //gpuErrchk( cudaMemcpy( d_key_array_data_pt, key_subarray, k * sizeof( KeyT* ), cudaMemcpyHostToDevice ) );
   }
   ValueT** d_value_array_data_pt = NULL;
   cudaReusableAlloc( d_storage, st_bytes, &d_value_array_data_pt, k, sizeof( ValueT* ) );
 
   if ( d_storage != NULL )
   {
-    gpuErrchk( cudaMemcpy( d_value_array_data_pt, value_subarray, k * sizeof( ValueT* ), cudaMemcpyHostToDevice ) );
+    //gpuErrchk( cudaMemcpy( d_value_array_data_pt, value_subarray, k * sizeof( ValueT* ), cudaMemcpyHostToDevice ) );
   }
 
   d_key_array.data_pt = d_key_array_data_pt;

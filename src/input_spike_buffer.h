@@ -446,110 +446,110 @@ int
 ConnectionTemplate< ConnKeyT, ConnStructT >::initInputSpikeBuffer( inode_t n_local_nodes, inode_t n_nodes, int max_remote_spike_num )
 {
   // allocate array of number of input ports of each (local) target node
-  CUDAMALLOCCTRL( "&d_n_input_ports_", &d_n_input_ports_, n_local_nodes * sizeof( int ) );
-  gpuErrchk( cudaMemset( d_n_input_ports_, 0, n_local_nodes * sizeof( int ) ) );
+  //CUDAMALLOCCTRL( "&d_n_input_ports_", &d_n_input_ports_, n_local_nodes * sizeof( int ) );
+  //gpuErrchk( cudaMemset( d_n_input_ports_, 0, n_local_nodes * sizeof( int ) ) );
 
   if (n_conn_ > 0) {
-    getNInputPortsKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, d_n_input_ports_ );
-    DBGCUDASYNC;
+    //getNInputPortsKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, d_n_input_ports_ );
+    //DBGCUDASYNC;
   }
 
-  CUDAMALLOCCTRL( "&d_n_input_ports_cumul_", &d_n_input_ports_cumul_, ( n_local_nodes + 1 ) * sizeof( int64_t ) );
+  //CUDAMALLOCCTRL( "&d_n_input_ports_cumul_", &d_n_input_ports_cumul_, ( n_local_nodes + 1 ) * sizeof( int64_t ) );
   // Determine temporary device storage requirements
   void* d_temp_storage = NULL;
   size_t temp_storage_bytes = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceScan::ExclusiveSum(
-				d_temp_storage, temp_storage_bytes, d_n_input_ports_, d_n_input_ports_cumul_, n_local_nodes + 1 );
+  //cub::DeviceScan::ExclusiveSum(
+	//			d_temp_storage, temp_storage_bytes, d_n_input_ports_, d_n_input_ports_cumul_, n_local_nodes + 1 );
   //<END-CLANG-TIDY-SKIP>//
 
   // Allocate temporary storage
-  CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
+  //CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
   // Run exclusive prefix sum
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceScan::ExclusiveSum(
-				d_temp_storage, temp_storage_bytes, d_n_input_ports_, d_n_input_ports_cumul_, n_local_nodes + 1 );
+  //cub::DeviceScan::ExclusiveSum(
+	//			d_temp_storage, temp_storage_bytes, d_n_input_ports_, d_n_input_ports_cumul_, n_local_nodes + 1 );
   //<END-CLANG-TIDY-SKIP>//
 
   // The last element is the total number of input ports over all local nodes
-  gpuErrchk( cudaMemcpy(
-			&n_input_ports_tot_, &d_n_input_ports_cumul_[ n_local_nodes ], sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpy(
+	//		&n_input_ports_tot_, &d_n_input_ports_cumul_[ n_local_nodes ], sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
 
   // allocate (two-dimensional) array of maximum delay among the incoming connections of each input port of each (local)
   // target node
-  CUDAMALLOCCTRL( "&d_max_input_delay_", &d_max_input_delay_, n_local_nodes * sizeof( int* ) );
+  //CUDAMALLOCCTRL( "&d_max_input_delay_", &d_max_input_delay_, n_local_nodes * sizeof( int* ) );
 
   if (n_input_ports_tot_ > 0) {
     // allocate one-dimensional array of maximum delay among the incoming connections of each input port of each (local)
     // target node
-    CUDAMALLOCCTRL( "&d_max_input_delay_1d_", &d_max_input_delay_1d_, n_input_ports_tot_ * sizeof( int ) );
-    gpuErrchk( cudaMemset( d_max_input_delay_1d_, 0, n_input_ports_tot_ * sizeof( int ) ) );
+    //CUDAMALLOCCTRL( "&d_max_input_delay_1d_", &d_max_input_delay_1d_, n_input_ports_tot_ * sizeof( int ) );
+    //gpuErrchk( cudaMemset( d_max_input_delay_1d_, 0, n_input_ports_tot_ * sizeof( int ) ) );
 
-    initMaxInputDelayArrayKernel<<< ( n_local_nodes + 1023 ) / 1024, 1024 >>>(
-									      n_local_nodes, d_max_input_delay_, d_max_input_delay_1d_, d_n_input_ports_cumul_ );
-    DBGCUDASYNC;
+    //initMaxInputDelayArrayKernel<<< ( n_local_nodes + 1023 ) / 1024, 1024 >>>(
+		//							      n_local_nodes, d_max_input_delay_, d_max_input_delay_1d_, d_n_input_ports_cumul_ );
+    //DBGCUDASYNC;
   }
 
   if (n_conn_ > 0) {
     //testMaxInputDelayKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(n_conn_, d_max_input_delay_, n_local_nodes, 2 );
     //CUDASYNC;
-    getMaxInputDelayKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(n_conn_, d_max_input_delay_ );
-    DBGCUDASYNC;
+    //getMaxInputDelayKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(n_conn_, d_max_input_delay_ );
+    //DBGCUDASYNC;
   }
   n_input_spike_buffer_tot_ = 0;
   if (n_input_ports_tot_ > 0) {
     // Evaluates the cumulative sum of of maximum delay among the incoming connections of each input port of each (local)
     // target node
-    CUDAMALLOCCTRL(
-		   "&d_max_input_delay_cumul_", &d_max_input_delay_cumul_, ( n_input_ports_tot_ + 1 ) * sizeof( int64_t ) );
+    //CUDAMALLOCCTRL(
+		//   "&d_max_input_delay_cumul_", &d_max_input_delay_cumul_, ( n_input_ports_tot_ + 1 ) * sizeof( int64_t ) );
     // Determine temporary device storage requirements
     d_temp_storage = NULL;
     temp_storage_bytes = 0;
     //<BEGIN-CLANG-TIDY-SKIP>//
-    cub::DeviceScan::ExclusiveSum(
-				  d_temp_storage, temp_storage_bytes, d_max_input_delay_1d_, d_max_input_delay_cumul_, n_input_ports_tot_ + 1 );
+    //cub::DeviceScan::ExclusiveSum(
+		//		  d_temp_storage, temp_storage_bytes, d_max_input_delay_1d_, d_max_input_delay_cumul_, n_input_ports_tot_ + 1 );
     //<END-CLANG-TIDY-SKIP>//
 
     // Allocate temporary storage
-    CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
+    //CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
     // Run exclusive prefix sum
     //<BEGIN-CLANG-TIDY-SKIP>//
-    cub::DeviceScan::ExclusiveSum(
-				  d_temp_storage, temp_storage_bytes, d_max_input_delay_1d_, d_max_input_delay_cumul_, n_input_ports_tot_ + 1 );
+    //cub::DeviceScan::ExclusiveSum(
+				//  d_temp_storage, temp_storage_bytes, d_max_input_delay_1d_, d_max_input_delay_cumul_, n_input_ports_tot_ + 1 );
     //<END-CLANG-TIDY-SKIP>//
 
     // The last element is the total number of slots in the input spike buffers
-    gpuErrchk( cudaMemcpy( &n_input_spike_buffer_tot_,
-			   &d_max_input_delay_cumul_[ n_input_ports_tot_ ],
-			   sizeof( int64_t ),
-			   cudaMemcpyDeviceToHost ) );
+    //gpuErrchk( cudaMemcpy( &n_input_spike_buffer_tot_,
+			 //  &d_max_input_delay_cumul_[ n_input_ports_tot_ ],
+			 //  sizeof( int64_t ),
+			 //  cudaMemcpyDeviceToHost ) );
   }
   // check that the buffer size is not zero
   if ( n_input_spike_buffer_tot_ > 0 )
   {
     // allocate memory for input spike buffer flattened on one dimension
-    CUDAMALLOCCTRL(
-      "&d_input_spike_buffer_1d_", &d_input_spike_buffer_1d_, n_input_spike_buffer_tot_ * sizeof( double ) );
-    gpuErrchk( cudaMemset( d_input_spike_buffer_1d_, 0, n_input_spike_buffer_tot_ * sizeof( double ) ) );
+    //CUDAMALLOCCTRL(
+    //  "&d_input_spike_buffer_1d_", &d_input_spike_buffer_1d_, n_input_spike_buffer_tot_ * sizeof( double ) );
+    //gpuErrchk( cudaMemset( d_input_spike_buffer_1d_, 0, n_input_spike_buffer_tot_ * sizeof( double ) ) );
 
-    CUDAMALLOCCTRL( "&d_input_spike_buffer_2d_", &d_input_spike_buffer_2d_, n_input_ports_tot_ * sizeof( double* ) );
-    initInputSpikeBuffer2DKernel<<< ( n_input_ports_tot_ + 1023 ) / 1024, 1024 >>>(
-      n_input_ports_tot_, d_input_spike_buffer_1d_, d_input_spike_buffer_2d_, d_max_input_delay_cumul_ );
-    DBGCUDASYNC;
+    //CUDAMALLOCCTRL( "&d_input_spike_buffer_2d_", &d_input_spike_buffer_2d_, n_input_ports_tot_ * sizeof( double* ) );
+    //initInputSpikeBuffer2DKernel<<< ( n_input_ports_tot_ + 1023 ) / 1024, 1024 >>>(
+    //  n_input_ports_tot_, d_input_spike_buffer_1d_, d_input_spike_buffer_2d_, d_max_input_delay_cumul_ );
+    //DBGCUDASYNC;
 
-    CUDAMALLOCCTRL( "&d_input_spike_buffer_", &d_input_spike_buffer_, n_local_nodes * sizeof( double** ) );
+    //CUDAMALLOCCTRL( "&d_input_spike_buffer_", &d_input_spike_buffer_, n_local_nodes * sizeof( double** ) );
 
-    initInputSpikeBufferKernel<<< ( n_local_nodes + 1023 ) / 1024, 1024 >>>(
-      n_local_nodes, d_input_spike_buffer_, d_input_spike_buffer_2d_, d_n_input_ports_cumul_ );
-    DBGCUDASYNC;
+    //initInputSpikeBufferKernel<<< ( n_local_nodes + 1023 ) / 1024, 1024 >>>(
+    //  n_local_nodes, d_input_spike_buffer_, d_input_spike_buffer_2d_, d_n_input_ports_cumul_ );
+    //DBGCUDASYNC;
   }
   // allocate array of indexes of first outgoing connection from each source node
-  CUDAMALLOCCTRL( "&d_first_out_connection_", &d_first_out_connection_, sizeof( int64_t ) * n_nodes );
+  //CUDAMALLOCCTRL( "&d_first_out_connection_", &d_first_out_connection_, sizeof( int64_t ) * n_nodes );
 
-  initFirstOutConnectionKernel<<< ( n_nodes + 1023 ) / 1024, 1024 >>>( n_nodes, d_first_out_connection_ );
+  //initFirstOutConnectionKernel<<< ( n_nodes + 1023 ) / 1024, 1024 >>>( n_nodes, d_first_out_connection_ );
   if (n_conn_ > 0) {
     // Evaluates the index of the first outgoing connection of each source node
-    getFirstOutConnectionKernel< ConnKeyT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, d_first_out_connection_ );
+    //getFirstOutConnectionKernel< ConnKeyT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, d_first_out_connection_ );
   }
   //else {
   //  gpuErrchk( cudaMemset( d_first_out_connection_, 0, sizeof( int64_t ) * n_nodes ) );
@@ -557,39 +557,39 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::initInputSpikeBuffer( inode_t n_loc
   // allocate array of the first connection of each spike emitted at current time step
   // and array of spike multiplicity
   // temporary size is n_local_nodes, in the future evaluate [n_all_nodes*time_resolution*avg_max_firing_rate]
-  CUDAMALLOCCTRL( "&d_spike_first_connection_", &d_spike_first_connection_, max_remote_spike_num * sizeof( int64_t ) );
-  CUDAMALLOCCTRL( "&d_spike_mul_", &d_spike_mul_, max_remote_spike_num * sizeof( float ) );
-      
-  // number of spikes emitted at current time step
-  CUDAMALLOCCTRL( "&d_n_spikes_", &d_n_spikes_, sizeof( int ) );
-  gpuErrchk( cudaMemset( d_n_spikes_, 0, sizeof( int ) ) );
+  //CUDAMALLOCCTRL( "&d_spike_first_connection_", &d_spike_first_connection_, max_remote_spike_num * sizeof( int64_t ) );
+  //CUDAMALLOCCTRL( "&d_spike_mul_", &d_spike_mul_, max_remote_spike_num * sizeof( float ) );
+  //    
+  //// number of spikes emitted at current time step
+  //CUDAMALLOCCTRL( "&d_n_spikes_", &d_n_spikes_, sizeof( int ) );
+  //gpuErrchk( cudaMemset( d_n_spikes_, 0, sizeof( int ) ) );
 
 #ifdef HAVE_N_OUT_CONNECTIONS
   // allocate array of number of outgoing connections from each node
-  CUDAMALLOCCTRL( "&d_n_out_connections_", &d_n_out_connections_, sizeof( int ) * n_nodes );
-  gpuErrchk( cudaMemset( d_n_out_connections_, 0, sizeof( int ) * n_nodes ) );
+  //CUDAMALLOCCTRL( "&d_n_out_connections_", &d_n_out_connections_, sizeof( int ) * n_nodes );
+  //gpuErrchk( cudaMemset( d_n_out_connections_, 0, sizeof( int ) * n_nodes ) );
 
   if (n_conn_ > 0) {
     // Evaluates the number of outgoing connection from each source node
-    getNOutConnectionsKernel< ConnKeyT > <<< ( n_nodes + 1023 ) / 1024, 1024 >>>(n_nodes, n_conn_, d_first_out_connection_, d_n_out_connections_ );
+    //getNOutConnectionsKernel< ConnKeyT > <<< ( n_nodes + 1023 ) / 1024, 1024 >>>(n_nodes, n_conn_, d_first_out_connection_, d_n_out_connections_ );
   }
   // allocate array of number of connections through which each spike emitted at current time step
   // should be delivered
   // temporary size is n_local_nodes, in the future evaluate [n_all_nodes*time_resolution*avg_max_firing_rate]
-  CUDAMALLOCCTRL( "&d_spike_n_connections_", &d_spike_n_connections_, max_remote_spike_num * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_spike_n_connections_", &d_spike_n_connections_, max_remote_spike_num * sizeof( int ) );
 
 #endif
 
-  initInputSpikeBufferPointersKernel<<< 1, 1 >>>( d_n_input_ports_,
-						  d_max_input_delay_,
-						  d_input_spike_buffer_,
-						  d_first_out_connection_,
-						  d_n_out_connections_,
-						  d_spike_first_connection_,
-						  d_spike_n_connections_,
-						  d_spike_mul_,
-						  d_n_spikes_ );
-  DBGCUDASYNC;
+  //initInputSpikeBufferPointersKernel<<< 1, 1 >>>( d_n_input_ports_,
+		//				  d_max_input_delay_,
+		//				  d_input_spike_buffer_,
+		//				  d_first_out_connection_,
+		//				  d_n_out_connections_,
+		//				  d_spike_first_connection_,
+		//				  d_spike_n_connections_,
+		//				  d_spike_mul_,
+		//				  d_n_spikes_ );
+  //DBGCUDASYNC;
 
     /*
     //////////////////////////////////////////////////////////////

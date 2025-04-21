@@ -221,17 +221,17 @@ NESTGPU::SynGroupCalibrate()
     h_SynGroupTypeMap[ syn_group - 1 ] = syn_group_vect_[ syn_group - 1 ]->type_;
     h_SynGroupParamMap[ syn_group - 1 ] = syn_group_vect_[ syn_group - 1 ]->d_param_arr_;
   }
-  CUDAMALLOCCTRL( "&d_SynGroupTypeMap", &d_SynGroupTypeMap, n_group * sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_SynGroupParamMap", &d_SynGroupParamMap, n_group * sizeof( float* ) );
+  //CUDAMALLOCCTRL( "&d_SynGroupTypeMap", &d_SynGroupTypeMap, n_group * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_SynGroupParamMap", &d_SynGroupParamMap, n_group * sizeof( float* ) );
 
   // Memcopies will be synchronised with SynGroupInit kernel
-  gpuErrchk( cudaMemcpyAsync( d_SynGroupTypeMap, h_SynGroupTypeMap, n_group * sizeof( int ), cudaMemcpyHostToDevice ) );
-  gpuErrchk(
-    cudaMemcpyAsync( d_SynGroupParamMap, h_SynGroupParamMap, n_group * sizeof( float* ), cudaMemcpyHostToDevice ) );
+  //gpuErrchk( cudaMemcpyAsync( d_SynGroupTypeMap, h_SynGroupTypeMap, n_group * sizeof( int ), cudaMemcpyHostToDevice ) );
+  //gpuErrchk(
+  //  cudaMemcpyAsync( d_SynGroupParamMap, h_SynGroupParamMap, n_group * sizeof( float* ), cudaMemcpyHostToDevice ) );
 
-  SynGroupInit<<< 1, 1 >>>( d_SynGroupTypeMap, d_SynGroupParamMap );
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
+  //SynGroupInit<<< 1, 1 >>>( d_SynGroupTypeMap, d_SynGroupParamMap );
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
 
   delete[] h_SynGroupTypeMap;
   delete[] h_SynGroupParamMap;

@@ -39,7 +39,7 @@ NodeGroupMapInit( int16_t* node_group_map )
 int
 NESTGPU::NodeGroupArrayInit()
 {
-  CUDAMALLOCCTRL( "&d_node_group_map_", &d_node_group_map_, node_group_map_.size() * sizeof( int16_t ) );
+  //CUDAMALLOCCTRL( "&d_node_group_map_", &d_node_group_map_, node_group_map_.size() * sizeof( int16_t ) );
 
   std::vector< NodeGroupStruct > ngs_vect;
   for ( unsigned int i = 0; i < node_vect_.size(); i++ )
@@ -73,16 +73,16 @@ NESTGPU::NodeGroupArrayInit()
     throw ngpu_exception( "Number of neuron groups larger than limit." );
   }
 
-  gpuErrchk( cudaMemcpyToSymbolAsync( NodeGroupArray, ngs_vect.data(), ngs_vect.size() * sizeof( NodeGroupStruct ) ) );
+  //gpuErrchk( cudaMemcpyToSymbolAsync( NodeGroupArray, ngs_vect.data(), ngs_vect.size() * sizeof( NodeGroupStruct ) ) );
 
-  // Memcopy will be synchronized with NodeGroupMapInit kernel
-  gpuErrchk( cudaMemcpyAsync(
-    d_node_group_map_, node_group_map_.data(), node_group_map_.size() * sizeof( int16_t ), cudaMemcpyHostToDevice ) );
-  // temporary
-  gpuErrchk( cudaPeekAtLastError() );
-  gpuErrchk( cudaDeviceSynchronize() );
-  NodeGroupMapInit<<< 1, 1 >>>( d_node_group_map_ );
-  gpuErrchk( cudaPeekAtLastError() );
+  //// Memcopy will be synchronized with NodeGroupMapInit kernel
+  //gpuErrchk( cudaMemcpyAsync(
+  //  d_node_group_map_, node_group_map_.data(), node_group_map_.size() * sizeof( int16_t ), cudaMemcpyHostToDevice ) );
+  //// temporary
+  //gpuErrchk( cudaPeekAtLastError() );
+  //gpuErrchk( cudaDeviceSynchronize() );
+  //NodeGroupMapInit<<< 1, 1 >>>( d_node_group_map_ );
+  //gpuErrchk( cudaPeekAtLastError() );
 
   return 0;
 }

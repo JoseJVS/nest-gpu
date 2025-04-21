@@ -2500,22 +2500,22 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::calibrate()
 {
   if ( conn_source_ids_size_ > 0 && d_conn_source_ids_ != NULL )
   {
-    CUDAFREECTRL( "d_conn_source_ids_", d_conn_source_ids_ );
+    //CUDAFREECTRL( "d_conn_source_ids_", d_conn_source_ids_ );
   }
 
   if ( spike_time_flag_ )
   {
-    CUDAMALLOCCTRL( "&d_conn_spike_time_", &d_conn_spike_time_, n_conn_ * sizeof( unsigned short ) );
+    //CUDAMALLOCCTRL( "&d_conn_spike_time_", &d_conn_spike_time_, n_conn_ * sizeof( unsigned short ) );
   }
 
-  connectCalibrateKernel<<< 1, 1 >>>( d_conn_group_idx0_,
-    d_conn_group_iconn0_,
-    d_conn_group_delay_,
-    conn_block_size_,
-    d_conn_key_array_,
-    d_conn_struct_array_,
-    d_conn_spike_time_ );
-  DBGCUDASYNC;
+  //connectCalibrateKernel<<< 1, 1 >>>( d_conn_group_idx0_,
+  //  d_conn_group_iconn0_,
+  //  d_conn_group_delay_,
+  //  conn_block_size_,
+  //  d_conn_key_array_,
+  //  d_conn_struct_array_,
+  //  d_conn_spike_time_ );
+  //DBGCUDASYNC;
 
   return 0;
 }
@@ -2549,7 +2549,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::freeConnectionKey()
     ConnKeyT* d_key_pt = conn_key_vect_[ ib ];
     if ( d_key_pt != NULL )
     {
-      CUDAFREECTRL( "d_key_pt", d_key_pt );
+      //CUDAFREECTRL( "d_key_pt", d_key_pt );
     }
   }
   return 0;
@@ -2667,12 +2667,12 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
 {
   timeval startTV;
   timeval endTV;
-  CUDASYNC;
+  //CUDASYNC;
   gettimeofday( &startTV, NULL );
 
   if ( d_conn_storage_ != NULL )
   {
-    CUDAFREECTRL( "d_conn_storage_", d_conn_storage_ );
+    //CUDAFREECTRL( "d_conn_storage_", d_conn_storage_ );
   }
 
   if ( n_conn_ > 0 )
@@ -2684,13 +2684,13 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
       (conn_key_vect_.data(), conn_struct_vect_.data(), n_conn_,
        conn_block_size_, d_sort_storage, sort_storage_bytes, 0 );
     printf( "storage bytes: %ld\n", sort_storage_bytes );
-    CUDAMALLOCCTRL( "&d_sort_storage", &d_sort_storage, sort_storage_bytes );
+    //CUDAMALLOCCTRL( "&d_sort_storage", &d_sort_storage, sort_storage_bytes );
 
     printf( "Sorting...\n" );
     copass_sort::sort< ConnKeyT, ConnStructT >
       (conn_key_vect_.data(), conn_struct_vect_.data(), n_conn_,
        conn_block_size_, d_sort_storage, sort_storage_bytes, 0 );
-    CUDAFREECTRL( "d_sort_storage", d_sort_storage );
+    //CUDAFREECTRL( "d_sort_storage", d_sort_storage );
 
     // It is important to separate number of allocated blocks
     // (determined by conn_key_vect_.size()) from number of blocks
@@ -2707,13 +2707,13 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
     //				 k*sizeof(ConnStructT*)));
     //, cudaMemcpyHostToDevice));
 
-    CUDAMALLOCCTRL( "&d_conn_key_array_", &d_conn_key_array_, k * sizeof( ConnKeyT* ) );
-    gpuErrchk(
-      cudaMemcpy( d_conn_key_array_, conn_key_vect_.data(), k * sizeof( ConnKeyT* ), cudaMemcpyHostToDevice ) );
+    //CUDAMALLOCCTRL( "&d_conn_key_array_", &d_conn_key_array_, k * sizeof( ConnKeyT* ) );
+    //gpuErrchk(
+    //  cudaMemcpy( d_conn_key_array_, conn_key_vect_.data(), k * sizeof( ConnKeyT* ), cudaMemcpyHostToDevice ) );
 
-    CUDAMALLOCCTRL( "&d_conn_struct_array_", &d_conn_struct_array_, k * sizeof( ConnStructT* ) );
-    gpuErrchk( cudaMemcpy(
-      d_conn_struct_array_, conn_struct_vect_.data(), k * sizeof( ConnStructT* ), cudaMemcpyHostToDevice ) );
+    //CUDAMALLOCCTRL( "&d_conn_struct_array_", &d_conn_struct_array_, k * sizeof( ConnStructT* ) );
+    //gpuErrchk( cudaMemcpy(
+    //  d_conn_struct_array_, conn_struct_vect_.data(), k * sizeof( ConnStructT* ), cudaMemcpyHostToDevice ) );
 
     //////////////////////////////////////////////////////////////////////
     if ( getSpikeBufferAlgo() == OUTPUT_SPIKE_BUFFER_ALGO )
@@ -2724,43 +2724,43 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
       printf( "Indexing connection groups...\n" );
 
       int* d_conn_group_iconn0_mask;
-      CUDAMALLOCCTRL( "&d_conn_group_iconn0_mask", &d_conn_group_iconn0_mask, conn_block_size_ * sizeof( int ) );
+      //CUDAMALLOCCTRL( "&d_conn_group_iconn0_mask", &d_conn_group_iconn0_mask, conn_block_size_ * sizeof( int ) );
 
       iconngroup_t* d_conn_group_iconn0_mask_cumul;
-      CUDAMALLOCCTRL( "&d_conn_group_iconn0_mask_cumul",
-        &d_conn_group_iconn0_mask_cumul,
-        ( conn_block_size_ + 1 ) * sizeof( iconngroup_t ) );
+      //CUDAMALLOCCTRL( "&d_conn_group_iconn0_mask_cumul",
+      //  &d_conn_group_iconn0_mask_cumul,
+      //  ( conn_block_size_ + 1 ) * sizeof( iconngroup_t ) );
 
       int* d_conn_group_idx0_mask;
-      CUDAMALLOCCTRL( "&d_conn_group_idx0_mask", &d_conn_group_idx0_mask, conn_block_size_ * sizeof( int ) );
+      //CUDAMALLOCCTRL( "&d_conn_group_idx0_mask", &d_conn_group_idx0_mask, conn_block_size_ * sizeof( int ) );
 
       inode_t* d_conn_group_idx0_mask_cumul;
-      CUDAMALLOCCTRL(
-        "&d_conn_group_idx0_mask_cumul", &d_conn_group_idx0_mask_cumul, ( conn_block_size_ + 1 ) * sizeof( inode_t ) );
+      //CUDAMALLOCCTRL(
+      //  "&d_conn_group_idx0_mask_cumul", &d_conn_group_idx0_mask_cumul, ( conn_block_size_ + 1 ) * sizeof( inode_t ) );
 
       iconngroup_t* d_conn_group_idx0_compact;
       int64_t reserve_size = n_node < conn_block_size_ ? n_node : conn_block_size_;
-      CUDAMALLOCCTRL(
-        "&d_conn_group_idx0_compact", &d_conn_group_idx0_compact, ( reserve_size + 1 ) * sizeof( iconngroup_t ) );
+      //CUDAMALLOCCTRL(
+      //  "&d_conn_group_idx0_compact", &d_conn_group_idx0_compact, ( reserve_size + 1 ) * sizeof( iconngroup_t ) );
 
       inode_t* d_conn_group_source_compact;
-      CUDAMALLOCCTRL( "&d_conn_group_source_compact", &d_conn_group_source_compact, reserve_size * sizeof( inode_t ) );
+      //CUDAMALLOCCTRL( "&d_conn_group_source_compact", &d_conn_group_source_compact, reserve_size * sizeof( inode_t ) );
 
       iconngroup_t* d_iconn0_offset;
-      CUDAMALLOCCTRL( "&d_iconn0_offset", &d_iconn0_offset, sizeof( iconngroup_t ) );
-      gpuErrchk( cudaMemset( d_iconn0_offset, 0, sizeof( iconngroup_t ) ) );
+      //CUDAMALLOCCTRL( "&d_iconn0_offset", &d_iconn0_offset, sizeof( iconngroup_t ) );
+      //gpuErrchk( cudaMemset( d_iconn0_offset, 0, sizeof( iconngroup_t ) ) );
       inode_t* d_idx0_offset;
-      CUDAMALLOCCTRL( "&d_idx0_offset", &d_idx0_offset, sizeof( inode_t ) );
-      gpuErrchk( cudaMemset( d_idx0_offset, 0, sizeof( inode_t ) ) );
+      //CUDAMALLOCCTRL( "&d_idx0_offset", &d_idx0_offset, sizeof( inode_t ) );
+      //gpuErrchk( cudaMemset( d_idx0_offset, 0, sizeof( inode_t ) ) );
 
       ConnKeyT* conn_key_subarray_prev = NULL;
       for ( int ib = 0; ib < k; ib++ )
       {
         int64_t n_block_conn = ib < ( k - 1 ) ? conn_block_size_ : n_conn_ - conn_block_size_ * ( k - 1 );
-        gpuErrchk( cudaMemset( d_conn_group_iconn0_mask, 0, n_block_conn * sizeof( int ) ) );
-        buildConnGroupIConn0Mask< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-          conn_key_vect_[ ib ], conn_key_subarray_prev, n_block_conn, d_conn_group_iconn0_mask );
-        CUDASYNC;
+        //gpuErrchk( cudaMemset( d_conn_group_iconn0_mask, 0, n_block_conn * sizeof( int ) ) );
+        //buildConnGroupIConn0Mask< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+        //  conn_key_vect_[ ib ], conn_key_subarray_prev, n_block_conn, d_conn_group_iconn0_mask );
+        //CUDASYNC;
 
         conn_key_subarray_prev = conn_key_vect_[ ib ] + conn_block_size_ - 1;
 
@@ -2768,138 +2768,138 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
         {
           // Determine temporary device storage requirements for prefix sum
           //<BEGIN-CLANG-TIDY-SKIP>//
-          cub::DeviceScan::ExclusiveSum(
-            NULL, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
-          //<END-CLANG-TIDY-SKIP>//
-          //  Allocate temporary storage for prefix sum
-          CUDAMALLOCCTRL( "&d_storage", &d_storage, storage_bytes );
+          //cub::DeviceScan::ExclusiveSum(
+          //  NULL, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
+          ////<END-CLANG-TIDY-SKIP>//
+          ////  Allocate temporary storage for prefix sum
+          //CUDAMALLOCCTRL( "&d_storage", &d_storage, storage_bytes );
         }
         // Run exclusive prefix sum
         //<BEGIN-CLANG-TIDY-SKIP>//
-        cub::DeviceScan::ExclusiveSum(
-          d_storage, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
-        //<END-CLANG-TIDY-SKIP>//
-        setConnGroupNewOffset<<< 1, 1 >>>( d_iconn0_offset, d_conn_group_iconn0_mask_cumul + n_block_conn );
+        //cub::DeviceScan::ExclusiveSum(
+        //  d_storage, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
+        ////<END-CLANG-TIDY-SKIP>//
+        //setConnGroupNewOffset<<< 1, 1 >>>( d_iconn0_offset, d_conn_group_iconn0_mask_cumul + n_block_conn );
 
-        CUDASYNC;
+        //CUDASYNC;
       }
-      gpuErrchk( cudaMemcpy( &tot_conn_group_num_, d_iconn0_offset, sizeof( iconngroup_t ), cudaMemcpyDeviceToHost ) );
+      //gpuErrchk( cudaMemcpy( &tot_conn_group_num_, d_iconn0_offset, sizeof( iconngroup_t ), cudaMemcpyDeviceToHost ) );
       printf( "Total number of connection groups: %d\n", tot_conn_group_num_ );
 
       if ( tot_conn_group_num_ > 0 )
       {
         iconngroup_t* d_conn_group_num;
-        CUDAMALLOCCTRL( "&d_conn_group_num", &d_conn_group_num, n_node * sizeof( iconngroup_t ) );
-        gpuErrchk( cudaMemset( d_conn_group_num, 0, sizeof( iconngroup_t ) ) );
+        //CUDAMALLOCCTRL( "&d_conn_group_num", &d_conn_group_num, n_node * sizeof( iconngroup_t ) );
+        //gpuErrchk( cudaMemset( d_conn_group_num, 0, sizeof( iconngroup_t ) ) );
 
         ConnKeyT* conn_key_subarray_prev = NULL;
-        gpuErrchk( cudaMemset( d_iconn0_offset, 0, sizeof( iconngroup_t ) ) );
+        //gpuErrchk( cudaMemset( d_iconn0_offset, 0, sizeof( iconngroup_t ) ) );
 
-        CUDAMALLOCCTRL(
-          "&d_conn_group_iconn0_", &d_conn_group_iconn0_, ( tot_conn_group_num_ + 1 ) * sizeof( int64_t ) );
+        //CUDAMALLOCCTRL(
+        //  "&d_conn_group_iconn0_", &d_conn_group_iconn0_, ( tot_conn_group_num_ + 1 ) * sizeof( int64_t ) );
 
         inode_t n_compact = 0;
         for ( int ib = 0; ib < k; ib++ )
         {
           int64_t n_block_conn = ib < ( k - 1 ) ? conn_block_size_ : n_conn_ - conn_block_size_ * ( k - 1 );
-          gpuErrchk( cudaMemset( d_conn_group_iconn0_mask, 0, n_block_conn * sizeof( int ) ) );
-          gpuErrchk( cudaMemset( d_conn_group_idx0_mask, 0, n_block_conn * sizeof( int ) ) );
-          buildConnGroupMask< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( conn_key_vect_[ ib ],
-            conn_key_subarray_prev,
-            n_block_conn,
-            d_conn_group_iconn0_mask,
-            d_conn_group_idx0_mask );
-          CUDASYNC;
+          //gpuErrchk( cudaMemset( d_conn_group_iconn0_mask, 0, n_block_conn * sizeof( int ) ) );
+          //gpuErrchk( cudaMemset( d_conn_group_idx0_mask, 0, n_block_conn * sizeof( int ) ) );
+          //buildConnGroupMask< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( conn_key_vect_[ ib ],
+          //  conn_key_subarray_prev,
+          //  n_block_conn,
+          //  d_conn_group_iconn0_mask,
+          //  d_conn_group_idx0_mask );
+          //CUDASYNC;
 
           conn_key_subarray_prev = conn_key_vect_[ ib ] + conn_block_size_ - 1;
 
           // Run exclusive prefix sum
           //<BEGIN-CLANG-TIDY-SKIP>//
-          cub::DeviceScan::ExclusiveSum(
-            d_storage, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
-          DBGCUDASYNC;
-          cub::DeviceScan::ExclusiveSum(
-            d_storage, storage_bytes, d_conn_group_idx0_mask, d_conn_group_idx0_mask_cumul, n_block_conn + 1 );
+          //cub::DeviceScan::ExclusiveSum(
+          //  d_storage, storage_bytes, d_conn_group_iconn0_mask, d_conn_group_iconn0_mask_cumul, n_block_conn + 1 );
+          //DBGCUDASYNC;
+          //cub::DeviceScan::ExclusiveSum(
+          //  d_storage, storage_bytes, d_conn_group_idx0_mask, d_conn_group_idx0_mask_cumul, n_block_conn + 1 );
           //<END-CLANG-TIDY-SKIP>//
 
-          DBGCUDASYNC;
+          //DBGCUDASYNC;
           int64_t i_conn0 = conn_block_size_ * ib;
-          setConnGroupIConn0<<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( n_block_conn,
-            d_conn_group_iconn0_mask,
-            d_conn_group_iconn0_mask_cumul,
-            d_conn_group_iconn0_,
-            i_conn0,
-            d_iconn0_offset );
-          CUDASYNC;
+          //setConnGroupIConn0<<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( n_block_conn,
+          //  d_conn_group_iconn0_mask,
+          //  d_conn_group_iconn0_mask_cumul,
+          //  d_conn_group_iconn0_,
+          //  i_conn0,
+          //  d_iconn0_offset );
+          //CUDASYNC;
 
-          setConnGroupIdx0Compact< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( conn_key_vect_[ ib ],
-            n_block_conn,
-            d_conn_group_idx0_mask,
-            d_conn_group_iconn0_mask_cumul,
-            d_conn_group_idx0_mask_cumul,
-            d_conn_group_idx0_compact,
-            d_conn_group_source_compact,
-            d_iconn0_offset,
-            d_idx0_offset );
-          CUDASYNC;
+          //setConnGroupIdx0Compact< ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>( conn_key_vect_[ ib ],
+          //  n_block_conn,
+          //  d_conn_group_idx0_mask,
+          //  d_conn_group_iconn0_mask_cumul,
+          //  d_conn_group_idx0_mask_cumul,
+          //  d_conn_group_idx0_compact,
+          //  d_conn_group_source_compact,
+          //  d_iconn0_offset,
+          //  d_idx0_offset );
+          //CUDASYNC;
 
           inode_t n_block_compact;
-          gpuErrchk( cudaMemcpy( &n_block_compact,
-            d_conn_group_idx0_mask_cumul + n_block_conn,
-            sizeof( inode_t ),
-            cudaMemcpyDeviceToHost ) );
+          //gpuErrchk( cudaMemcpy( &n_block_compact,
+          //  d_conn_group_idx0_mask_cumul + n_block_conn,
+          //  sizeof( inode_t ),
+          //  cudaMemcpyDeviceToHost ) );
           // std::cout << "number of nodes with outgoing connections "
           //"in block " << ib << ": " << n_block_compact << "\n";
           n_compact += n_block_compact;
 
-          setConnGroupNewOffset<<< 1, 1 >>>( d_iconn0_offset, d_conn_group_iconn0_mask_cumul + n_block_conn );
-          setConnGroupNewOffset<<< 1, 1 >>>( d_idx0_offset, d_conn_group_idx0_mask_cumul + n_block_conn );
-          CUDASYNC;
+          //setConnGroupNewOffset<<< 1, 1 >>>( d_iconn0_offset, d_conn_group_iconn0_mask_cumul + n_block_conn );
+          //setConnGroupNewOffset<<< 1, 1 >>>( d_idx0_offset, d_conn_group_idx0_mask_cumul + n_block_conn );
+          //CUDASYNC;
         }
-        gpuErrchk( cudaMemcpy(
-          d_conn_group_iconn0_ + tot_conn_group_num_, &n_conn_, sizeof( int64_t ), cudaMemcpyHostToDevice ) );
+        //gpuErrchk( cudaMemcpy(
+        //  d_conn_group_iconn0_ + tot_conn_group_num_, &n_conn_, sizeof( int64_t ), cudaMemcpyHostToDevice ) );
 
-        setConnGroupNum<<< ( n_compact + 1023 ) / 1024, 1024 >>>(
-          n_compact, d_conn_group_num, d_conn_group_idx0_compact, d_conn_group_source_compact );
-        CUDASYNC;
+        //setConnGroupNum<<< ( n_compact + 1023 ) / 1024, 1024 >>>(
+        //  n_compact, d_conn_group_num, d_conn_group_idx0_compact, d_conn_group_source_compact );
+        //CUDASYNC;
 
-        CUDAMALLOCCTRL( "&d_conn_group_idx0_", &d_conn_group_idx0_, ( n_node + 1 ) * sizeof( iconngroup_t ) );
+        //CUDAMALLOCCTRL( "&d_conn_group_idx0_", &d_conn_group_idx0_, ( n_node + 1 ) * sizeof( iconngroup_t ) );
         storage_bytes1 = 0;
 
         // Determine temporary device storage requirements for prefix sum
         //<BEGIN-CLANG-TIDY-SKIP>//
-        cub::DeviceScan::ExclusiveSum( NULL, storage_bytes1, d_conn_group_num, d_conn_group_idx0_, n_node + 1 );
+        //cub::DeviceScan::ExclusiveSum( NULL, storage_bytes1, d_conn_group_num, d_conn_group_idx0_, n_node + 1 );
         //<END-CLANG-TIDY-SKIP>//
 
         if ( storage_bytes1 > storage_bytes )
         {
           storage_bytes = storage_bytes1;
-          CUDAFREECTRL( "d_storage", d_storage );
-          // Allocate temporary storage for prefix sum
-          CUDAMALLOCCTRL( "&d_storage", &d_storage, storage_bytes );
+          //CUDAFREECTRL( "d_storage", d_storage );
+          //// Allocate temporary storage for prefix sum
+          //CUDAMALLOCCTRL( "&d_storage", &d_storage, storage_bytes );
         }
         // Run exclusive prefix sum
         //<BEGIN-CLANG-TIDY-SKIP>//
-        cub::DeviceScan::ExclusiveSum( d_storage, storage_bytes, d_conn_group_num, d_conn_group_idx0_, n_node + 1 );
+        //cub::DeviceScan::ExclusiveSum( d_storage, storage_bytes, d_conn_group_num, d_conn_group_idx0_, n_node + 1 );
         //<END-CLANG-TIDY-SKIP>//
 
         ///////////////////////////////////////////////////////////////////
-        CUDAFREECTRL( "d_storage", d_storage ); // free temporary allocated storage
-        CUDAFREECTRL( "d_conn_group_iconn0_mask", d_conn_group_iconn0_mask );
-        CUDAFREECTRL( "d_conn_group_iconn0_mask_cumul", d_conn_group_iconn0_mask_cumul );
-        CUDAFREECTRL( "d_iconn0_offset", d_iconn0_offset );
-        CUDAFREECTRL( "d_conn_group_idx0_mask", d_conn_group_idx0_mask );
-        CUDAFREECTRL( "d_conn_group_idx0_mask_cumul", d_conn_group_idx0_mask_cumul );
-        CUDAFREECTRL( "d_idx0_offset", d_idx0_offset );
-        CUDAFREECTRL( "d_conn_group_idx0_compact", d_conn_group_idx0_compact );
-        CUDAFREECTRL( "d_conn_group_num", d_conn_group_num );
+        //CUDAFREECTRL( "d_storage", d_storage ); // free temporary allocated storage
+        //CUDAFREECTRL( "d_conn_group_iconn0_mask", d_conn_group_iconn0_mask );
+        //CUDAFREECTRL( "d_conn_group_iconn0_mask_cumul", d_conn_group_iconn0_mask_cumul );
+        //CUDAFREECTRL( "d_iconn0_offset", d_iconn0_offset );
+        //CUDAFREECTRL( "d_conn_group_idx0_mask", d_conn_group_idx0_mask );
+        //CUDAFREECTRL( "d_conn_group_idx0_mask_cumul", d_conn_group_idx0_mask_cumul );
+        //CUDAFREECTRL( "d_idx0_offset", d_idx0_offset );
+        //CUDAFREECTRL( "d_conn_group_idx0_compact", d_conn_group_idx0_compact );
+        //CUDAFREECTRL( "d_conn_group_num", d_conn_group_num );
 
 #ifndef OPTIMIZE_FOR_MEMORY
-        CUDAMALLOCCTRL( "&d_conn_group_delay_", &d_conn_group_delay_, tot_conn_group_num_ * sizeof( int ) );
+        //CUDAMALLOCCTRL( "&d_conn_group_delay_", &d_conn_group_delay_, tot_conn_group_num_ * sizeof( int ) );
 
-        getConnGroupDelay< ConnKeyT > <<< ( tot_conn_group_num_ + 1023 ) / 1024, 1024 >>>(
-          conn_block_size_, d_conn_key_array_, d_conn_group_iconn0_, d_conn_group_delay_, tot_conn_group_num_ );
-        DBGCUDASYNC;
+        //getConnGroupDelay< ConnKeyT > <<< ( tot_conn_group_num_ + 1023 ) / 1024, 1024 >>>(
+        //  conn_block_size_, d_conn_key_array_, d_conn_group_iconn0_, d_conn_group_delay_, tot_conn_group_num_ );
+        //DBGCUDASYNC;
 #endif
       }
       else
@@ -2912,8 +2912,8 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeConnections( inode_t n_node
   }
   else if ( getSpikeBufferAlgo() == OUTPUT_SPIKE_BUFFER_ALGO )
   {
-    CUDAMALLOCCTRL( "&d_conn_group_idx0_", &d_conn_group_idx0_, ( n_node + 1 ) * sizeof( iconngroup_t ) );
-    gpuErrchk( cudaMemset( d_conn_group_idx0_, 0, ( n_node + 1 ) * sizeof( iconngroup_t ) ) );
+    //CUDAMALLOCCTRL( "&d_conn_group_idx0_", &d_conn_group_idx0_, ( n_node + 1 ) * sizeof( iconngroup_t ) );
+    //gpuErrchk( cudaMemset( d_conn_group_idx0_, 0, ( n_node + 1 ) * sizeof( iconngroup_t ) ) );
   }
 
   gettimeofday( &endTV, NULL );
@@ -4124,8 +4124,8 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeDirectConnections( void*& d
   int k = conn_key_vect_.size();
   ConnKeyT** conn_key_array = conn_key_vect_.data();
 
-  CUDAMALLOCCTRL( "&d_poiss_key_array_data_pt", &d_poiss_key_array_data_pt, k * sizeof( ConnKeyT* ) );
-  gpuErrchk( cudaMemcpy( d_poiss_key_array_data_pt, conn_key_array, k * sizeof( ConnKeyT* ), cudaMemcpyHostToDevice ) );
+  //CUDAMALLOCCTRL( "&d_poiss_key_array_data_pt", &d_poiss_key_array_data_pt, k * sizeof( ConnKeyT* ) );
+  //gpuErrchk( cudaMemcpy( d_poiss_key_array_data_pt, conn_key_array, k * sizeof( ConnKeyT* ), cudaMemcpyHostToDevice ) );
 
   regular_block_array< ConnKeyT > h_poiss_subarray[ k ];
   for ( int i = 0; i < k; i++ )
@@ -4137,14 +4137,14 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::organizeDirectConnections( void*& d
     h_poiss_subarray[ i ].size = i < k - 1 ? conn_block_size_ : n_conn_ - ( k - 1 ) * conn_block_size_;
   }
 
-  CUDAMALLOCCTRL( "&d_poiss_subarray", &d_poiss_subarray, k * sizeof( regular_block_array< ConnKeyT > ) );
-  gpuErrchk( cudaMemcpyAsync(
-    d_poiss_subarray, h_poiss_subarray, k * sizeof( regular_block_array< ConnKeyT > ), cudaMemcpyHostToDevice ) );
+  //CUDAMALLOCCTRL( "&d_poiss_subarray", &d_poiss_subarray, k * sizeof( regular_block_array< ConnKeyT > ) );
+  //gpuErrchk( cudaMemcpyAsync(
+  //  d_poiss_subarray, h_poiss_subarray, k * sizeof( regular_block_array< ConnKeyT > ), cudaMemcpyHostToDevice ) );
 
-  CUDAMALLOCCTRL( "&d_poiss_num", &d_poiss_num, 2 * k * sizeof( int64_t ) );
-  CUDAMALLOCCTRL( "&d_poiss_sum", &d_poiss_sum, 2 * sizeof( int64_t ) );
+  //CUDAMALLOCCTRL( "&d_poiss_num", &d_poiss_num, 2 * k * sizeof( int64_t ) );
+  //CUDAMALLOCCTRL( "&d_poiss_sum", &d_poiss_sum, 2 * sizeof( int64_t ) );
 
-  CUDAMALLOCCTRL( "&d_poiss_thresh", &d_poiss_thresh, 2 * sizeof( ConnKeyT ) );
+  //CUDAMALLOCCTRL( "&d_poiss_thresh", &d_poiss_thresh, 2 * sizeof( ConnKeyT ) );
 
   return 0;
 }
@@ -4169,7 +4169,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
   h_poiss_thresh[ 1 ] = 0;
   setConnSource( h_poiss_thresh[ 1 ], i_node_0 + n_node );
 
-  gpuErrchk( cudaMemcpy( poiss_conn::d_poiss_thresh, h_poiss_thresh, 2 * sizeof( ConnKeyT ), cudaMemcpyHostToDevice ) );
+  //gpuErrchk( cudaMemcpy( poiss_conn::d_poiss_thresh, h_poiss_thresh, 2 * sizeof( ConnKeyT ), cudaMemcpyHostToDevice ) );
 
   int64_t h_poiss_num[ 2 * k ];
   int64_t* d_num0 = &poiss_conn::d_poiss_num[ 0 ];
@@ -4177,19 +4177,19 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
   int64_t* h_num0 = &h_poiss_num[ 0 ];
   int64_t* h_num1 = &h_poiss_num[ k ];
 
-  search_multi_down< ConnKeyT, regular_block_array< ConnKeyT >, 1024 >
-    (( regular_block_array< ConnKeyT >* ) poiss_conn::d_poiss_subarray,
-    k, &( ( ( ConnKeyT* ) poiss_conn::d_poiss_thresh )[ 0 ] ),
-    d_num0, &poiss_conn::d_poiss_sum[ 0 ]);
-  CUDASYNC;
+  //search_multi_down< ConnKeyT, regular_block_array< ConnKeyT >, 1024 >
+  //  (( regular_block_array< ConnKeyT >* ) poiss_conn::d_poiss_subarray,
+  //  k, &( ( ( ConnKeyT* ) poiss_conn::d_poiss_thresh )[ 0 ] ),
+  //  d_num0, &poiss_conn::d_poiss_sum[ 0 ]);
+  //CUDASYNC;
 
-  search_multi_down< ConnKeyT, regular_block_array< ConnKeyT >, 1024 >
-    (( regular_block_array< ConnKeyT >* ) poiss_conn::d_poiss_subarray,
-    k, &( ( ( ConnKeyT* ) poiss_conn::d_poiss_thresh )[ 1 ] ),
-    d_num1, &poiss_conn::d_poiss_sum[ 1 ]);
-  CUDASYNC;
+  //search_multi_down< ConnKeyT, regular_block_array< ConnKeyT >, 1024 >
+  //  (( regular_block_array< ConnKeyT >* ) poiss_conn::d_poiss_subarray,
+  //  k, &( ( ( ConnKeyT* ) poiss_conn::d_poiss_thresh )[ 1 ] ),
+  //  d_num1, &poiss_conn::d_poiss_sum[ 1 ]);
+  //CUDASYNC;
 
-  gpuErrchk( cudaMemcpy( h_poiss_num, poiss_conn::d_poiss_num, 2 * k * sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpy( h_poiss_num, poiss_conn::d_poiss_num, 2 * k * sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
 
   i_conn0 = 0;
   int64_t i_conn1 = 0;
@@ -4219,41 +4219,41 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
 
   if ( n_dir_conn > 0 )
   {
-    CUDAMALLOCCTRL( "&d_poiss_key_array", &d_poiss_key_array, n_dir_conn * sizeof( ConnKeyT ) );
+    //CUDAMALLOCCTRL( "&d_poiss_key_array", &d_poiss_key_array, n_dir_conn * sizeof( ConnKeyT ) );
 
     int64_t offset = 0;
     for ( int ib = ib0; ib <= ib1; ib++ )
     {
       if ( ib == ib0 && ib == ib1 )
       {
-        gpuErrchk( cudaMemcpy( d_poiss_key_array,
-          conn_key_array[ ib ] + h_num0[ ib ],
-          n_dir_conn * sizeof( ConnKeyT ),
-          cudaMemcpyDeviceToDevice ) );
+        //gpuErrchk( cudaMemcpy( d_poiss_key_array,
+        //  conn_key_array[ ib ] + h_num0[ ib ],
+        //  n_dir_conn * sizeof( ConnKeyT ),
+        //  cudaMemcpyDeviceToDevice ) );
         break;
       }
       else if ( ib == ib0 )
       {
         offset = conn_block_size_ - h_num0[ ib ];
-        gpuErrchk( cudaMemcpy( d_poiss_key_array,
-          conn_key_array[ ib ] + h_num0[ ib ],
-          offset * sizeof( ConnKeyT ),
-          cudaMemcpyDeviceToDevice ) );
+        //gpuErrchk( cudaMemcpy( d_poiss_key_array,
+        //  conn_key_array[ ib ] + h_num0[ ib ],
+        //  offset * sizeof( ConnKeyT ),
+        //  cudaMemcpyDeviceToDevice ) );
       }
       else if ( ib == ib1 )
       {
-        gpuErrchk( cudaMemcpy( ( ConnKeyT* ) d_poiss_key_array + offset,
-          conn_key_array[ ib ],
-          h_num1[ ib ] * sizeof( ConnKeyT ),
-          cudaMemcpyDeviceToDevice ) );
+        //gpuErrchk( cudaMemcpy( ( ConnKeyT* ) d_poiss_key_array + offset,
+        //  conn_key_array[ ib ],
+        //  h_num1[ ib ] * sizeof( ConnKeyT ),
+        //  cudaMemcpyDeviceToDevice ) );
         break;
       }
       else
       {
-        gpuErrchk( cudaMemcpy( ( ConnKeyT* ) d_poiss_key_array + offset,
-          conn_key_array[ ib ],
-          conn_block_size_ * sizeof( ConnKeyT ),
-          cudaMemcpyDeviceToDevice ) );
+        //gpuErrchk( cudaMemcpy( ( ConnKeyT* ) d_poiss_key_array + offset,
+        //  conn_key_array[ ib ],
+        //  conn_block_size_ * sizeof( ConnKeyT ),
+        //  cudaMemcpyDeviceToDevice ) );
         offset += conn_block_size_;
       }
     }
@@ -4275,10 +4275,10 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
       }
       grid_dim_y = ( n_dir_conn + grid_dim_x * 1024 - 1 ) / ( grid_dim_x * 1024 );
     }
-    dim3 numBlocks( grid_dim_x, grid_dim_y );
-    poissGenSubstractFirstNodeIndexKernel< ConnKeyT > <<< numBlocks, 1024 >>>(
-      n_dir_conn, ( ConnKeyT* ) d_poiss_key_array, i_node_0 );
-    DBGCUDASYNC
+    //dim3 numBlocks( grid_dim_x, grid_dim_y );
+    //poissGenSubstractFirstNodeIndexKernel< ConnKeyT > <<< numBlocks, 1024 >>>(
+    //  n_dir_conn, ( ConnKeyT* ) d_poiss_key_array, i_node_0 );
+    //DBGCUDASYNC
   }
 
   // Find maximum delay of poisson direct connections
@@ -4287,7 +4287,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
   // pointer to connection key with maximum delay in device memory
   ConnKeyT* d_max_delay_key;
   ConnKeyT h_max_delay_key;
-  CUDAMALLOCCTRL( "&d_max_delay_key", &d_max_delay_key, sizeof( ConnKeyT ) );
+  //CUDAMALLOCCTRL( "&d_max_delay_key", &d_max_delay_key, sizeof( ConnKeyT ) );
 
   MaxDelay< ConnKeyT > max_op; // comparison operator used by Reduce function
   // Determine temporary device storage requirements
@@ -4295,38 +4295,38 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::buildDirectConnections( inode_t i_n
   size_t temp_storage_bytes = 0;
   ConnKeyT init_delay_key = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceReduce::Reduce( d_temp_storage,
-    temp_storage_bytes,
-    ( ConnKeyT* ) d_poiss_key_array,
-    d_max_delay_key,
-    n_dir_conn,
-    max_op,
-    init_delay_key );
+  //cub::DeviceReduce::Reduce( d_temp_storage,
+  //  temp_storage_bytes,
+  //  ( ConnKeyT* ) d_poiss_key_array,
+  //  d_max_delay_key,
+  //  n_dir_conn,
+  //  max_op,
+  //  init_delay_key );
   //<END-CLANG-TIDY-SKIP>//
 
   // Allocate temporary storage
-  CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
+  //CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
   // Run reduction
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceReduce::Reduce( d_temp_storage,
-    temp_storage_bytes,
-    ( ConnKeyT* ) d_poiss_key_array,
-    d_max_delay_key,
-    n_dir_conn,
-    max_op,
-    init_delay_key );
+  //cub::DeviceReduce::Reduce( d_temp_storage,
+  //  temp_storage_bytes,
+  //  ( ConnKeyT* ) d_poiss_key_array,
+  //  d_max_delay_key,
+  //  n_dir_conn,
+  //  max_op,
+  //  init_delay_key );
   //<END-CLANG-TIDY-SKIP>//
 
   // gpuErrchk(cudaMemcpy(&max_delay, d_max_delay, sizeof(int),
   //		       cudaMemcpyDeviceToHost));
-  gpuErrchk( cudaMemcpy( &h_max_delay_key, d_max_delay_key, sizeof( ConnKeyT ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpy( &h_max_delay_key, d_max_delay_key, sizeof( ConnKeyT ), cudaMemcpyDeviceToHost ) );
   // std::cout << "Conn key of direct connections having max delay: "
   //	    << h_max_delay_key << "\n";
 
   max_delay = getConnDelay( h_max_delay_key );
   printf( "Max delay of direct (poisson generator) connections: %d\n", max_delay );
-  CUDAMALLOCCTRL( "&d_mu_arr", &d_mu_arr, n_node * max_delay * sizeof( float ) );
-  gpuErrchk( cudaMemset( d_mu_arr, 0, n_node * max_delay * sizeof( float ) ) );
+  //CUDAMALLOCCTRL( "&d_mu_arr", &d_mu_arr, n_node * max_delay * sizeof( float ) );
+  //gpuErrchk( cudaMemset( d_mu_arr, 0, n_node * max_delay * sizeof( float ) ) );
 
   /*
   CUDAFREECTRL("d_key_array_data_pt",d_key_array_data_pt);
@@ -4354,74 +4354,74 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::revSpikeInit( uint n_spike_buffers 
   // and initialize it to 0
   int64_t* d_target_rev_conn_size_64;
   int64_t* d_target_rev_conn_cumul;
-  CUDAMALLOCCTRL(
-    "&d_target_rev_conn_size_64", &d_target_rev_conn_size_64, ( n_spike_buffers + 1 ) * sizeof( int64_t ) );
-  gpuErrchk( cudaMemset( d_target_rev_conn_size_64, 0, ( n_spike_buffers + 1 ) * sizeof( int64_t ) ) );
-  // Count number of reverse connections per target node
-  countRevConnectionsKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(
-    n_conn_, d_target_rev_conn_size_64 );
+  //CUDAMALLOCCTRL(
+  //  "&d_target_rev_conn_size_64", &d_target_rev_conn_size_64, ( n_spike_buffers + 1 ) * sizeof( int64_t ) );
+  //gpuErrchk( cudaMemset( d_target_rev_conn_size_64, 0, ( n_spike_buffers + 1 ) * sizeof( int64_t ) ) );
+  //// Count number of reverse connections per target node
+  //countRevConnectionsKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(
+  //  n_conn_, d_target_rev_conn_size_64 );
   // Evaluate exclusive sum of reverse connections per target node
   // Allocate array for cumulative sum
-  CUDAMALLOCCTRL( "&d_target_rev_conn_cumul", &d_target_rev_conn_cumul, ( n_spike_buffers + 1 ) * sizeof( int64_t ) );
+  //CUDAMALLOCCTRL( "&d_target_rev_conn_cumul", &d_target_rev_conn_cumul, ( n_spike_buffers + 1 ) * sizeof( int64_t ) );
   // Determine temporary device storage requirements
   void* d_temp_storage = NULL;
   size_t temp_storage_bytes = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceScan::ExclusiveSum(
-    d_temp_storage, temp_storage_bytes, d_target_rev_conn_size_64, d_target_rev_conn_cumul, n_spike_buffers + 1 );
+  //cub::DeviceScan::ExclusiveSum(
+  //  d_temp_storage, temp_storage_bytes, d_target_rev_conn_size_64, d_target_rev_conn_cumul, n_spike_buffers + 1 );
   //<END-CLANG-TIDY-SKIP>//
 
   // Allocate temporary storage
-  CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
+  //CUDAMALLOCCTRL( "&d_temp_storage", &d_temp_storage, temp_storage_bytes );
   // Run exclusive prefix sum
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceScan::ExclusiveSum(
-    d_temp_storage, temp_storage_bytes, d_target_rev_conn_size_64, d_target_rev_conn_cumul, n_spike_buffers + 1 );
+  //cub::DeviceScan::ExclusiveSum(
+  //  d_temp_storage, temp_storage_bytes, d_target_rev_conn_size_64, d_target_rev_conn_cumul, n_spike_buffers + 1 );
   //<END-CLANG-TIDY-SKIP>//
 
   // The last element is the total number of reverse connections
-  gpuErrchk( cudaMemcpy(
-    &n_rev_conn_, &d_target_rev_conn_cumul[ n_spike_buffers ], sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
+  //gpuErrchk( cudaMemcpy(
+  //  &n_rev_conn_, &d_target_rev_conn_cumul[ n_spike_buffers ], sizeof( int64_t ), cudaMemcpyDeviceToHost ) );
   if ( n_rev_conn_ > 0 )
   {
     // Allocate array of reverse connection indexes
     // CHECK THAT d_RevConnections is of type int64_t array
-    CUDAMALLOCCTRL( "&d_rev_conn_", &d_rev_conn_, n_rev_conn_ * sizeof( int64_t ) );
-    // For each target node evaluate the pointer
-    // to its first reverse connection using the exclusive sum
-    // CHECK THAT d_target_rev_conn_ is of type int64_t* pointer
-    CUDAMALLOCCTRL( "&d_target_rev_conn_", &d_target_rev_conn_, n_spike_buffers * sizeof( int64_t* ) );
-    setTargetRevConnectionsPtKernel<<< ( n_spike_buffers + 1023 ) / 1024, 1024 >>>(
-      n_spike_buffers, d_target_rev_conn_cumul, d_target_rev_conn_, d_rev_conn_ );
+    //CUDAMALLOCCTRL( "&d_rev_conn_", &d_rev_conn_, n_rev_conn_ * sizeof( int64_t ) );
+    //// For each target node evaluate the pointer
+    //// to its first reverse connection using the exclusive sum
+    //// CHECK THAT d_target_rev_conn_ is of type int64_t* pointer
+    //CUDAMALLOCCTRL( "&d_target_rev_conn_", &d_target_rev_conn_, n_spike_buffers * sizeof( int64_t* ) );
+    //setTargetRevConnectionsPtKernel<<< ( n_spike_buffers + 1023 ) / 1024, 1024 >>>(
+    //  n_spike_buffers, d_target_rev_conn_cumul, d_target_rev_conn_, d_rev_conn_ );
 
-    // alloc 32 bit array of number of reverse connections per target node
-    CUDAMALLOCCTRL( "&d_target_rev_conn_size_", &d_target_rev_conn_size_, n_spike_buffers * sizeof( int ) );
-    // and initialize it to 0
-    gpuErrchk( cudaMemset( d_target_rev_conn_size_, 0, n_spike_buffers * sizeof( int ) ) );
-    // Fill array of reverse connection indexes
-    setRevConnectionsIndexKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(
-      n_conn_, d_target_rev_conn_size_, d_target_rev_conn_ );
+    //// alloc 32 bit array of number of reverse connections per target node
+    //CUDAMALLOCCTRL( "&d_target_rev_conn_size_", &d_target_rev_conn_size_, n_spike_buffers * sizeof( int ) );
+    //// and initialize it to 0
+    //gpuErrchk( cudaMemset( d_target_rev_conn_size_, 0, n_spike_buffers * sizeof( int ) ) );
+    //// Fill array of reverse connection indexes
+    //setRevConnectionsIndexKernel< ConnKeyT, ConnStructT > <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>(
+    //  n_conn_, d_target_rev_conn_size_, d_target_rev_conn_ );
 
-    revConnectionInitKernel<<< 1, 1 >>>( d_rev_conn_, d_target_rev_conn_size_, d_target_rev_conn_ );
+    //revConnectionInitKernel<<< 1, 1 >>>( d_rev_conn_, d_target_rev_conn_size_, d_target_rev_conn_ );
 
-    setConnectionSpikeTime <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, 0x8000 );
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
+    //setConnectionSpikeTime <<< ( n_conn_ + 1023 ) / 1024, 1024 >>>( n_conn_, 0x8000 );
+    //gpuErrchk( cudaPeekAtLastError() );
+    //gpuErrchk( cudaDeviceSynchronize() );
 
-    CUDAMALLOCCTRL( "&d_rev_spike_num_", &d_rev_spike_num_, sizeof( uint ) );
+    //CUDAMALLOCCTRL( "&d_rev_spike_num_", &d_rev_spike_num_, sizeof( uint ) );
 
-    CUDAMALLOCCTRL( "&d_rev_spike_target_", &d_rev_spike_target_, n_spike_buffers * sizeof( uint ) );
+    //CUDAMALLOCCTRL( "&d_rev_spike_target_", &d_rev_spike_target_, n_spike_buffers * sizeof( uint ) );
 
-    CUDAMALLOCCTRL( "&d_rev_spike_n_conn", &d_rev_spike_n_conn_, n_spike_buffers * sizeof( int ) );
+    //CUDAMALLOCCTRL( "&d_rev_spike_n_conn", &d_rev_spike_n_conn_, n_spike_buffers * sizeof( int ) );
 
-    deviceRevSpikeInit<<< 1, 1 >>>( d_rev_spike_num_, d_rev_spike_target_, d_rev_spike_n_conn_ );
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
+    //deviceRevSpikeInit<<< 1, 1 >>>( d_rev_spike_num_, d_rev_spike_target_, d_rev_spike_n_conn_ );
+    //gpuErrchk( cudaPeekAtLastError() );
+    //gpuErrchk( cudaDeviceSynchronize() );
   }
 
-  CUDAFREECTRL( "d_temp_storage", d_temp_storage );
-  CUDAFREECTRL( "d_target_rev_conn_size_64", d_target_rev_conn_size_64 );
-  CUDAFREECTRL( "d_target_rev_conn_cumul", d_target_rev_conn_cumul );
+  //CUDAFREECTRL( "d_temp_storage", d_temp_storage );
+  //CUDAFREECTRL( "d_target_rev_conn_size_64", d_target_rev_conn_size_64 );
+  //CUDAFREECTRL( "d_target_rev_conn_cumul", d_target_rev_conn_cumul );
 
   return 0;
 }

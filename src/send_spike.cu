@@ -77,15 +77,15 @@ SpikeInit( int max_spike_num )
 {
   // h_SpikeTargetNum = new int[PrefixScan::AllocSize];
 
-  CUDAMALLOCCTRL( "&d_SpikeNum", &d_SpikeNum, sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_SpikeSourceIdx", &d_SpikeSourceIdx, max_spike_num * sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_SpikeConnIdx", &d_SpikeConnIdx, max_spike_num * sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_SpikeMul", &d_SpikeMul, max_spike_num * sizeof( float ) );
-  CUDAMALLOCCTRL( "&d_SpikeTargetNum", &d_SpikeTargetNum, max_spike_num * sizeof( int ) );
-  // printf("here: SpikeTargetNum size: %d", max_spike_num);
-  DeviceSpikeInit<<< 1, 1 >>>(
-    d_SpikeNum, d_SpikeSourceIdx, d_SpikeConnIdx, d_SpikeMul, d_SpikeTargetNum, max_spike_num );
-  gpuErrchk( cudaPeekAtLastError() );
+  //CUDAMALLOCCTRL( "&d_SpikeNum", &d_SpikeNum, sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_SpikeSourceIdx", &d_SpikeSourceIdx, max_spike_num * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_SpikeConnIdx", &d_SpikeConnIdx, max_spike_num * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_SpikeMul", &d_SpikeMul, max_spike_num * sizeof( float ) );
+  //CUDAMALLOCCTRL( "&d_SpikeTargetNum", &d_SpikeTargetNum, max_spike_num * sizeof( int ) );
+  //// printf("here: SpikeTargetNum size: %d", max_spike_num);
+  //DeviceSpikeInit<<< 1, 1 >>>(
+  //  d_SpikeNum, d_SpikeSourceIdx, d_SpikeConnIdx, d_SpikeMul, d_SpikeTargetNum, max_spike_num );
+  //gpuErrchk( cudaPeekAtLastError() );
 }
 
 __global__ void

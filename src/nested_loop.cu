@@ -110,7 +110,7 @@ int
 NestedLoop::Init( int Nx_max )
 {
   // prefix_scan_.Init();
-  CUDAMALLOCCTRL( "&d_Ny_cumul_sum_", &d_Ny_cumul_sum_, PrefixScan::AllocSize * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_Ny_cumul_sum_", &d_Ny_cumul_sum_, PrefixScan::AllocSize * sizeof( int ) );
 
   if ( Nx_max <= 0 )
   {
@@ -123,25 +123,25 @@ NestedLoop::Init( int Nx_max )
   x_lim_ = 0.75;
   Nx_max_ = Nx_max;
 
-  CUDAMALLOCCTRL( "&d_max_Ny_", &d_max_Ny_, sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_sorted_Ny_", &d_sorted_Ny_, Nx_max * sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_idx_", &d_idx_, Nx_max * sizeof( int ) );
-  CUDAMALLOCCTRL( "&d_sorted_idx_", &d_sorted_idx_, Nx_max * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_max_Ny_", &d_max_Ny_, sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_sorted_Ny_", &d_sorted_Ny_, Nx_max * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_idx_", &d_idx_, Nx_max * sizeof( int ) );
+  //CUDAMALLOCCTRL( "&d_sorted_idx_", &d_sorted_idx_, Nx_max * sizeof( int ) );
 
   int* h_idx = new int[ Nx_max ];
   for ( int i = 0; i < Nx_max; i++ )
   {
     h_idx[ i ] = i;
   }
-  gpuErrchk( cudaMemcpy( d_idx_, h_idx, Nx_max * sizeof( int ), cudaMemcpyHostToDevice ) );
+  //gpuErrchk( cudaMemcpy( d_idx_, h_idx, Nx_max * sizeof( int ), cudaMemcpyHostToDevice ) );
   delete[] h_idx;
 
   // Determine temporary storage requirements for RadixSort
   d_sort_storage_ = nullptr;
   sort_storage_bytes_ = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceRadixSort::SortPairs(
-    d_sort_storage_, sort_storage_bytes_, d_sorted_Ny_, d_sorted_Ny_, d_idx_, d_sorted_idx_, Nx_max );
+  //cub::DeviceRadixSort::SortPairs(
+  //  d_sort_storage_, sort_storage_bytes_, d_sorted_Ny_, d_sorted_Ny_, d_idx_, d_sorted_idx_, Nx_max );
   //<END-CLANG-TIDY-SKIP>//
 
   // Determine temporary device storage requirements for Reduce
@@ -149,12 +149,12 @@ NestedLoop::Init( int Nx_max )
   reduce_storage_bytes_ = 0;
   int* d_Ny = nullptr;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceReduce::Max( d_reduce_storage_, reduce_storage_bytes_, d_Ny, d_max_Ny_, Nx_max );
+  //cub::DeviceReduce::Max( d_reduce_storage_, reduce_storage_bytes_, d_Ny, d_max_Ny_, Nx_max );
   //<END-CLANG-TIDY-SKIP>//
 
   // Allocate temporary storage
-  CUDAMALLOCCTRL( "&d_sort_storage_", &d_sort_storage_, sort_storage_bytes_ );
-  CUDAMALLOCCTRL( "&d_reduce_storage_", &d_reduce_storage_, reduce_storage_bytes_ );
+  //CUDAMALLOCCTRL( "&d_sort_storage_", &d_sort_storage_, sort_storage_bytes_ );
+  //CUDAMALLOCCTRL( "&d_reduce_storage_", &d_reduce_storage_, reduce_storage_bytes_ );
 
   return 0;
 }

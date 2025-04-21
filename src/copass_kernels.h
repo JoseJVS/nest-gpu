@@ -242,32 +242,32 @@ array_GPUSort( contiguous_key_value< KeyT, ValueT >& arr_in, void* d_storage, in
 
   size_t sort_storage_bytes = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceRadixSort::SortPairs( NULL,
-    sort_storage_bytes,
-    arr_in.key_pt + arr_in.offset,
-    arr_out.key_pt,
-    arr_in.value_pt + arr_in.offset,
-    arr_out.value_pt,
-    num_elems );
+  //cub::DeviceRadixSort::SortPairs( NULL,
+  //  sort_storage_bytes,
+  //  arr_in.key_pt + arr_in.offset,
+  //  arr_out.key_pt,
+  //  arr_in.value_pt + arr_in.offset,
+  //  arr_out.value_pt,
+  //  num_elems );
   //<END-CLANG-TIDY-SKIP>//
   
   if ( d_storage != NULL )
   {
     void* d_sort_storage = ( void* ) ( ( char* ) d_storage + ext_st_bytes );
     //<BEGIN-CLANG-TIDY-SKIP>//
-    cub::DeviceRadixSort::SortPairs( d_sort_storage,
-      sort_storage_bytes,
-      arr_in.key_pt + arr_in.offset,
-      arr_out.key_pt,
-      arr_in.value_pt + arr_in.offset,
-      arr_out.value_pt,
-      num_elems );
-    //<END-CLANG-TIDY-SKIP>//
+    //cub::DeviceRadixSort::SortPairs( d_sort_storage,
+    //  sort_storage_bytes,
+    //  arr_in.key_pt + arr_in.offset,
+    //  arr_out.key_pt,
+    //  arr_in.value_pt + arr_in.offset,
+    //  arr_out.value_pt,
+    //  num_elems );
+    ////<END-CLANG-TIDY-SKIP>//
     
-    gpuErrchk( cudaMemcpyAsync(
-      arr_in.key_pt + arr_in.offset, arr_out.key_pt, num_elems * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
-    gpuErrchk( cudaMemcpy(
-      arr_in.value_pt + arr_in.offset, arr_out.value_pt, num_elems * sizeof( ValueT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync(
+    //  arr_in.key_pt + arr_in.offset, arr_out.key_pt, num_elems * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpy(
+    //  arr_in.value_pt + arr_in.offset, arr_out.value_pt, num_elems * sizeof( ValueT ), cudaMemcpyDeviceToDevice ) );
   }
 
   ext_st_bytes += sort_storage_bytes;
@@ -484,20 +484,20 @@ array_GPUSort( contiguous_array< ElementT >& arr_in, void* d_storage, int64_t& e
 
   size_t sort_storage_bytes = 0;
   //<BEGIN-CLANG-TIDY-SKIP>//
-  cub::DeviceRadixSort::SortKeys(
-    NULL, sort_storage_bytes, arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems );
+  //cub::DeviceRadixSort::SortKeys(
+  //  NULL, sort_storage_bytes, arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems );
   //<END-CLANG-TIDY-SKIP>//
 
   if ( d_storage != NULL )
   {
     void* d_sort_storage = ( void* ) ( ( char* ) d_storage + ext_st_bytes );
     //<BEGIN-CLANG-TIDY-SKIP>//
-    cub::DeviceRadixSort::SortKeys(
-      d_sort_storage, sort_storage_bytes, arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems );
-    //<END-CLANG-TIDY-SKIP>//
+    //cub::DeviceRadixSort::SortKeys(
+    //  d_sort_storage, sort_storage_bytes, arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems );
+    ////<END-CLANG-TIDY-SKIP>//
 
-    gpuErrchk( cudaMemcpy(
-      arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems * sizeof( ElementT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpy(
+    //  arr_in.data_pt + arr_in.offset, arr_out.data_pt, num_elems * sizeof( ElementT ), cudaMemcpyDeviceToDevice ) );
   }
 
   ext_st_bytes += sort_storage_bytes;
@@ -1189,8 +1189,8 @@ contiguousTranslate( contiguous_array< KeyT >& arr, position_t transl, char* d_b
 
   if ( transl >= elem_num )
   {
-    gpuErrchk( cudaMemcpyAsync(
-      &arr.data_pt[ t_pos0 ], &arr.data_pt[ s_pos0 ], elem_num * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync(
+    //  &arr.data_pt[ t_pos0 ], &arr.data_pt[ s_pos0 ], elem_num * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
   }
   else
   {
@@ -1216,10 +1216,10 @@ contiguousTranslate( contiguous_key_value< KeyT, ValueT >& arr,
 
   if ( transl >= elem_num )
   {
-    gpuErrchk( cudaMemcpyAsync(
-      &arr.key_pt[ t_pos0 ], &arr.key_pt[ s_pos0 ], elem_num * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
-    gpuErrchk( cudaMemcpyAsync(
-      &arr.value_pt[ t_pos0 ], &arr.value_pt[ s_pos0 ], elem_num * sizeof( ValueT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync(
+    //  &arr.key_pt[ t_pos0 ], &arr.key_pt[ s_pos0 ], elem_num * sizeof( KeyT ), cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync(
+    //  &arr.value_pt[ t_pos0 ], &arr.value_pt[ s_pos0 ], elem_num * sizeof( ValueT ), cudaMemcpyDeviceToDevice ) );
   }
   else
   {
@@ -1252,14 +1252,14 @@ CopyRegion( regular_block_key_value< KeyT, ValueT >& arr,
   position_t transl = t_j0 - s_j0;
   if ( t_ib != s_ib || transl >= elem_num )
   {
-    gpuErrchk( cudaMemcpyAsync( &arr.h_key_pt[ t_ib ][ t_j0 ],
-      &arr.h_key_pt[ s_ib ][ s_j0 ],
-      elem_num * sizeof( KeyT ),
-      cudaMemcpyDeviceToDevice ) );
-    gpuErrchk( cudaMemcpyAsync( &arr.h_value_pt[ t_ib ][ t_j0 ],
-      &arr.h_value_pt[ s_ib ][ s_j0 ],
-      elem_num * sizeof( ValueT ),
-      cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( &arr.h_key_pt[ t_ib ][ t_j0 ],
+    //  &arr.h_key_pt[ s_ib ][ s_j0 ],
+    //  elem_num * sizeof( KeyT ),
+    //  cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( &arr.h_value_pt[ t_ib ][ t_j0 ],
+    //  &arr.h_value_pt[ s_ib ][ s_j0 ],
+    //  elem_num * sizeof( ValueT ),
+    //  cudaMemcpyDeviceToDevice ) );
   }
   else
   {
@@ -1291,10 +1291,10 @@ CopyRegion( regular_block_array< KeyT >& arr,
   position_t transl = t_j0 - s_j0;
   if ( t_ib != s_ib || transl >= elem_num )
   {
-    gpuErrchk( cudaMemcpyAsync( &arr.h_data_pt[ t_ib ][ t_j0 ],
-      &arr.h_data_pt[ s_ib ][ s_j0 ],
-      elem_num * sizeof( KeyT ),
-      cudaMemcpyDeviceToDevice ) );
+    //gpuErrchk( cudaMemcpyAsync( &arr.h_data_pt[ t_ib ][ t_j0 ],
+    //  &arr.h_data_pt[ s_ib ][ s_j0 ],
+    //  elem_num * sizeof( KeyT ),
+    //  cudaMemcpyDeviceToDevice ) );
   }
   else
   {

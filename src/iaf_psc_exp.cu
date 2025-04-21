@@ -195,7 +195,7 @@ iaf_psc_exp::Free()
 int
 iaf_psc_exp::Calibrate( double, float time_resolution )
 {
-  iaf_psc_exp_Calibrate<<< ( n_node_ + 1023 ) / 1024, 1024 >>>( n_node_, param_arr_, n_param_, time_resolution );
+  //iaf_psc_exp_Calibrate<<< ( n_node_ + 1023 ) / 1024, 1024 >>>( n_node_, param_arr_, n_param_, time_resolution );
 
   return 0;
 }
