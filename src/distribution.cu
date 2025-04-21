@@ -71,9 +71,9 @@ randomNormalClipped( float* arr, int64_t n, float mu, float sigma, float low, fl
   // printf("mu: %f\tsigma: %f\tlow: %f\thigh: %f\tn: %ld\n",
   //	 mu, sigma, low, high, n);
   // n = 10000;
-  randomNormalClippedKernel<<< ( n + 1023 ) / 1024, 1024 >>>(
-    arr, n, mu, sigma, low, high, normal_cdf_alpha, normal_cdf_beta );
-  DBGCUDASYNC
+  //randomNormalClippedKernel<<< ( n + 1023 ) / 1024, 1024 >>>(
+  //  arr, n, mu, sigma, low, high, normal_cdf_alpha, normal_cdf_beta );
+  //DBGCUDASYNC
   // temporary test, remove!!!!!!!!!!!!!
   // gpuErrchk( cudaDeviceSynchronize() );
   // float h_arr[10000];

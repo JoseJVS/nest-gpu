@@ -419,14 +419,14 @@ NESTGPU::Connect( inode_t* source,
 {
   CheckUncalibrated( "Connections cannot be created after calibration" );
   inode_t* d_source;
-  CUDAMALLOCCTRL( "&d_source", &d_source, n_source * sizeof( inode_t ) );
-  gpuErrchk( cudaMemcpy( d_source, source, n_source * sizeof( inode_t ), cudaMemcpyHostToDevice ) );
+  //CUDAMALLOCCTRL( "&d_source", &d_source, n_source * sizeof( inode_t ) );
+  //gpuErrchk( cudaMemcpy( d_source, source, n_source * sizeof( inode_t ), cudaMemcpyHostToDevice ) );
   inode_t* d_target;
-  CUDAMALLOCCTRL( "&d_target", &d_target, n_target * sizeof( inode_t ) );
-  gpuErrchk( cudaMemcpy( d_target, target, n_target * sizeof( inode_t ), cudaMemcpyHostToDevice ) );
+  //CUDAMALLOCCTRL( "&d_target", &d_target, n_target * sizeof( inode_t ) );
+  //gpuErrchk( cudaMemcpy( d_target, target, n_target * sizeof( inode_t ), cudaMemcpyHostToDevice ) );
   int ret = conn_->connect( d_source, n_source, d_target, n_target, conn_spec, syn_spec );
-  CUDAFREECTRL( "d_source", d_source );
-  CUDAFREECTRL( "d_target", d_target );
+  //CUDAFREECTRL( "d_source", d_source );
+  //CUDAFREECTRL( "d_target", d_target );
 
   return ret;
 }

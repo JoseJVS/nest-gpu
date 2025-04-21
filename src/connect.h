@@ -2531,8 +2531,8 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::allocateNewBlocks( int new_n_block 
     ConnKeyT* d_key_pt;
     ConnStructT* d_connection_pt;
     // allocate GPU memory for new blocks
-    CUDAMALLOCCTRL( "&d_key_pt", &d_key_pt, conn_block_size_ * sizeof( ConnKeyT ) );
-    CUDAMALLOCCTRL( "&d_connection_pt", &d_connection_pt, conn_block_size_ * sizeof( ConnStructT ) );
+    //CUDAMALLOCCTRL( "&d_key_pt", &d_key_pt, conn_block_size_ * sizeof( ConnKeyT ) );
+    //CUDAMALLOCCTRL( "&d_connection_pt", &d_connection_pt, conn_block_size_ * sizeof( ConnStructT ) );
     conn_key_vect_.push_back( d_key_pt );
     conn_struct_vect_.push_back( d_connection_pt );
   }
@@ -2568,12 +2568,12 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::setConnectionWeights( curandGenerat
   { // or array
     if ( syn_spec.weight_distr_ == DISTR_TYPE_ARRAY )
     {
-      gpuErrchk(
-        cudaMemcpy( d_storage, syn_spec.weight_h_array_pt_, n_conn * sizeof( float ), cudaMemcpyHostToDevice ) );
+      //gpuErrchk(
+      //  cudaMemcpy( d_storage, syn_spec.weight_h_array_pt_, n_conn * sizeof( float ), cudaMemcpyHostToDevice ) );
     }
     else if ( syn_spec.weight_distr_ == DISTR_TYPE_NORMAL_CLIPPED )
     {
-      CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
+      //CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
       randomNormalClipped( ( float* ) d_storage,
         n_conn,
         syn_spec.weight_mu_,
@@ -2585,21 +2585,21 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::setConnectionWeights( curandGenerat
     {
       float low = syn_spec.weight_mu_ - 5.0 * syn_spec.weight_sigma_;
       float high = syn_spec.weight_mu_ + 5.0 * syn_spec.weight_sigma_;
-      CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
+      //CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
       randomNormalClipped( ( float* ) d_storage, n_conn, syn_spec.weight_mu_, syn_spec.weight_sigma_, low, high );
     }
     else
     {
       throw ngpu_exception( "Invalid connection weight distribution type" );
     }
-    setWeights< ConnStructT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
-      conn_struct_subarray, ( float* ) d_storage, n_conn );
-    DBGCUDASYNC;
+    //setWeights< ConnStructT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_struct_subarray, ( float* ) d_storage, n_conn );
+    //DBGCUDASYNC;
   }
   else
   {
-    setWeights< ConnStructT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>( conn_struct_subarray, syn_spec.weight_, n_conn );
-    DBGCUDASYNC;
+    //setWeights< ConnStructT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>( conn_struct_subarray, syn_spec.weight_, n_conn );
+    //DBGCUDASYNC;
   }
 
   return 0;
@@ -2618,12 +2618,12 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::setConnectionDelays( curandGenerato
   { // or array
     if ( syn_spec.delay_distr_ == DISTR_TYPE_ARRAY )
     {
-      gpuErrchk(
-        cudaMemcpy( d_storage, syn_spec.delay_h_array_pt_, n_conn * sizeof( float ), cudaMemcpyHostToDevice ) );
+      //gpuErrchk(
+      //  cudaMemcpy( d_storage, syn_spec.delay_h_array_pt_, n_conn * sizeof( float ), cudaMemcpyHostToDevice ) );
     }
     else if ( syn_spec.delay_distr_ == DISTR_TYPE_NORMAL_CLIPPED )
     {
-      CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
+      //CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
       randomNormalClipped( ( float* ) d_storage,
         n_conn,
         syn_spec.delay_mu_,
@@ -2635,7 +2635,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::setConnectionDelays( curandGenerato
     {
       float low = syn_spec.delay_mu_ - 5.0 * syn_spec.delay_sigma_;
       float high = syn_spec.delay_mu_ + 5.0 * syn_spec.delay_sigma_;
-      CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
+      //CURAND_CALL( curandGenerateUniform( gen, ( float* ) d_storage, n_conn ) );
       randomNormalClipped( ( float* ) d_storage,
         n_conn,
         syn_spec.delay_mu_,
@@ -2648,15 +2648,15 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::setConnectionDelays( curandGenerato
       throw ngpu_exception( "Invalid connection delay distribution type" );
     }
 
-    setDelays< ConnKeyT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_subarray, ( float* ) d_storage, n_conn, time_resolution_ );
-    DBGCUDASYNC;
+    //setDelays< ConnKeyT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_subarray, ( float* ) d_storage, n_conn, time_resolution_ );
+    //DBGCUDASYNC;
   }
   else
   {
-    setDelays< ConnKeyT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_subarray, syn_spec.delay_, n_conn, time_resolution_ );
-    DBGCUDASYNC;
+    //setDelays< ConnKeyT > <<< ( n_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_subarray, syn_spec.delay_, n_conn, time_resolution_ );
+    //DBGCUDASYNC;
   }
   return 0;
 }
@@ -2964,7 +2964,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::_Connect( curandGenerator_t& gen,
   first_connection_flag_ = false;
   if ( d_conn_storage_ == NULL )
   {
-    CUDAMALLOCCTRL( "&d_conn_storage_", &d_conn_storage_, conn_block_size_ * sizeof( uint ) );
+    //CUDAMALLOCCTRL( "&d_conn_storage_", &d_conn_storage_, conn_block_size_ * sizeof( uint ) );
   }
 
   ////////////////////////
@@ -3022,9 +3022,9 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::reallocConnSourceIds( int64_t n_con
   }
   if ( conn_source_ids_size_ > 0 && d_conn_source_ids_ != NULL )
   {
-    CUDAFREECTRL( "d_conn_source_ids_", d_conn_source_ids_ );
+    //CUDAFREECTRL( "d_conn_source_ids_", d_conn_source_ids_ );
   }
-  CUDAMALLOCCTRL( "&d_conn_source_ids_", &d_conn_source_ids_, n_conn * sizeof( inode_t ) );
+  //CUDAMALLOCCTRL( "&d_conn_source_ids_", &d_conn_source_ids_, n_conn * sizeof( inode_t ) );
   conn_source_ids_size_ = n_conn;
 
   return 0;
@@ -3087,9 +3087,9 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectOneToOne( curandGenerator_t&
 
   if ( remote_source_flag ) {
     reallocConnSourceIds( n_new_conn );
-    setOneToOneSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
-      (d_conn_source_ids_, n_new_conn, source );
-    DBGCUDASYNC;
+    //setOneToOneSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
+    //  (d_conn_source_ids_, n_new_conn, source );
+    //DBGCUDASYNC;
     
     return 0;
   }
@@ -3124,18 +3124,18 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectOneToOne( curandGenerator_t&
       n_block_conn = conn_block_size_;
     }
     
-    setOneToOneSourceTarget< T1, T2, ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, source, target );
-    DBGCUDASYNC;
+    //setOneToOneSourceTarget< T1, T2, ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, source, target );
+    //DBGCUDASYNC;
     setConnectionWeights(
       local_rnd_gen_, d_conn_storage_, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
     // CUDASYNC;
 
     n_prev_conn += n_block_conn;
@@ -3163,9 +3163,9 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectAllToAll( curandGenerator_t&
   if ( remote_source_flag )
   {
     reallocConnSourceIds( n_new_conn );
-    setAllToAllSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>(
-        d_conn_source_ids_, n_new_conn, source, n_source, n_target );
-    DBGCUDASYNC;
+    //setAllToAllSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>(
+    //    d_conn_source_ids_, n_new_conn, source, n_source, n_target );
+    //DBGCUDASYNC;
 
     return 0;  
   }
@@ -3200,27 +3200,27 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectAllToAll( curandGenerator_t&
       n_block_conn = conn_block_size_;
     }
     
-    setAllToAllSourceTarget< T1, T2, ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0,
-      conn_struct_vect_[ ib ] + i_conn0,
-      n_block_conn,
-      n_prev_conn,
-      source,
-      n_source,
-      target,
-      n_target );
-    DBGCUDASYNC;
+    //setAllToAllSourceTarget< T1, T2, ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0,
+    //  conn_struct_vect_[ ib ] + i_conn0,
+    //  n_block_conn,
+    //  n_prev_conn,
+    //  source,
+    //  n_source,
+    //  target,
+    //  n_target );
+    //DBGCUDASYNC;
     setConnectionWeights(
       local_rnd_gen_, d_conn_storage_, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
     
     n_prev_conn += n_block_conn;
   }
@@ -3251,10 +3251,10 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedTotalNumber( curandGene
 
   reallocConnSourceIds( n_new_conn );
   // generate random source index in range 0 - n_neuron
-  CURAND_CALL( curandGenerate( src_gen, ( uint* ) d_conn_source_ids_, n_new_conn ) );
-  setSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
-    (d_conn_source_ids_, d_conn_source_ids_, n_new_conn, source, n_source );
-  DBGCUDASYNC;
+  //CURAND_CALL( curandGenerate( src_gen, ( uint* ) d_conn_source_ids_, n_new_conn ) );
+  //setSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
+  //  (d_conn_source_ids_, d_conn_source_ids_, n_new_conn, source, n_source );
+  //DBGCUDASYNC;
 
   if ( remote_source_flag ) {
     return 0;
@@ -3290,28 +3290,28 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedTotalNumber( curandGene
       n_block_conn = conn_block_size_;
     }
     
-    setSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>
-      (conn_key_vect_[ ib ] + i_conn0, d_conn_source_ids_ + conn_source_ids_offset, n_block_conn);
-    DBGCUDASYNC;
+    //setSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>
+    //  (conn_key_vect_[ ib ] + i_conn0, d_conn_source_ids_ + conn_source_ids_offset, n_block_conn);
+    //DBGCUDASYNC;
     conn_source_ids_offset += n_block_conn;
 
     // generate random target index in range 0 - n_neuron
-    CURAND_CALL( curandGenerate( local_rnd_gen_, ( uint* ) d_conn_storage_, n_block_conn ) );
-    setTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_struct_vect_[ ib ] + i_conn0, ( uint* ) d_conn_storage_, n_block_conn, target, n_target );
-    DBGCUDASYNC;
+    //CURAND_CALL( curandGenerate( local_rnd_gen_, ( uint* ) d_conn_storage_, n_block_conn ) );
+    //setTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_struct_vect_[ ib ] + i_conn0, ( uint* ) d_conn_storage_, n_block_conn, target, n_target );
+    //DBGCUDASYNC;
 
     setConnectionWeights(
       local_rnd_gen_, d_conn_storage_, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
   }
 
   return 0;
@@ -3379,13 +3379,13 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectAssignedNodes( curandGenerat
 
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
 
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
     
     //CUDASYNC;
     //printConnectionsFull< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>
@@ -3421,10 +3421,10 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedIndegree( curandGenerat
 
   reallocConnSourceIds( n_new_conn );  
   // generate random source index in range 0 - n_neuron
-  CURAND_CALL( curandGenerate( src_gen, ( uint* ) d_conn_source_ids_, n_new_conn ) );
-  setSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
-    (d_conn_source_ids_, d_conn_source_ids_, n_new_conn, source, n_source );
-  DBGCUDASYNC;
+  //CURAND_CALL( curandGenerate( src_gen, ( uint* ) d_conn_source_ids_, n_new_conn ) );
+  //setSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>
+  //  (d_conn_source_ids_, d_conn_source_ids_, n_new_conn, source, n_source );
+  //DBGCUDASYNC;
 
   if ( remote_source_flag ) {
     return 0;
@@ -3461,26 +3461,26 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedIndegree( curandGenerat
       n_block_conn = conn_block_size_;
     }
 
-    setSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>
-      (conn_key_vect_[ ib ] + i_conn0, d_conn_source_ids_ + conn_source_ids_offset, n_block_conn);
-    DBGCUDASYNC;
-    conn_source_ids_offset += n_block_conn;
+    //setSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>
+    //  (conn_key_vect_[ ib ] + i_conn0, d_conn_source_ids_ + conn_source_ids_offset, n_block_conn);
+    //DBGCUDASYNC;
+    //conn_source_ids_offset += n_block_conn;
 
-    setIndegreeTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_struct_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, target, indegree );
-    DBGCUDASYNC;
+    //setIndegreeTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_struct_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, target, indegree );
+    //DBGCUDASYNC;
 
     setConnectionWeights(
       local_rnd_gen_, d_conn_storage_, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
     
     n_prev_conn += n_block_conn;
   }
@@ -3512,9 +3512,9 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedOutdegree( curandGenera
   if ( remote_source_flag )
   {
     reallocConnSourceIds( n_new_conn );
-    setOutdegreeSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>(
-        d_conn_source_ids_, n_new_conn, source, outdegree );
-    DBGCUDASYNC;
+    //setOutdegreeSource< T1 > <<< ( n_new_conn + 1023 ) / 1024, 1024 >>>(
+    //    d_conn_source_ids_, n_new_conn, source, outdegree );
+    //DBGCUDASYNC;
 
     return 0;  
   }
@@ -3549,27 +3549,27 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::connectFixedOutdegree( curandGenera
       n_block_conn = conn_block_size_;
     }
     
-    setOutdegreeSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, source, outdegree );
-    DBGCUDASYNC;
+    //setOutdegreeSource< T1, ConnKeyT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, n_block_conn, n_prev_conn, source, outdegree );
+    //DBGCUDASYNC;
 
-    // generate random target index in range 0 - n_neuron
-    CURAND_CALL( curandGenerate( local_rnd_gen_, ( uint* ) d_conn_storage_, n_block_conn ) );
-    setTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_struct_vect_[ ib ] + i_conn0, ( uint* ) d_conn_storage_, n_block_conn, target, n_target );
-    DBGCUDASYNC;
+    //// generate random target index in range 0 - n_neuron
+    //CURAND_CALL( curandGenerate( local_rnd_gen_, ( uint* ) d_conn_storage_, n_block_conn ) );
+    //setTarget< T2, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_struct_vect_[ ib ] + i_conn0, ( uint* ) d_conn_storage_, n_block_conn, target, n_target );
+    //DBGCUDASYNC;
 
     setConnectionWeights(
       local_rnd_gen_, d_conn_storage_, conn_struct_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
     setConnectionDelays( local_rnd_gen_, d_conn_storage_, conn_key_vect_[ ib ] + i_conn0, n_block_conn, syn_spec );
 
-    setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
-    DBGCUDASYNC;
-    setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
-      conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
-    DBGCUDASYNC;
+    //setPort< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.port_, n_block_conn );
+    //DBGCUDASYNC;
+    //setSynGroup< ConnKeyT, ConnStructT > <<< ( n_block_conn + 1023 ) / 1024, 1024 >>>(
+    //  conn_key_vect_[ ib ] + i_conn0, conn_struct_vect_[ ib ] + i_conn0, syn_spec.syn_group_, n_block_conn );
+    //DBGCUDASYNC;
     
     n_prev_conn += n_block_conn;
   }
