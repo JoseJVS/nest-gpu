@@ -1,10 +1,7 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SAPI_CONFIG_H
+#define SAPI_CONFIG_H
 
 #include <cstdint>
-
-#define HAVE_OMP
-#define HAVE_MPI
 
 
 namespace sapi

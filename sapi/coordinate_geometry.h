@@ -254,8 +254,8 @@ vertidx_t sort_vertices(
     std::array< space_t, 3 >& distances2
 )
 {
-    vertidx_t A_vix, B_vix, C_vix, vix_next, equal_n2 = 0;
-    space_t largest_n2, prev_n2;
+    vertidx_t A_vix = 0, B_vix = 0, C_vix = 0, vix_next = 0, equal_n2 = 0;
+    space_t largest_n2 = 0, prev_n2 = 0;
 
     CoordT indexed_vectors[ 3 ];
     bool almost_equal_n2[ 3 ] = { false };
@@ -329,8 +329,8 @@ vertidx_t sort_vertices(
     else
     {
         // Get end vertex of base edge of isosceles triangle
-        vertidx_t vix_base_end;
-        for ( vix_base_end = 0; vix_base_end < 3; ++vix_base_end )
+        vertidx_t vix_base_end = 0;
+        for ( ; vix_base_end < 3; ++vix_base_end )
             if ( almost_equal_n2[ vix_base_end ] )
                 break;
         const vertidx_t vix_base_start = ( vix_base_end + 2 ) % 3;

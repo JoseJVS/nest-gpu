@@ -29,9 +29,11 @@
 #include "nestgpu.h"
 #include "nestgpu_C.h"
 #include "propagate_error.h"
+#include "c_api.h"
 
 extern "C"
 {
+  static sapi::CAPI spatial_api;
   static NESTGPU* NESTGPU_instance = nullptr;
   ConnSpec ConnSpec_instance;
   SynSpec SynSpec_instance;

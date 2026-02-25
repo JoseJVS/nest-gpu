@@ -30,12 +30,11 @@ set_target_properties( nestgpu_lib
 
 target_link_libraries( nestgpu_lib PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
 
-if ( OpenMP_FOUND )
-    target_compile_options( nestgpu_lib PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>
-        $<$<COMPILE_LANGUAGE:CXX>:-fopenmp>
-    )
-endif()
+target_compile_options( nestgpu_lib PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_OPTIONS>>
+    $<$<COMPILE_LANGUAGE:CUDA>:$<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_OPTIONS>>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler,$<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_OPTIONS>>
+)
 
 target_include_directories( nestgpu_lib PRIVATE
     ${PROJECT_SOURCE_DIR}/nestgpu
