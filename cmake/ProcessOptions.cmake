@@ -22,7 +22,12 @@
 function( NEST_PROCESS_WITH_MPI )
   # Find MPI
   set( HAVE_MPI OFF PARENT_SCOPE )
-  if ( with-mpi )
+  string( TOUPPER "${with-mpi}" WITHMPI )
+  if ( NOT WITHMPI STREQUAL "OFF" )
+    if ( NOT WITHMPI STREQUAL "ON" )
+      # if set, use this prefix
+      set( MPI_ROOT "${with-mpi}" )
+    endif ()
     find_package( MPI REQUIRED )
     if ( MPI_CXX_FOUND )
       set( HAVE_MPI ON PARENT_SCOPE )
@@ -56,6 +61,42 @@ function( NEST_PROCESS_WITH_MPI )
 endfunction()
 
 
+function( NEST_PROCESS_WITH_OPENMP )
+  # Find OPENMP
+  set( HAVE_OMP OFF PARENT_SCOPE )
+  string( TOUPPER "${with-openmp}" WITHOMP )
+  if ( NOT WITHOMP STREQUAL "OFF" )
+    if ( NOT WITHOMP STREQUAL "ON" )
+      # if set, use this prefix
+      set( OpenMP_ROOT "${with-openmp}" )
+    endif ()
+
+    find_package( OpenMP REQUIRED )
+
+    if ( OpenMP_FOUND )
+      set( HAVE_OMP ON PARENT_SCOPE )
+      # export found variables to parent scope
+      set( OpenMP_FOUND "${OpenMP_FOUND}" PARENT_SCOPE )
+      set( OpenMP_C_FLAGS "${OpenMP_C_FLAGS}" PARENT_SCOPE )
+      set( OpenMP_CXX_FLAGS "${OpenMP_CXX_FLAGS}" PARENT_SCOPE )
+      set( OpenMP_CXX_LIBRARIES "${OpenMP_CXX_LIBRARIES}" PARENT_SCOPE )
+      # set flags
+      set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}" PARENT_SCOPE )
+      set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" PARENT_SCOPE )
+    else()
+      printError( "CMake can not find OpenMP." )
+    endif ()
+  endif ()  # if NOT OFF
+
+  # Provide a dummy OpenMP::OpenMP_CXX if no OpenMP or if flags explicitly
+  # given. Needed to avoid problems where OpenMP::OpenMP_CXX is used.
+  if ( NOT TARGET OpenMP::OpenMP_CXX )
+    add_library(OpenMP::OpenMP_CXX INTERFACE IMPORTED)
+  endif()
+
+endfunction()
+
+
 function( NESTGPU_PROCESS_CUDA_ARCH )
   set( CMAKE_CUDA_ARCHITECTURES ${with-gpu-arch} PARENT_SCOPE )
 endfunction ()
@@ -64,10 +105,11 @@ endfunction ()
 function( NEST_PROCESS_WITH_LIBLTDL )
   # Only find libLTDL if we link dynamically
   set( HAVE_LIBLTDL OFF PARENT_SCOPE )
-  if ( with-ltdl AND NOT static-libraries )
-    if ( NOT ${with-ltdl} STREQUAL "ON" )
+  string( TOUPPER "${with-ltdl}" WITHLTDL )
+  if ( NOT WITHLTDL STREQUAL "OFF" )
+    if ( NOT WITHLTDL STREQUAL "ON" )
       # a path is set
-      set( LTDL_ROOT_DIR "${with-ltdl}" )
+      set( LTDL_ROOT "${with-ltdl}" )
     endif ()
 
     find_package( LTDL )
@@ -140,7 +182,8 @@ endfunction()
 
 function( NEST_PROCESS_WITH_DEFINES )
   if ( with-defines )
-    if ( with-defines STREQUAL "ON" )
+    string( TOUPPER "${with-defines}" WITHDEFINES )
+    if ( WITHDEFINES STREQUAL "ON" )
       printError( "-Dwith-defines requires compiler defines -DXYZ=... ." )
     endif ()
     foreach ( def ${with-defines} )
@@ -207,6 +250,19 @@ endfunction()
 function( NESTGPU_POST_PROCESS_COMPILE_FLAGS )
   set( CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}  --compiler-options='${_CUDA_COMPILE_FLAGS}'" PARENT_SCOPE )
 endfunction()
+
+
+function( NEST_PROCESS_WITH_MPI4PY )
+  if ( HAVE_MPI AND HAVE_PYTHON )
+    include( FindPythonModule )
+    find_python_module(mpi4py)
+
+    if ( HAVE_MPI4PY )
+      include_directories( "${PY_MPI4PY}/include" )
+    endif ()
+
+  endif ()
+endfunction ()
 
 
 function( NEST_PROCESS_VERSION_SUFFIX )

@@ -17,13 +17,26 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>
 
-cmake_minimum_required( VERSION 3.17 )
+cmake_minimum_required( VERSION 3.18 )
 
 # add cmake modules: for all `include(...)` first look here
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 project( nestgpu LANGUAGES CUDA CXX C )
 set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
+
+# Set cpp standard to 17 by default
+set( CMAKE_CXX_STANDARD 17 )
+set( CMAKE_CUDA_STANDARD 17 )
+
+# Set PIC compilation
+set( CMAKE_POSITION_INDEPENDENT_CODE ON )
+
+# Enable dynamic library compiling with run-time search PATH
+set( BUILD_SHARED_LIBS ON )
+
+# reverse the search order for lib extensions
+set( CMAKE_FIND_LIBRARY_SUFFIXES ".so;.dylib;.a;.lib" )
 
 include( ColorMessages )
 
@@ -47,6 +60,7 @@ endif()
 # select parallelization scheme
 set( with-gpu-arch "80" CACHE STRING "Specify the GPU compute architecture [default=80]." )
 set( with-mpi ON CACHE STRING "Build with MPI parallelization [default=ON]." )
+set( with-openmp ON CACHE STRING "Build with OpenMP parallelization [default=ON]." )
 
 # external libraries
 # libltdl not yet needed but will be useful for NESTML
@@ -79,19 +93,6 @@ set( with-version-suffix OFF CACHE STRING "Set a user defined version suffix [de
 set( CMAKE_INSTALL_DATADIR "share/${PROJECT_NAME}" CACHE STRING "Relative directory, where NEST GPU installs its data (share/nest)" )
 
 ################################################################################
-##################  Find utility programs (#TODO adapt for later PR)  #########
-################################################################################
-
-# needed for pynest test suite
-#if ( ${with-python} STREQUAL "ON" )
-#  find_program( NOSETESTS NAMES nosetests )
-#endif ()
-
-# needed for target doc and fulldoc
-#find_package( Doxygen )
-#find_program( SED NAMES sed gsed )
-
-################################################################################
 ##################                Load includes               ##################
 ################################################################################
 
@@ -111,6 +112,7 @@ include( GNUInstallDirs )
 nest_post_process_with_python()
 
 nest_process_with_mpi()
+nest_process_with_openmp()
 nestgpu_process_cuda_arch()
 
 nest_process_with_libltdl()
@@ -122,9 +124,9 @@ nest_process_with_defines()
 nestgpu_process_with_max_rreg_count()
 nestgpu_process_with_ptxas_options()
 
-# IMPORTANT: Please try to keep these two function calls to be the last functions to call in this Process step.
-#            Adding wrong keywords to the "-Dwith-optmize" flag might cause wrong errors, and therefore to avoid that
-#            the step for processing the optmization phase and the debug phase must be the last steps.
+# IMPORTANT: These two function calls need to be the last functions to call in this Process step.
+#            Adding wrong keywords to the "-Dwith-optimize" flag might cause wrong errors, and therefore to avoid that
+#            the step for processing the optimization phase and the debug phase must be the last steps.
 nestgpu_pre_process_compile_flags()
 nest_process_with_optimize()
 nest_process_with_debug()
@@ -142,35 +144,13 @@ get_version_info()
 printInfo("-- NEST GPU version: ${NEST_GPU_VERSION_STRING}")
 
 ################################################################################
-##################  Enable Testing Targets  (#TODO adapt for later PR) #########
-################################################################################
-#enable_testing()
-#set( TEST_OPTS "--with-python=${PYTHON}" )
-
-#add_custom_target( installcheck
-#  COMMAND ${CMAKE_COMMAND} -E env
-#    ${CMAKE_INSTALL_FULL_DATADIR}/testsuite/do_tests.sh
-#	--prefix=${CMAKE_INSTALL_PREFIX}
-#	--report-dir="${PROJECT_BINARY_DIR}/reports"
-#	${TEST_OPTS}
-#  WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
-#  COMMENT "Executing NEST's testsuite..."
-#)
-
-# N.B. to ensure "make install" is always run before "make installcheck", we
-# would ideally like to add:
-#   add_dependencies( installcheck install )
-# However, an issue in CMake at time of writing (May 2020, see
-# https://gitlab.kitware.com/cmake/cmake/-/issues/8438) precludes us from doing
-# so.
-
-################################################################################
 ##################        Define Subdirectories here          ##################
 ################################################################################
 
 #add_subdirectory( doc )
 add_subdirectory( bin )
 add_subdirectory( src )
+add_subdirectory( nestgpu )
 add_subdirectory( libnestutil )
 add_subdirectory( pythonlib )
 
@@ -214,12 +194,13 @@ endif ()
 
 # libraries required to link extension modules
 set( MODULE_LINK_LIBS
-  "-lnestutil"
+  "-lnestgpu"
   "-lsrc" # to be renamed to -lnestgpukernel
   "-lcuda"
   "-lcudart"
   "-lcurand"
   "${MPI_CXX_LIBRARIES}"
+  "${OpenMP_CXX_LIBRARIES}"
   "${LTDL_LIBRARIES}" )
 
 if ( with-libraries )
@@ -227,9 +208,9 @@ if ( with-libraries )
 endif ()
 string( REPLACE ";" " " MODULE_LINK_LIBS "${MODULE_LINK_LIBS}" )
 
-# libraries requied to link NEST
+# libraries requied to link NEST GPU
 set( ALL_LIBS
-  # "-lnestgpu"  # main function is inside src folder, in the future we will separate files following NEST structure
+  "-lnestgpu"
   ${MODULE_LINK_LIBS} )
 
 
@@ -268,10 +249,5 @@ configure_file(
 install( FILES LICENSE README.md
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
     )
-
-#TODO adapt for later PR
-#add_custom_target( install-nodoc
-#  COMMAND $(MAKE) NEST_INSTALL_NODOC=true install
-#)
 
 nest_print_config_summary()
