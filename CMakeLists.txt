@@ -148,11 +148,12 @@ printInfo("-- NEST GPU version: ${NEST_GPU_VERSION_STRING}")
 ################################################################################
 
 #add_subdirectory( doc )
-add_subdirectory( bin )
+add_subdirectory( libnestutil )
+add_subdirectory( sapi )
 add_subdirectory( src )
 add_subdirectory( nestgpu )
-add_subdirectory( libnestutil )
 add_subdirectory( pythonlib )
+add_subdirectory( bin )
 
 ################################################################################
 ##################           Summary of flags                 ##################

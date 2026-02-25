@@ -21,18 +21,27 @@ set( nestgpu_lib_sources
     nestgpu_C.cpp nestgpu_C.h
     )
 
-add_library( nestgpu_lib ${nestgpu_lib_sources} )
+add_library( nestgpu_lib SHARED ${nestgpu_lib_sources} )
 set_target_properties( nestgpu_lib
     PROPERTIES
     VERSION ${NEST_GPU_VERSION}
     SOVERSION 2
     )
 
-target_link_libraries( nestgpu_lib nestgpu_kernel )
+target_link_libraries( nestgpu_lib PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
+
+if ( OpenMP_FOUND )
+    target_compile_options( nestgpu_lib PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>
+        $<$<COMPILE_LANGUAGE:CXX>:-fopenmp>
+    )
+endif()
 
 target_include_directories( nestgpu_lib PRIVATE
     ${PROJECT_SOURCE_DIR}/nestgpu
     ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/sapi
+    ${PROJECT_SOURCE_DIR}/sapi/thirdparty
     ${PROJECT_BINARY_DIR}/libnestutil
     )
 
