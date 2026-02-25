@@ -78,7 +78,7 @@ add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
 
 target_link_libraries( sapi_kernel PUBLIC
     ${MPI_CXX_LIBRARIES}
-    m
+    ${MATH_LIBRARY}
     )
 
 target_include_directories( sapi_kernel PRIVATE

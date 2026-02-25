@@ -197,11 +197,6 @@ function( NEST_PROCESS_WITH_DEFINES )
 endfunction()
 
 
-function( NESTGPU_PRE_PROCESS_COMPILE_FLAGS )
-  set( _CUDA_COMPILE_FLAGS "" PARENT_SCOPE )
-endfunction()
-
-
 function( NEST_PROCESS_WITH_OPTIMIZE )
   if ( with-optimize )
     string( TOUPPER "${with-optimize}" WITHOPTIMIZE )
@@ -212,7 +207,7 @@ function( NEST_PROCESS_WITH_OPTIMIZE )
     string( JOIN " " OPTIMIZATION_FLAGS  ${with-optimize} )
     set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OPTIMIZATION_FLAGS}" PARENT_SCOPE )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OPTIMIZATION_FLAGS}" PARENT_SCOPE )
-    set( _CUDA_COMPILE_FLAGS "${_CUDA_COMPILE_FLAGS} ${OPTIMIZATION_FLAGS}" PARENT_SCOPE )
+    set( CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${OPTIMIZATION_FLAGS}" PARENT_SCOPE )
   endif ()
 endfunction()
 
@@ -227,7 +222,7 @@ function( NEST_PROCESS_WITH_DEBUG )
     string( JOIN " " DEBUG_FLAGS  ${with-debug} )
     set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${DEBUG_FLAGS}" PARENT_SCOPE )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAGS}" PARENT_SCOPE )
-    set( _CUDA_COMPILE_FLAGS "${_CUDA_COMPILE_FLAGS} ${DEBUG_FLAGS}" PARENT_SCOPE )
+    set( CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${DEBUG_FLAGS}" PARENT_SCOPE )
   endif ()
 endfunction()
 
@@ -242,13 +237,10 @@ function( NEST_PROCESS_WITH_WARNING )
     string( JOIN " " WARNING_FLAGS  ${with-warning} )
     set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${WARNING_FLAGS}" PARENT_SCOPE )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARNING_FLAGS}" PARENT_SCOPE )
-    set( _CUDA_COMPILE_FLAGS "${_CUDA_COMPILE_FLAGS} ${WARNING_FLAGS}" PARENT_SCOPE )
+    set( CUDA_WF "" )
+    string( JOIN "," CUDA_WF ${with-warning} )
+    set( CUDA_WARNING_FLAGS "${CUDA_WF}" PARENT_SCOPE )
   endif ()
-endfunction()
-
-
-function( NESTGPU_POST_PROCESS_COMPILE_FLAGS )
-  set( CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}  --compiler-options='${_CUDA_COMPILE_FLAGS}'" PARENT_SCOPE )
 endfunction()
 
 

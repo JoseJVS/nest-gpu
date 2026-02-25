@@ -124,14 +124,9 @@ nest_process_with_defines()
 nestgpu_process_with_max_rreg_count()
 nestgpu_process_with_ptxas_options()
 
-# IMPORTANT: These two function calls need to be the last functions to call in this Process step.
-#            Adding wrong keywords to the "-Dwith-optimize" flag might cause wrong errors, and therefore to avoid that
-#            the step for processing the optimization phase and the debug phase must be the last steps.
-nestgpu_pre_process_compile_flags()
 nest_process_with_optimize()
 nest_process_with_debug()
 nest_process_with_warning()
-nestgpu_post_process_compile_flags()
 
 nest_process_version_suffix()
 
@@ -165,23 +160,23 @@ add_subdirectory( bin )
 if ( NOT CMAKE_BUILD_TYPE OR "${CMAKE_BUILD_TYPE}" STREQUAL "None" )
   set( ALL_CFLAGS "${CMAKE_C_FLAGS}" )
   set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}" )
+  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS}" )
 elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "Debug" )
   set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_DEBUG}" )
   set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CMAKE_CUDA_FLAGS_DEBUG}" )
+  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_DEBUG}" )
 elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "Release" )
   set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_RELEASE}" )
   set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CMAKE_CUDA_FLAGS_RELEASE}" )
+  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_RELEASE}" )
 elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo" )
   set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_RELWITHDEBINFO}" )
   set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CMAKE_CUDA_FLAGS_RELWITHDEBINFO}" )
+  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_RELWITHDEBINFO}" )
 elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel" )
   set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_MINSIZEREL}" )
   set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_MINSIZEREL}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CMAKE_CUDA_FLAGS_MINSIZEREL}" )
+  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_MINSIZEREL}" )
 else ()
   printError( "Unknown build type: '${CMAKE_BUILD_TYPE}'" )
 endif ()
@@ -195,11 +190,12 @@ endif ()
 
 # libraries required to link extension modules
 set( MODULE_LINK_LIBS
-  "-lnestgpu"
+  "-lsapi"
   "-lsrc" # to be renamed to -lnestgpukernel
   "-lcuda"
   "-lcudart"
   "-lcurand"
+  "${MATH_LIBRARY}"
   "${MPI_CXX_LIBRARIES}"
   "${OpenMP_CXX_LIBRARIES}"
   "${LTDL_LIBRARIES}" )

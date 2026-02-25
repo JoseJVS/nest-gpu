@@ -36,6 +36,13 @@ target_compile_options( nestgpu_lib PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler,$<TARGET_PROPERTY:OpenMP::OpenMP_CXX,INTERFACE_COMPILE_OPTIONS>>
 )
 
+if( with-warning )
+    target_compile_options( nestgpu_lib
+        PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:--compiler-options ${CUDA_WARNING_FLAGS}>
+    )
+endif()
+
 target_include_directories( nestgpu_lib PRIVATE
     ${PROJECT_SOURCE_DIR}/nestgpu
     ${PROJECT_SOURCE_DIR}/src
