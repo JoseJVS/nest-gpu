@@ -195,10 +195,8 @@ if( with-optimize )
 endif()
 
 if( with-debug )
-  set( FLAGS "" )
-  string( JOIN " " FLAGS ${with-debug} )
-  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${FLAGS}")
-  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};${FLAGS}")
+  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${CXX_DBG}")
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};${CUDA_DBG}")
 endif()
 
 if( with-warning )

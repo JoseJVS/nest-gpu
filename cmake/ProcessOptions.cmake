@@ -23,6 +23,10 @@
 function( NESTGPU_PROCESS_CUDA_ARCH )
   if( with-gpu-arch )
 
+    if ( NOT "${with-gpu-arch}" MATCHES "^[0-9]+" )
+      printError( "Incorrect CUDA architecture" )
+    endif ()
+
     set( CMAKE_CUDA_ARCHITECTURES ${with-gpu-arch} PARENT_SCOPE )
 
   else()
@@ -50,9 +54,9 @@ function( NEST_PROCESS_WITH_MPI )
     if( MPI_CXX_FOUND )
       set( HAVE_MPI ON PARENT_SCOPE )
 
-      if( MPI_CXX_COMPILE_OPTIONS )
-        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${MPI_CXX_COMPILE_OPTIONS} )
-      endif()
+      foreach( flag ${MPI_CXX_COMPILE_OPTIONS} )
+        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${flag} )
+      endforeach()
     
       include_directories( ${MPI_CXX_INCLUDE_DIRS} )
       add_definitions( ${MPI_CXX_COMPILE_DEFINITIONS} )
@@ -101,9 +105,9 @@ function( NEST_PROCESS_WITH_OPENMP )
     if ( OpenMP_CXX_FOUND )
       set( HAVE_OMP ON PARENT_SCOPE )
 
-      if( OpenMP_CXX_FLAGS)
-        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}> )
-      endif()
+      foreach( flag ${OpenMP_CXX_FLAGS} )
+        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${flag}> )
+      endforeach()
 
       include_directories( ${OpenMP_CXX_INCLUDE_DIRS} )
 
@@ -216,6 +220,10 @@ endfunction()
 function( NEST_PROCESS_WITH_CPP_STD )
   if ( with-cpp-std )
 
+    if ( NOT "${with-cpp-std}" MATCHES "^[0-9]+" )
+      printError( "Incorrect cpp standard" )
+    endif ()
+
     set( CMAKE_CXX_STANDARD ${with-cpp-std} PARENT_SCOPE )
     set( CMAKE_CXX_STANDARD_REQUIRED ON PARENT_SCOPE )
     set( CMAKE_CXX_EXTENSIONS OFF PARENT_SCOPE )
@@ -238,6 +246,10 @@ endfunction()
 
 function( NESTGPU_PROCESS_WITH_MAXRREGCOUNT )
   if( with-maxrregcount )
+
+    if ( NOT "${with-maxrregcount}" MATCHES "^[0-9]+" )
+      printError( "Incorrect maxrregcount" )
+    endif ()
 
     add_compile_options(
       $<$<COMPILE_LANGUAGE:CUDA>:--maxrregcount=${with-maxrregcount}>
@@ -265,16 +277,18 @@ function( NEST_PROCESS_WITH_OPTIMIZE )
 
     string( TOUPPER "${with-optimize}" WITHOPTIMIZE )
     if ( WITHOPTIMIZE STREQUAL "ON" )
-      set( with-optimize "-O3" ) # For visibility on local scope
+      set( with-optimize "-O3;-march=native;-mtune=native" ) # For visibility on local scope
     endif ()
 
-    add_compile_options(
-      $<$<COMPILE_LANGUAGE:CXX>:${with-optimize}>
-      $<$<COMPILE_LANGUAGE:CUDA>:${with-optimize}>
-    )
+    foreach( flag ${with-optimize} )
+      add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:${flag}>
+        $<$<COMPILE_LANGUAGE:CUDA>:${flag}>
+      )
+    endforeach()
 
     if ( WITHOPTIMIZE STREQUAL "ON" )
-      set( with-optimize "-O3" PARENT_SCOPE )
+      set( with-optimize "-O3;-march=native;-mtune=native" PARENT_SCOPE )
     endif ()
   
   endif ()
@@ -286,16 +300,26 @@ function( NEST_PROCESS_WITH_DEBUG )
 
     string( TOUPPER "${with-debug}" WITHDEBUG )
     if ( WITHDEBUG STREQUAL "ON" )
-      set( with-debug "-g" ) # For visibility on local scope
+      add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:-g>
+        $<$<COMPILE_LANGUAGE:CUDA>:-g>
+        $<$<COMPILE_LANGUAGE:CUDA>:-G>
+      )
+    else()
+      foreach( flag ${with-debug} )
+        add_compile_options(
+          $<$<COMPILE_LANGUAGE:CXX>:${flag}>
+          $<$<COMPILE_LANGUAGE:CUDA>:${flag}>
+        )
+      endforeach()
     endif ()
-  
-    add_compile_options(
-      $<$<COMPILE_LANGUAGE:CXX>:${with-debug}>
-      $<$<COMPILE_LANGUAGE:CUDA>:${with-debug}>
-    )
 
     if ( WITHDEBUG STREQUAL "ON" )
-      set( with-debug "-g" PARENT_SCOPE )
+      set( CXX_DBG "-g" PARENT_SCOPE )
+      set( CUDA_DBG "-g;-G" PARENT_SCOPE )
+    else()
+      set( CXX_DBG "${with-debug}" PARENT_SCOPE )
+      set( CUDA_DBG "${with-debug}" PARENT_SCOPE )
     endif ()
   
   endif ()
@@ -309,11 +333,16 @@ function( NEST_PROCESS_WITH_WARNING )
     if ( WITHWARNING STREQUAL "ON" )
       set( with-warning "-Wall" ) # For visibility on local scope
     endif ()
+
+    foreach( flag ${with-warning} )
+      add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:${flag}>
+      )
+    endforeach()
   
     set( CUDA_WARN "" )
     string( JOIN "," CUDA_WARN ${with-warning} )
     add_compile_options(
-      $<$<COMPILE_LANGUAGE:CXX>:${with-warning}>
       $<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${CUDA_WARN}>
     )
 
