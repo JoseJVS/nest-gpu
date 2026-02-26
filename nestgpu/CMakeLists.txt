@@ -22,16 +22,11 @@ set( nestgpu_lib_sources
     sapi.cpp sapi.h
     )
 
-add_library( nestgpu_lib SHARED ${nestgpu_lib_sources} )
-set_target_properties( nestgpu_lib
-    PROPERTIES
-    VERSION ${NEST_GPU_VERSION}
-    SOVERSION 2
-)
+add_library( nestgpu SHARED ${nestgpu_lib_sources} )
 
-target_link_libraries( nestgpu_lib PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
+target_link_libraries( nestgpu PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
 
-target_include_directories( nestgpu_lib PRIVATE
+target_include_directories( nestgpu PRIVATE
     ${PROJECT_SOURCE_DIR}/nestgpu
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/sapi
@@ -39,10 +34,8 @@ target_include_directories( nestgpu_lib PRIVATE
     ${PROJECT_BINARY_DIR}/libnestutil
 )
 
-install( TARGETS nestgpu_lib
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/nestgpu
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/nestgpu
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+install( TARGETS nestgpu
+    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYEXECDIR}/nestgpu
 )
 
 FILTER_HEADERS( "${nestgpu_lib_sources}" install_headers )

@@ -1,10 +1,12 @@
 """ Python interface for NESTGPU"""
-import sys, platform
-import ctypes, ctypes.util
-import os
-import unicodedata
+import ctypes
+import ctypes.util
 import gc
-
+import os
+import pathlib
+import platform
+import sys
+import unicodedata
 
 print('\n              -- NEST GPU --\n')
 print('  Copyright (C) 2021 The NEST Initiative\n')
@@ -14,8 +16,7 @@ print(' Homepage: https://github.com/nest/nest-gpu')
 print()
 
 
-lib_path=os.environ["NESTGPU_LIB"]
-_nestgpu=ctypes.CDLL(lib_path)
+_nestgpu = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libsapi.so"))
 
 c_float_p = ctypes.POINTER(ctypes.c_float)
 c_int_p = ctypes.POINTER(ctypes.c_int)
@@ -106,7 +107,7 @@ class NestedLoopAlgo:
   Smart1D = 7
   Smart2D = 8
 
-        
+
 def to_byte_str(s):
     if type(s)==str:
         return s.encode('ascii')
@@ -126,23 +127,23 @@ def waitenter(val):
         return input(val)
     else:
         return raw_input(val)
-    
+
 conn_rule_name = ("one_to_one", "all_to_all", "fixed_total_number",
                   "fixed_indegree", "fixed_outdegree")
-    
+
 NESTGPU_GetErrorMessage = _nestgpu.NESTGPU_GetErrorMessage
 NESTGPU_GetErrorMessage.restype = ctypes.POINTER(ctypes.c_char)
 def GetErrorMessage():
     "Get error message from NESTGPU exception"
     message = ctypes.cast(NESTGPU_GetErrorMessage(), ctypes.c_char_p).value
     return message
- 
+
 NESTGPU_GetErrorCode = _nestgpu.NESTGPU_GetErrorCode
 NESTGPU_GetErrorCode.restype = ctypes.c_ubyte
 def GetErrorCode():
     "Get error code from NESTGPU exception"
     return NESTGPU_GetErrorCode()
- 
+
 NESTGPU_SetOnException = _nestgpu.NESTGPU_SetOnException
 NESTGPU_SetOnException.argtypes = (ctypes.c_int,)
 def SetOnException(on_exception):
@@ -619,10 +620,10 @@ def SetNeuronPortVarDistr(i_node, n_node, var_name):
 
 #####################################################################
 
-#SetNeuronPtScalParamDistr(nodes, var_name)
-#SetNeuronPtScalVarDistr(nodes, var_name)
-#SetNeuronPtPortParamDistr(nodes, var_name)
-#SetNeuronPtPortVarDistr(nodes, var_name)
+# SetNeuronPtScalParamDistr(nodes, var_name)
+# SetNeuronPtScalVarDistr(nodes, var_name)
+# SetNeuronPtPortParamDistr(nodes, var_name)
+# SetNeuronPtPortVarDistr(nodes, var_name)
 
 NESTGPU_SetNeuronPtScalParamDistr = _nestgpu.NESTGPU_SetNeuronPtScalParamDistr
 NESTGPU_SetNeuronPtScalParamDistr.argtypes = (ctypes.c_void_p, ctypes.c_int,
@@ -658,7 +659,6 @@ def SetNeuronPtScalVarDistr(nodes, var_name):
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
-
 
 
 NESTGPU_SetNeuronPtPortParamDistr = _nestgpu.NESTGPU_SetNeuronPtPortParamDistr
@@ -741,7 +741,7 @@ def SetDistributionVectParam(param_name, val, i):
     return ret
 
 
-#SetDistributionFloatPtParam("array_pt", array_pt)
+# SetDistributionFloatPtParam("array_pt", array_pt)
 NESTGPU_SetDistributionFloatPtParam = \
     _nestgpu.NESTGPU_SetDistributionFloatPtParam
 NESTGPU_SetDistributionFloatPtParam.argtypes = (c_char_p, ctypes.c_void_p)
@@ -951,8 +951,7 @@ def GetNeuronGroupParam(i_node, param_name):
     return ret
 
 
-
-#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NESTGPU_GetNeuronVarSize = _nestgpu.NESTGPU_GetNeuronVarSize
 NESTGPU_GetNeuronVarSize.argtypes = (ctypes.c_int, c_char_p)
 NESTGPU_GetNeuronVarSize.restype = ctypes.c_int
@@ -1387,8 +1386,6 @@ def GetArrayVarNames(i_node):
     return var_name_list
 
 
-
-
 def SetNeuronStatus(nodes, var_name, val):
     "Set neuron group scalar or array variable or parameter"
     if (type(nodes)!=list) & (type(nodes)!=tuple) & (type(nodes)!=NodeSeq):
@@ -1549,7 +1546,6 @@ def SetConnectionStatus(conn, param_name, val):
         SetConnectionIntParam(conn, param_name, val)
 
 ######################################################################
-
 
 
 NESTGPU_Calibrate = _nestgpu.NESTGPU_Calibrate
@@ -1719,7 +1715,6 @@ def RandomNormalClipped(n, mean, stddev, vmin, vmax, vstep=0):
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
-
 
 
 NESTGPU_ConnSpecInit = _nestgpu.NESTGPU_ConnSpecInit
@@ -1909,7 +1904,7 @@ def SetSynParamFromArray(param_name, par_dict, array_size):
     array_pt = ctypes.cast(arr, ctypes.c_void_p)
     SetSynSpecFloatPtParam(arr_param_name, array_pt)
 
-    
+
 NESTGPU_ConnectSeqSeq = _nestgpu.NESTGPU_ConnectSeqSeq
 NESTGPU_ConnectSeqSeq.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                     ctypes.c_int)
@@ -2141,7 +2136,6 @@ def CreateHostGroup(host_list):
     return ret
 
 
-
 def SetStatus(gen_object, params, val=None):
     "Set neuron, connections or synapse group parameters or variables"
     " using dictionaries"
@@ -2192,7 +2186,7 @@ def SetStatus(gen_object, params, val=None):
         raise ValueError(GetErrorMessage())
     gc.enable()
 
-#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 NESTGPU_GetSeqSeqConnections = _nestgpu.NESTGPU_GetSeqSeqConnections
 NESTGPU_GetSeqSeqConnections.argtypes = (ctypes.c_int, ctypes.c_int,
@@ -2275,7 +2269,7 @@ def GetConnections(source=None, target=None, syn_group=-1):
         raise ValueError(GetErrorMessage())
     return ret
 
- 
+
 NESTGPU_GetConnectionStatus = _nestgpu.NESTGPU_GetConnectionStatus
 NESTGPU_GetConnectionStatus.argtypes = (c_int64_p, ctypes.c_int64,
                                         c_int_p, c_int_p,
@@ -2578,7 +2572,6 @@ def GetStatus(gen_object, var_key=None):
         raise ValueError("Unknown key type in GetStatus", type(var_key))
 
 
-
 NESTGPU_CreateSynGroup = _nestgpu.NESTGPU_CreateSynGroup
 NESTGPU_CreateSynGroup.argtypes = (c_char_p,)
 NESTGPU_CreateSynGroup.restype = ctypes.c_int
@@ -2598,7 +2591,7 @@ def CreateSynGroup(model_name, status_dict=None):
         raise ValueError(GetErrorMessage())
     return SynGroup(i_syn_group)
 
-  
+
 NESTGPU_GetSynGroupNParam = _nestgpu.NESTGPU_GetSynGroupNParam
 NESTGPU_GetSynGroupNParam.argtypes = (ctypes.c_int,)
 NESTGPU_GetSynGroupNParam.restype = ctypes.c_int
@@ -2613,7 +2606,7 @@ def GetSynGroupNParam(syn_group):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_GetSynGroupParamNames = _nestgpu.NESTGPU_GetSynGroupParamNames
 NESTGPU_GetSynGroupParamNames.argtypes = (ctypes.c_int,)
 NESTGPU_GetSynGroupParamNames.restype = ctypes.POINTER(c_char_p)
@@ -2654,7 +2647,7 @@ def IsSynGroupParam(syn_group, param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetSynGroupParam = _nestgpu.NESTGPU_GetSynGroupParam
 NESTGPU_GetSynGroupParam.argtypes = (ctypes.c_int, c_char_p)
 NESTGPU_GetSynGroupParam.restype = ctypes.c_float
@@ -2674,7 +2667,7 @@ def GetSynGroupParam(syn_group, param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetSynGroupParam = _nestgpu.NESTGPU_SetSynGroupParam
 NESTGPU_SetSynGroupParam.argtypes = (ctypes.c_int, c_char_p,
                                        ctypes.c_float)
@@ -2887,7 +2880,7 @@ def IsBoolParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetBoolParam = _nestgpu.NESTGPU_GetBoolParam
 NESTGPU_GetBoolParam.argtypes = (c_char_p,)
 NESTGPU_GetBoolParam.restype = ctypes.c_bool
@@ -2903,7 +2896,7 @@ def GetBoolParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetBoolParam = _nestgpu.NESTGPU_SetBoolParam
 NESTGPU_SetBoolParam.argtypes = (c_char_p, ctypes.c_bool)
 NESTGPU_SetBoolParam.restype = ctypes.c_int
@@ -2961,7 +2954,7 @@ def IsFloatParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetFloatParam = _nestgpu.NESTGPU_GetFloatParam
 NESTGPU_GetFloatParam.argtypes = (c_char_p,)
 NESTGPU_GetFloatParam.restype = ctypes.c_float
@@ -2977,7 +2970,7 @@ def GetFloatParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetFloatParam = _nestgpu.NESTGPU_SetFloatParam
 NESTGPU_SetFloatParam.argtypes = (c_char_p, ctypes.c_float)
 NESTGPU_SetFloatParam.restype = ctypes.c_int
@@ -3036,7 +3029,7 @@ def IsIntParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetIntParam = _nestgpu.NESTGPU_GetIntParam
 NESTGPU_GetIntParam.argtypes = (c_char_p,)
 NESTGPU_GetIntParam.restype = ctypes.c_int
@@ -3052,7 +3045,7 @@ def GetIntParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetIntParam = _nestgpu.NESTGPU_SetIntParam
 NESTGPU_SetIntParam.argtypes = (c_char_p, ctypes.c_int)
 NESTGPU_SetIntParam.restype = ctypes.c_int
@@ -3136,9 +3129,6 @@ def RemoteCreate(i_host, model_name, n_node=1, n_ports=1, status_dict=None):
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
-
-
-
 
 
 NESTGPU_ConnectDistributedFixedIndegreeSeqSeq = _nestgpu.NESTGPU_ConnectDistributedFixedIndegreeSeqSeq
@@ -3314,4 +3304,3 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     
     gc.enable()
     return ret
-
