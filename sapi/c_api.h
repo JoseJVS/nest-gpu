@@ -104,8 +104,8 @@ private:
     // Needs to be cached here
     // as random manager is initialized
     // in spatial manager
-    vp_t local_rank_ = 0;
-    vp_t num_processes_ = 1;
+    vp_t local_rank_ = -1;
+    vp_t num_processes_ = -1;
     uint32_t seed_ = DEFAULT_BASE_SEED_;
     std::string rng_type_ = DEFAULT_RNG_TYPE_;
 

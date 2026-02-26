@@ -6,5 +6,6 @@ NEST GPU Python API
 
 """
 
-import .nestgpu_api
+from . import ll_sapi, nestgpu_api
+from .ll_sapi import *
 from .nestgpu_api import *

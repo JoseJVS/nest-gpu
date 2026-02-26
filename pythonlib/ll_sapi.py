@@ -700,7 +700,7 @@ MPStruct = io_struct_template(_MPS_FIELDS)
 CPStruct = io_struct_template(_CPS_FIELDS)
 
 
-_C_SAPI = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libsapi.so"))
+_C_SAPI = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libnestgpu.so"))
 
 _C_SAPI.init.argtypes = (
     vp_t,

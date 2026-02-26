@@ -421,6 +421,73 @@ extern "C"
    int *target_host_arr, int n_target_host, uint **target_arr, uint *n_target_arr,
    int indegree, int i_host_group );
 
+  bool sapi::init( sapi::vp_t argc, char** argv );
+
+  bool sapi::reset_api();
+
+  bool sapi::free_gc();
+
+  sapi::OptionalIndex sapi::get_rank();
+
+  sapi::OptionalIndex sapi::get_num_processes();
+
+  sapi::OptionalIndex sapi::get_num_threads();
+
+  bool sapi::set_num_threads( const sapi::vp_t& num_threads );
+
+  sapi::OptionalIndex sapi::get_rng_seed();
+
+  bool sapi::set_rng_seed( const uint32_t& seed );
+
+  sapi::CharArray* sapi::get_rng_type();
+
+  bool sapi::set_rng_type( const sapi::CharArray& rng_type );
+
+  bool sapi::generate_tile_grid(
+    const sapi::SpaceTArray& grid_origin,
+    const sapi::TileIdxArray& grid_dimensions,
+    const sapi::CharArray& tile_type,
+    const sapi::SpaceTArray& tile_params,
+    const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
+    const sapi::split_t& num_splits,
+    const bool& edge_wrap
+  );
+
+  sapi::OptionalIndex sapi::generate_nodes_in_grid(
+    const sapi::largenodeidx_t& num_nodes,
+    const sapi::TileIdxArray& tile_set,
+    const uint8_t& grid_distribution_mode,
+    const uint8_t& tile_distribution_mode
+  );
+
+  sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* >
+    sapi::insert_positions_in_grid(
+      const sapi::NestedSpaceTArray& positions
+    );
+
+  sapi::OptionalIndex sapi::compute_spatial_connections(
+    const std::size_t& dist_tns_source_index,
+    const std::size_t& dist_tns_target_index,
+    const sapi::MPStruct& mask_params,
+    const sapi::CPStruct& conn_params
+  );
+
+  sapi::NestedNodeCoordPairArray* sapi::get_nodes(
+    const sapi::PairT< bool, std::size_t >& opt_dist_tns_index,
+    const sapi::MPStruct& mask_params
+  );
+
+  sapi::TiledNodeSequencePairArray* sapi::get_distributed_node_sequences(
+    const std::size_t& dist_tns_index
+  );
+
+  sapi::RCIStruct* sapi::get_spatial_connections(
+    const std::size_t& conn_idx
+  );
+
+  sapi::GridTileVerticesPairArray* sapi::get_grid_vertices();
+
+  sapi::TimerDataPairArray* sapi::get_timer_data();
 }
 
 #endif

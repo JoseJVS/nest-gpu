@@ -16,7 +16,7 @@ print(' Homepage: https://github.com/nest/nest-gpu')
 print()
 
 
-_nestgpu = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libsapi.so"))
+_nestgpu = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libnestgpu.so"))
 
 c_float_p = ctypes.POINTER(ctypes.c_float)
 c_int_p = ctypes.POINTER(ctypes.c_int)
