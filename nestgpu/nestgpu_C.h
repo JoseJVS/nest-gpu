@@ -23,10 +23,10 @@
 #ifndef NESTGPUC_H
 #define NESTGPUC_H
 
-#ifdef __cplusplus
+#include "sapi.h"
+
 extern "C"
 {
-#endif
 
   char* NESTGPU_GetErrorMessage();
 
@@ -421,9 +421,6 @@ extern "C"
    int *target_host_arr, int n_target_host, uint **target_arr, uint *n_target_arr,
    int indegree, int i_host_group );
 
-  
-#ifdef __cplusplus
 }
-#endif
 
 #endif

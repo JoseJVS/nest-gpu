@@ -19,6 +19,7 @@
 
 set( nestgpu_lib_sources
     nestgpu_C.cpp nestgpu_C.h
+    sapi.cpp sapi.h
     )
 
 add_library( nestgpu_lib SHARED ${nestgpu_lib_sources} )

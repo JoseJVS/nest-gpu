@@ -17,5 +17,5 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
 
-install( FILES ${PROJECT_SOURCE_DIR}/pythonlib/nestgpu.py
+install( FILES ${PROJECT_SOURCE_DIR}/pythonlib/*.py
     DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYEXECDIR} )
