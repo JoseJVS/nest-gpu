@@ -163,28 +163,21 @@ utilities.cu
 add_library( nestgpu_kernel STATIC ${nestgpu_kernel_sources} )
 set_target_properties( nestgpu_kernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON )
 
-if( with-warning )
-    target_compile_options( nestgpu_kernel
-        PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:--compiler-options ${CUDA_WARNING_FLAGS}>
-    )
-endif()
-
 target_link_libraries( nestgpu_kernel PUBLIC
     ${LTDL_LIBRARIES}
-    ${MPI_CXX_LIBRARIES}
     ${MATH_LIBRARY}
     cuda
     CUDA::cudart
     CUDA::curand
-    )
+    MPI::MPI_CXX
+)
 
 target_include_directories( nestgpu_kernel PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/sapi
     ${PROJECT_SOURCE_DIR}/sapi/thirdparty
     ${PROJECT_BINARY_DIR}/libnestutil
-    )
+)
 
 FILTER_HEADERS( "${nestgpu_kernel_sources}" install_headers )
 install( FILES ${install_headers}

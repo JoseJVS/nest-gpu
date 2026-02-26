@@ -77,15 +77,15 @@ c_api.h
 add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
 
 target_link_libraries( sapi_kernel PUBLIC
-    ${MPI_CXX_LIBRARIES}
     ${MATH_LIBRARY}
-    )
+    MPI::MPI_CXX
+)
 
 target_include_directories( sapi_kernel PRIVATE
     ${PROJECT_SOURCE_DIR}/sapi
     ${PROJECT_SOURCE_DIR}/sapi/thirdparty
     ${PROJECT_BINARY_DIR}/libnestutil
-    )
+)
 
 FILTER_HEADERS( "${sapi_kernel_sources}" install_headers )
 install( FILES ${install_headers}

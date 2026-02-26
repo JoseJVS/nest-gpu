@@ -22,12 +22,8 @@ cmake_minimum_required( VERSION 3.18 )
 # add cmake modules: for all `include(...)` first look here
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
-project( nestgpu LANGUAGES CUDA CXX C )
+project( nestgpu LANGUAGES CUDA CXX )
 set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
-
-# Set cpp standard to 17 by default
-set( CMAKE_CXX_STANDARD 17 )
-set( CMAKE_CUDA_STANDARD 17 )
 
 # Set PIC compilation
 set( CMAKE_POSITION_INDEPENDENT_CODE ON )
@@ -58,26 +54,24 @@ endif()
 ################################################################################
 
 # select parallelization scheme
-set( with-gpu-arch "80" CACHE STRING "Specify the GPU compute architecture [default=80]." )
+set( with-gpu-arch 80 CACHE STRING "Specify specific the GPU compute architecture [default=80]." )
 set( with-mpi ON CACHE STRING "Build with MPI parallelization [default=ON]." )
 set( with-openmp ON CACHE STRING "Build with OpenMP parallelization [default=ON]." )
 
 # external libraries
 # libltdl not yet needed but will be useful for NESTML
 set( with-ltdl OFF CACHE STRING "Build with ltdl library [default=OFF]. To set a specific ltdl, give the  install path. NEST GPU uses ltdl for dynamic loading of external user modules." )
-
-# compiler options; explicit compiler flags can be given.
-set( with-optimize ON CACHE STRING "Enable user defined optimizations [default=ON (uses '-O3')]. When OFF, no '-O' flag is passed to the compiler. Separate multiple flags by ';'." )
-set( with-warning ON CACHE STRING "Enable user defined warnings [default=ON (uses '-Wall')]. Separate  multiple flags by ';'." )
-set( with-debug OFF CACHE STRING "Enable user defined debug flags [default=OFF]. When ON, '-g' is used. Separate  multiple flags by ';'." )
-
-# CUDA options
-set( with-cpp-std OFF CACHE STRING "C++ standard to use for compilation [default=OFF]." )
 set( with-libraries OFF CACHE STRING "Link additional libraries [default=OFF]. Give full path. Separate multiple libraries by ';'." )
 set( with-includes OFF CACHE STRING "Add additional include paths [default=OFF]. Give full path without '-I'. Separate multiple include paths by ';'." )
 set( with-defines OFF CACHE STRING "Additional defines, e.g. '-DXYZ=1' [default=OFF]. Separate multiple defines by ';'." )
-set( with-max-rreg-count "55" CACHE STRING "Set a maximum amount of register used when compiling [default=55]. Separate multiple flags by ';'." )
+
+# compiler options; explicit compiler flags can be given.
+set( with-cpp-std 17 CACHE STRING "C++ standard to use for compilation [default=17]. Needs to be at least c++17." )
+set( with-maxrregcount "55" CACHE STRING "Set a maximum amount of register used when compiling [default=55]." )
 set( with-ptxas-options OFF CACHE STRING "Options for ptxas compiling [default=OFF]. Separate multiple flags by ';'." )
+set( with-optimize ON CACHE STRING "Enable user defined optimizations [default=ON (uses '-O3')]. When OFF, no '-O' flag is passed to the compiler. Separate multiple flags by ';'." )
+set( with-warning ON CACHE STRING "Enable user defined warnings [default=ON (uses '-Wall')]. Separate  multiple flags by ';'." )
+set( with-debug OFF CACHE STRING "Enable user defined debug flags [default=OFF]. When ON, '-g' is used. Separate  multiple flags by ';'." )
 
 # generic build configuration
 set( with-version-suffix OFF CACHE STRING "Set a user defined version suffix [default='']." )
@@ -111,23 +105,23 @@ get_target_triple( NEST_TARGET_TRIPLE NEST_TARGET_ARCH NEST_TARGET_VENDOR NEST_T
 include( GNUInstallDirs )
 nest_post_process_with_python()
 
+nestgpu_process_cuda_arch()
 nest_process_with_mpi()
 nest_process_with_openmp()
-nestgpu_process_cuda_arch()
 
 nest_process_with_libltdl()
-
-nest_process_with_std()
 nest_process_with_libraries()
 nest_process_with_includes()
 nest_process_with_defines()
-nestgpu_process_with_max_rreg_count()
-nestgpu_process_with_ptxas_options()
 
+nest_process_with_cpp_std()
+nestgpu_process_with_maxrregcount()
+nestgpu_process_with_ptxas_options()
 nest_process_with_optimize()
 nest_process_with_debug()
 nest_process_with_warning()
 
+nest_process_with_mpi4py()
 nest_process_version_suffix()
 
 ################################################################################
@@ -157,39 +151,70 @@ add_subdirectory( bin )
 # used in nest-config
 
 # all compiler flags
-if ( NOT CMAKE_BUILD_TYPE OR "${CMAKE_BUILD_TYPE}" STREQUAL "None" )
-  set( ALL_CFLAGS "${CMAKE_C_FLAGS}" )
-  set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS}" )
-elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "Debug" )
-  set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_DEBUG}" )
-  set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_DEBUG}" )
-elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "Release" )
-  set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_RELEASE}" )
-  set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_RELEASE}" )
-elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo" )
-  set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_RELWITHDEBINFO}" )
-  set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_RELWITHDEBINFO}" )
-elseif ( ${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel" )
-  set( ALL_CFLAGS "${CMAKE_C_FLAGS}   ${CMAKE_C_FLAGS_MINSIZEREL}" )
-  set( ALL_CXXFLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_MINSIZEREL}" )
-  set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_WARNING_FLAGS} ${CMAKE_CUDA_FLAGS_MINSIZEREL}" )
-else ()
-  printError( "Unknown build type: '${CMAKE_BUILD_TYPE}'" )
-endif ()
+set( ALL_CXX_FLAGS "" )
+set( ALL_CUDA_FLAGS "" )
+
+if( CMAKE_BUILD_TYPE )
+  if ( ${CMAKE_BUILD_TYPE} STREQUAL "Debug" )
+    set( ALL_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}" )
+    set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS_DEBUG}" )
+  elseif( ${CMAKE_BUILD_TYPE} STREQUAL "Release" )
+    set( ALL_CXX_FLAGS "$${CMAKE_CXX_FLAGS_RELEASE}" )
+    set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS_RELEASE}" )
+  elseif( ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo" )
+    set( ALL_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}" )
+    set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO}" )
+  elseif( ${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel" )
+    set( ALL_CXX_FLAGS "${CMAKE_CXX_FLAGS_MINSIZEREL}" )
+    set( ALL_CUDA_FLAGS "${CMAKE_CUDA_FLAGS_MINSIZEREL}" )
+  endif()
+endif()
+
 if ( with-defines )
-  foreach ( def ${with-defines} )
-    set( ALL_CFLAGS "${def} ${ALL_CFLAGS}" )
-    set( ALL_CXXFLAGS "${def} ${ALL_CXXFLAGS}" )
-    set( ALL_CUDA_FLAGS "${def} ${ALL_CUDA_FLAGS}" )
-  endforeach ()
+  set( FLAGS "" )
+  string( JOIN " " FLAGS ${with-defines} )
+  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${FLAGS}")
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};${FLAGS}")
 endif ()
 
+if( with-maxrregcount )
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};--maxrregcount=${with-maxrregcount}")
+endif()
+
+if( with-ptxas-options )
+  set( FLAGS "" )
+  string( JOIN "," FLAGS ${with-ptxas-options} )
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};--ptxas-options=${FLAGS}")
+endif()
+
+if( with-optimize )
+  set( FLAGS "" )
+  string( JOIN " " FLAGS ${with-optimize} )
+  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${FLAGS}")
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};${FLAGS}")
+endif()
+
+if( with-debug )
+  set( FLAGS "" )
+  string( JOIN " " FLAGS ${with-debug} )
+  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${FLAGS}")
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};${FLAGS}")
+endif()
+
+if( with-warning )
+  set( FLAGS "" )
+  string( JOIN " " FLAGS ${with-warning} )
+  string( REPLACE ";" " " ALL_CXX_FLAGS "${ALL_CXX_FLAGS};${FLAGS}")
+  set( FLAGS "" )
+  string( JOIN "," FLAGS ${with-warning} )
+  string( REPLACE ";" " " ALL_CUDA_FLAGS "${ALL_CUDA_FLAGS};--compiler-options=${FLAGS}")
+endif()
+
+string( STRIP "${ALL_CXX_FLAGS}" ALL_CXX_FLAGS )
+string( STRIP "${ALL_CUDA_FLAGS}" ALL_CUDA_FLAGS )
+
 # libraries required to link extension modules
-set( MODULE_LINK_LIBS
+set( ALL_LIBS
   "-lsapi"
   "-lsrc" # to be renamed to -lnestgpukernel
   "-lcuda"
@@ -198,32 +223,32 @@ set( MODULE_LINK_LIBS
   "${MATH_LIBRARY}"
   "${MPI_CXX_LIBRARIES}"
   "${OpenMP_CXX_LIBRARIES}"
-  "${LTDL_LIBRARIES}" )
+  "${LTDL_LIBRARIES}"
+)
 
 if ( with-libraries )
-  set( MODULE_LINK_LIBS "${MODULE_LINK_LIBS};${with-libraries}" )
+  set( ALL_LIBS "${ALL_LIBS};${with-libraries}" )
 endif ()
-string( REPLACE ";" " " MODULE_LINK_LIBS "${MODULE_LINK_LIBS}" )
-
-# libraries requied to link NEST GPU
-set( ALL_LIBS
-  "-lnestgpu"
-  ${MODULE_LINK_LIBS} )
-
+ 
+string( REPLACE ";" " " ALL_LIBS "-lnestgpu;${ALL_LIBS}" )
+string( STRIP "${ALL_LIBS}" ALL_LIBS )
 
 # all includes
-set( ALL_INCLUDES_tmp
+set( ALL_INCLUDES
   "${CMAKE_INSTALL_FULL_INCLUDEDIR}/nestgpu"
   "${CUDAToolkit_LIBRARY_DIR}"
-  "${MPI_CXX_INCLUDE_PATH}"
-  "${LTDL_INCLUDE_DIRS}" )
-set( ALL_INCLUDES "" )
-foreach ( INC ${ALL_INCLUDES_tmp} ${with-includes} )
-  if ( INC AND NOT INC STREQUAL "" )
-    set( ALL_INCLUDES "${ALL_INCLUDES} -I${INC}" )
-  endif ()
-endforeach ()
-set( ALL_INCLUDES "${ALL_INCLUDES}" )
+  "${MPI_CXX_INCLUDE_DIRS}"
+  "${OpenMP_CXX_INCLUDE_DIRS}"
+  "${LTDL_INCLUDE_DIRS}"
+  "${MPI4PY_INCLUDE_DIRS}"
+)
+
+if( with-includes )
+  set( ALL_INCLUDES "${ALL_INCLUDES};${with-includes}" )
+endif()
+
+string( REPLACE ";" " " ALL_INCLUDES "${ALL_INCLUDES}" )
+string( STRIP "${ALL_INCLUDES}" ALL_INCLUDES )
 
 ################################################################################
 ##################           File generation here             ##################
