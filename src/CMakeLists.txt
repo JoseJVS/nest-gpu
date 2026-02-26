@@ -78,7 +78,6 @@ parrot_neuron.h
 poiss_gen.h
 poiss_gen_variables.h
 prefix_scan.h
-propagate_error.h
 propagator_stability.h
 random.h
 rev_spike.h

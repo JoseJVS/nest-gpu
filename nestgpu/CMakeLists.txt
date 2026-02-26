@@ -20,7 +20,8 @@
 set( nestgpu_lib_sources
     nestgpu_C.cpp nestgpu_C.h
     sapi.cpp sapi.h
-    )
+    propagate_error.h
+)
 
 add_library( nestgpu SHARED ${nestgpu_lib_sources} )
 
