@@ -46,6 +46,7 @@ extern "C"
     if ( NESTGPU_instance == nullptr )
     {
       NESTGPU_instance = new NESTGPU();
+      NESTGPU_instance->SetOnException( 1 );
     }
   }
 

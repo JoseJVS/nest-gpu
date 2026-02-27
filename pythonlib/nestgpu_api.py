@@ -152,8 +152,6 @@ def SetOnException(on_exception):
     "Define whether handle exceptions (1) or exit (0) in case of errors"
     return NESTGPU_SetOnException(ctypes.c_int(on_exception))
 
-SetOnException(1)
-
 NESTGPU_SetRandomSeed = _nestgpu.NESTGPU_SetRandomSeed
 NESTGPU_SetRandomSeed.argtypes = (ctypes.c_ulonglong,)
 NESTGPU_SetRandomSeed.restype = ctypes.c_int
