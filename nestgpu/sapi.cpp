@@ -21,6 +21,7 @@ namespace sapi
 {
 struct MPIFinalizer
 {
+    bool initialized_ = false;
     ~MPIFinalizer()
     {
         finalize_mpi();
@@ -70,15 +71,15 @@ extern "C"
     bool init( vp_t argc, char** argv )
     {
         START_TRY_BOOL
-            if ( capi.is_initialized() )
+            if ( mpif.initialized_ )
                 throw std::runtime_error( "Cannot initialize multiple times" );
 
         init_mpi( &argc, &argv );
-        init_omp( 1 );
         capi.set_rank( get_mpi_rank() );
         const auto  num_procs = get_num_mpi_processes();
         capi.set_num_processes( num_procs );
         total_nodes_per_rank.resize( num_procs, 0 );
+        mpif.initialized_ = true;
         END_TRY_BOOL
     }
 

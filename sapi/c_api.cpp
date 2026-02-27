@@ -19,16 +19,13 @@ void sapi::CAPI::free_gc()
 
 sapi::vp_t sapi::CAPI::get_rank() const
 {
-    if ( !is_initialized() )
-        throw std::runtime_error( "API not initialized yet" );
-
     return local_rank_;
 }
 
 
 void sapi::CAPI::set_rank( const vp_t& rank )
 {
-    if ( is_initialized() )
+    if ( manager_initialized() )
         throw std::runtime_error( "API is already initialized" );
     if ( rank < 0 )
         throw std::runtime_error( "Invalid MPI rank" );
@@ -39,16 +36,13 @@ void sapi::CAPI::set_rank( const vp_t& rank )
 
 sapi::vp_t sapi::CAPI::get_num_processes() const
 {
-    if ( !is_initialized() )
-        throw std::runtime_error( "API not initialized yet" );
-
     return num_processes_;
 }
 
 
 void sapi::CAPI::set_num_processes( const vp_t& num_processes )
 {
-    if ( is_initialized() )
+    if ( manager_initialized() )
         throw std::runtime_error( "API is already initialized" );
     if ( num_processes < 1 )
         throw std::runtime_error( "Invalid MPI num processes" );
@@ -59,18 +53,12 @@ void sapi::CAPI::set_num_processes( const vp_t& num_processes )
 
 sapi::vp_t sapi::CAPI::get_num_threads() const
 {
-    if ( !is_initialized() )
-        throw std::runtime_error( "API not initialized yet" );
-
     return get_max_omp_threads();
 }
 
 
 void sapi::CAPI::set_num_threads( const vp_t& num_threads )
 {
-    if ( !is_initialized() )
-        throw std::runtime_error( "API not initialized yet" );
-
     set_max_omp_threads( num_threads );
     if ( manager_initialized() )
         spatial_manager_->update_num_threads();
@@ -114,9 +102,6 @@ void sapi::CAPI::generate_tile_grid(
     const bool& edge_wrap
 )
 {
-    if ( !is_initialized() )
-        throw std::runtime_error( "API not initialized yet" );
-
     if ( manager_initialized() )
         throw std::runtime_error( "Cannot initialize spatial manager more than once" );
 

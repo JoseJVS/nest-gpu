@@ -7,17 +7,21 @@
 
 namespace sapi
 {
+static bool INIT_OMP_ONCE = true;
 class CAPI
 {
 public:
-    CAPI() = default;
     CAPI( const CAPI& ) = delete;
     CAPI( CAPI&& ) = default;
     ~CAPI() = default;
 
-    bool is_initialized() const
+    CAPI()
     {
-        return 0 <= local_rank_ && 0 < num_processes_;
+        if ( INIT_OMP_ONCE )
+        {
+            init_omp( 1 );
+            INIT_OMP_ONCE = false;
+        }
     }
 
     bool manager_initialized() const
@@ -101,11 +105,8 @@ public:
     TimerDataPairArray* get_timer_data();
 
 private:
-    // Needs to be cached here
-    // as random manager is initialized
-    // in spatial manager
-    vp_t local_rank_ = -1;
-    vp_t num_processes_ = -1;
+    vp_t local_rank_ = 0;
+    vp_t num_processes_ = 1;
     uint32_t seed_ = DEFAULT_BASE_SEED_;
     std::string rng_type_ = DEFAULT_RNG_TYPE_;
 
