@@ -30,8 +30,12 @@
 #include "nestgpu_C.h"
 #include "propagate_error.h"
 
+#include "c_api.h"
+
+
 extern "C"
 {
+  static sapi::CAPI capi;
   static NESTGPU* NESTGPU_instance = nullptr;
   ConnSpec ConnSpec_instance;
   SynSpec SynSpec_instance;
@@ -2171,6 +2175,268 @@ extern "C"
 	 n_target_host, target_arr, n_target_arr, indegree, i_host_group, SynSpec_instance);
     }
     END_ERR_PROP return ret;
+  }
+
+  bool reset_api()
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.reset();
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  bool free_gc()
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.free_gc();
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  sapi::OptionalIndex get_num_threads()
+  {
+    sapi::OptionalIndex opt;
+    BEGIN_ERR_PROP
+    {
+      opt.first_ = true;
+      opt.second_ = static_cast< std::size_t >( capi.get_num_threads() );
+      return opt;
+    }
+      END_ERR_PROP
+      opt.first_ = false;
+    return opt;
+  }
+
+  bool set_num_threads( const sapi::vp_t& num_threads )
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.set_num_threads( num_threads );
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  sapi::OptionalIndex get_rng_seed()
+  {
+    sapi::OptionalIndex opt;
+    BEGIN_ERR_PROP
+    {
+      opt.first_ = true;
+      opt.second_ = static_cast< std::size_t >( capi.get_rng_seed() );
+      return opt;
+    }
+      END_ERR_PROP
+      opt.first_ = false;
+    return opt;
+  }
+
+
+  bool set_rng_seed( const uint32_t& seed )
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.set_rng_seed( seed );
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  sapi::CharArray* get_rng_type()
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_rng_type();
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
+  bool set_rng_type( const sapi::CharArray& rng_type )
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.set_rng_type( rng_type );
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  bool generate_tile_grid(
+    const sapi::SpaceTArray& grid_origin,
+    const sapi::TileIdxArray& grid_dimensions,
+    const sapi::CharArray& tile_type,
+    const sapi::SpaceTArray& tile_params,
+    const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
+    const sapi::split_t& num_splits,
+    const bool& edge_wrap
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.generate_tile_grid(
+        grid_origin,
+        grid_dimensions,
+        tile_type,
+        tile_params,
+        rank_tiles_ownership_map,
+        num_splits,
+        edge_wrap
+      );
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
+
+  sapi::OptionalIndex generate_nodes_in_grid(
+    const sapi::largenodeidx_t& num_nodes,
+    const sapi::TileIdxArray& tile_set,
+    const uint8_t& grid_distribution_mode,
+    const uint8_t& tile_distribution_mode
+  )
+  {
+    sapi::OptionalIndex opt;
+    BEGIN_ERR_PROP
+    {
+      opt.first_ = true;
+      const auto nodes_per_rank = capi.generate_nodes_in_grid(
+        num_nodes,
+        tile_set,
+        grid_distribution_mode
+      );
+
+      //opt.second_ = capi.generate_nodes_in_tiles(
+      //  update_node_counts_per_rank( nodes_per_rank ),
+      //  tile_distribution_mode
+      //);
+      return opt;
+    }
+      END_ERR_PROP
+      opt.first_ = false;
+    return opt;
+  }
+
+  sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* >
+    insert_positions_in_grid(
+      const sapi::NestedSpaceTArray& anycoord_array
+    )
+  {
+    sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* > pair;
+    BEGIN_ERR_PROP
+    {
+      const auto [
+        nodes_per_rank,
+        leftovers
+      ] = capi.insert_positions_in_grid(
+        anycoord_array
+      );
+
+      pair.first_.first_ = true;
+      //pair.first_.second_ = capi.insert_positions_in_tiles(
+      //  update_node_counts_per_rank( nodes_per_rank )
+      //);
+      pair.second_ = leftovers;
+      return pair;
+    }
+      END_ERR_PROP
+      pair.first_.first_ = false;
+    pair.second_ = nullptr;
+    return pair;
+  }
+
+  sapi::OptionalIndex compute_spatial_connections(
+    const std::size_t& dist_tns_source_index,
+    const std::size_t& dist_tns_target_index,
+    const sapi::MPStruct& mask_params,
+    const sapi::CPStruct& conn_params
+  )
+  {
+    sapi::OptionalIndex opt;
+    BEGIN_ERR_PROP
+    {
+      opt.first_ = true;
+      opt.second_ = capi.compute_spatial_connections(
+        dist_tns_source_index,
+        dist_tns_target_index,
+        mask_params,
+        conn_params
+      ).first;
+      return opt;
+    }
+      END_ERR_PROP
+      opt.first_ = false;
+    return opt;
+  }
+
+  sapi::NestedNodeCoordPairArray* get_nodes(
+    const sapi::PairT< bool, std::size_t >& opt_dist_tns_index,
+    const sapi::MPStruct& mask_params
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_nodes( opt_dist_tns_index, mask_params );
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
+  sapi::TiledNodeSequencePairArray* get_distributed_node_sequences(
+    const std::size_t& dist_tns_index
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_distributed_node_sequences(
+        dist_tns_index
+      );
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
+  sapi::RCIStruct* get_spatial_connections(
+    const std::size_t& conn_idx
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_spatial_connections(
+        conn_idx
+      );
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
+  sapi::GridTileVerticesPairArray* get_grid_vertices()
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_grid_vertices();
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
+  sapi::TimerDataPairArray* get_timer_data()
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_timer_data();
+    }
+      END_ERR_PROP
+      return nullptr;
   }
 
 }
