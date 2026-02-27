@@ -8,6 +8,8 @@ import platform
 import sys
 import unicodedata
 
+from . import ll_sapi
+
 print('\n              -- NEST GPU --\n')
 print('  Copyright (C) 2021 The NEST Initiative\n')
 print(' This program is provided AS IS and comes with')
@@ -3199,7 +3201,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
                 raise ValueError("Inconsistent source group types")
     else:
         raise ValueError("Unknown source node type")
-        
+
     if (type(target_group_list)!=list) and (type(target_group_list)!=tuple):
         raise ValueError("Unknown target group list type")
     if len(target_host_list) != len(target_group_list):
@@ -3218,19 +3220,19 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     gc.disable() # temporarily disable garbage collection
     SynSpecInit()
-        
-    #array_size = RuleArraySize(conn_dict, source, target)    # not used for now
-        
+
+    # array_size = RuleArraySize(conn_dict, source, target)    # not used for now
+
     for param_name in syn_dict:
         if SynSpecIsIntParam(param_name):
             SetSynSpecIntParam(param_name, syn_dict[param_name])
         elif SynSpecIsFloatParam(param_name):
             fpar = syn_dict[param_name]
-            #if (type(fpar)==dict): # not used for now
+            # if (type(fpar)==dict): # not used for now
             #    SetSynParamFromArray(param_name, fpar, array_size)
-            #else:
+            # else:
             SetSynSpecFloatParam(param_name, fpar)
-                
+
         elif SynSpecIsFloatPtParam(param_name):
             SetSynSpecFloatPtParam(param_name, syn_dict[param_name])
         else:
@@ -3240,14 +3242,14 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     source_host_arr_pt = ctypes.cast(source_host_arr, ctypes.c_void_p)
     target_host_arr = (ctypes.c_int * len(target_host_list))(*target_host_list)
     target_host_arr_pt = ctypes.cast(target_host_arr, ctypes.c_void_p)
-    
+
     if (type(source_group_list[0])==NodeSeq):
         source_i0_list = []
         source_n_list = []
         for source_seq in source_group_list:
             source_i0_list.append(source_seq.i0)
             source_n_list.append(source_seq.n)    
-        
+
         source_i0_arr = (ctypes.c_int * len(source_i0_list))(*source_i0_list)
         source_i0_arr_pt = ctypes.cast(source_i0_arr, ctypes.c_void_p)
     else:
@@ -3259,7 +3261,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
             source_pt_list.append(source_arr_pt)
             source_n_list.append(len(source_group))
         source_pt_arr = (ctypes.c_void_p * len(source_pt_list))(*source_pt_list)
-        
+
     source_n_arr = (ctypes.c_int * len(source_n_list))(*source_n_list)
     source_n_arr_pt = ctypes.cast(source_n_arr, ctypes.c_void_p)
 
@@ -3269,7 +3271,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
         for target_seq in target_group_list:
             target_i0_list.append(target_seq.i0)
             target_n_list.append(target_seq.n)    
-        
+
         target_i0_arr = (ctypes.c_int * len(target_i0_list))(*target_i0_list)
         target_i0_arr_pt = ctypes.cast(target_i0_arr, ctypes.c_void_p)
     else:
@@ -3284,7 +3286,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     target_n_arr = (ctypes.c_int * len(target_n_list))(*target_n_list) 
     target_n_arr_pt = ctypes.cast(target_n_arr, ctypes.c_void_p)
-        
+
     if (type(source_group_list[0])==NodeSeq) and (type(target_group_list[0])==NodeSeq):
         ret = NESTGPU_ConnectDistributedFixedIndegreeSeqSeq \
             (source_host_arr_pt, len(source_host_list), source_i0_arr_pt, source_n_arr_pt, \
@@ -3311,6 +3313,299 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
-    
+
     gc.enable()
     return ret
+
+
+_nestgpu.free_gc.restype = ctypes.c_bool
+_nestgpu.get_num_threads.restype = ll_sapi.OptionalIndex
+_nestgpu.set_num_threads.argtypes = (ctypes.POINTER(ll_sapi.vp_t),)
+_nestgpu.set_num_threads.restype = ctypes.c_bool
+_nestgpu.get_rng_seed.restype = ll_sapi.OptionalIndex
+_nestgpu.set_rng_seed.argtypes = (ctypes.POINTER(ctypes.c_uint32),)
+_nestgpu.set_rng_seed.restype = ctypes.c_bool
+_nestgpu.get_rng_type.restype = ctypes.POINTER(ll_sapi.CharArray)
+_nestgpu.set_rng_type.argtypes = (ctypes.POINTER(ll_sapi.CharArray),)
+_nestgpu.set_rng_type.restype = ctypes.c_bool
+
+_nestgpu.generate_tile_grid.argtypes = (
+    ctypes.POINTER(ll_sapi.SpaceTArray),
+    ctypes.POINTER(ll_sapi.TileIdxArray),
+    ctypes.POINTER(ll_sapi.CharArray),
+    ctypes.POINTER(ll_sapi.SpaceTArray),
+    ctypes.POINTER(ll_sapi.NestedTileIdxArray),
+    ctypes.POINTER(ll_sapi.split_t),
+    ctypes.POINTER(ctypes.c_bool),
+)
+_nestgpu.generate_tile_grid.restype = ctypes.c_bool
+
+_nestgpu.generate_nodes_in_grid.argtypes = (
+    ctypes.POINTER(ll_sapi.lnix_t),
+    ctypes.POINTER(ll_sapi.TileIdxArray),
+    ctypes.POINTER(ctypes.c_uint8),
+    ctypes.POINTER(ctypes.c_uint8),
+)
+_nestgpu.generate_nodes_in_grid.restype = ll_sapi.OptionalIndex
+
+_nestgpu.insert_positions_in_grid.argtypes = (ctypes.POINTER(ll_sapi.NestedSpaceTArray),)
+_nestgpu.insert_positions_in_grid.restype = ll_sapi.pair_template(
+    ll_sapi.OptionalIndex, ctypes.POINTER(ll_sapi.NestedSpaceTArray)
+)
+
+_nestgpu.compute_spatial_connections.argtypes = (
+    ctypes.POINTER(ctypes.c_size_t),
+    ctypes.POINTER(ctypes.c_size_t),
+    ctypes.POINTER(ll_sapi.MPStruct),
+    ctypes.POINTER(ll_sapi.CPStruct),
+)
+_nestgpu.compute_spatial_connections.restype = ll_sapi.OptionalIndex
+
+_nestgpu.get_nodes.argtypes = (
+    ctypes.POINTER(ll_sapi.OptionalIndex),
+    ctypes.POINTER(ll_sapi.MPStruct),
+)
+_nestgpu.get_nodes.restype = ctypes.POINTER(ll_sapi.NestedNodeCoordPairArray)
+
+_nestgpu.get_distributed_node_sequences.argtypes = (ctypes.POINTER(ctypes.c_size_t),)
+_nestgpu.get_distributed_node_sequences.restype = ctypes.POINTER(
+    ll_sapi.TiledNodeSequencePairArray
+)
+
+_nestgpu.get_spatial_connections.argtypes = (ctypes.POINTER(ctypes.c_size_t),)
+_nestgpu.get_spatial_connections.restype = ctypes.POINTER(ll_sapi.RCIStruct)
+
+_nestgpu.get_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridTileVerticesPairArray)
+_nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.TimerDataPairArray)
+
+
+def check_optional(opt: ctypes.Structure):
+    ll_sapi.check_bool(opt.first_)
+    return int(opt.second_)
+
+
+def safe_ptr_deref(ptr: ctypes._Pointer):
+    ll_sapi.check_ptr(ptr)
+    return ptr.contents
+
+
+def free_gc() -> None:
+    ll_sapi.check_bool(_nestgpu.free_gc())
+
+
+def get_num_threads() -> int:
+    return check_optional(_nestgpu.get_num_threads())
+
+
+def set_num_threads(num_threads: int) -> None:
+    c_vp = ll_sapi.safe_convert_to_c(ll_sapi.vp_t, num_threads)
+    ll_sapi.check_bool(_nestgpu.set_num_threads(ctypes.byref(c_vp)))
+
+
+def get_rng_seed() -> int:
+    return check_optional(_nestgpu.get_rng_seed())
+
+
+def set_rng_seed(seed: int) -> None:
+    c_seed = ll_sapi.safe_convert_to_c(ctypes.c_uint32, seed)
+    ll_sapi.check_bool(_nestgpu.set_rng_seed(ctypes.byref(c_seed)))
+
+
+def get_rng_type() -> str:
+    res = ll_sapi.carr_to_str(safe_ptr_deref(_nestgpu.get_rng_type()))
+    free_gc()
+    return res
+
+
+def set_rng_type(rng_type: str) -> None:
+    carr = ll_sapi.str_to_carr(rng_type)
+    ll_sapi.check_bool(_nestgpu.set_rng_type(ctypes.byref(carr)))
+
+
+def generate_tile_grid(
+    grid_origin: ll_sapi.typing.Collection[float],
+    grid_dimensions: ll_sapi.typing.Collection[int],
+    tile_type: str,
+    tile_params: ll_sapi.typing.Collection[float],
+    rank_tile_owner_ship: ll_sapi.typing.Collection[ll_sapi.typing.Set[int]],
+    splits: int,
+    edge_wrap: bool,
+) -> None:
+    origin_arr = ll_sapi.float_col_to_sta(grid_origin)
+    dims_arr = ll_sapi.int_col_to_tia(grid_dimensions)
+    tt_arr = ll_sapi.str_to_carr(tile_type)
+    tp_arr = ll_sapi.float_col_to_sta(tile_params)
+    rto_arr = ll_sapi.nested_int_col_to_nested_tia(rank_tile_owner_ship)
+    c_splits = ll_sapi.safe_convert_to_c(ll_sapi.split_t, splits)
+    c_ew = ll_sapi.safe_convert_to_c(ctypes.c_bool, edge_wrap)
+    ll_sapi.check_bool(
+        _nestgpu.generate_tile_grid(
+            ctypes.byref(origin_arr),
+            ctypes.byref(dims_arr),
+            ctypes.byref(tt_arr),
+            ctypes.byref(tp_arr),
+            ctypes.byref(rto_arr),
+            ctypes.byref(c_splits),
+            ctypes.byref(c_ew),
+        )
+    )
+
+
+def _parse_distribution_mode(mode: str | int) -> ctypes.c_uint8:
+    if isinstance(mode, str):
+        match mode.upper():
+            case "FREE":
+                return ctypes.c_uint8(0)
+            case "SQUEEZED":
+                return ctypes.c_uint8(1)
+            case "BALANCED":
+                return ctypes.c_uint8(2)
+            case _:
+                raise ValueError("Invalid distribution mode")
+    if isinstance(mode, int):
+        match mode:
+            case 0:
+                return ctypes.c_uint8(0)
+            case 1:
+                return ctypes.c_uint8(1)
+            case 2:
+                return ctypes.c_uint8(2)
+            case _:
+                raise ValueError("Invalid distribution mode")
+    raise TypeError("Invalid distribution mode argument")
+
+
+def generate_nodes_in_grid(
+    num_nodes: int,
+    tiles: ll_sapi.typing.Set[int] | None = None,
+    grid_distribution_mode: str | int = "balanced",
+    tile_distribution_mode: str | int = "squeezed",
+) -> int:
+    c_nn = ll_sapi.safe_convert_to_c(ll_sapi.lnix_t, num_nodes)
+    tiles_arr = ll_sapi.TileIdxArray()
+    tiles_arr.size_ = 0
+    if tiles is not None and len(tiles) > 0:
+        tiles_arr = ll_sapi.int_col_to_tia(tiles)
+    grid_mode = _parse_distribution_mode(grid_distribution_mode)
+    tile_mode = _parse_distribution_mode(tile_distribution_mode)
+    return check_optional(
+        _nestgpu.generate_nodes_in_grid(
+            ctypes.byref(c_nn),
+            ctypes.byref(tiles_arr),
+            ctypes.byref(grid_mode),
+            ctypes.byref(tile_mode),
+        )
+    )
+
+
+def insert_positions_in_grid(
+    positions: ll_sapi.typing.Collection[ll_sapi.typing.Collection[float]],
+) -> ll_sapi.typing.Tuple[int, ll_sapi.typing.List[ll_sapi.typing.List[float]]]:
+    if positions is None or len(positions) < 1:
+        raise ValueError("Cannot insert empty position collection")
+    c_pos = ll_sapi.nested_float_col_to_nested_sta(positions)  # copy 1
+    res_pair = _nestgpu.insert_positions_in_grid(
+        ctypes.byref(c_pos)
+    )  # internal cpp copy 2 + C leftovers
+    del c_pos  # delete copy 1
+    index = check_optional(res_pair.first_)
+    leftovers = ll_sapi.nested_sta_to_nested_float_col(safe_ptr_deref(res_pair.second_))
+    free_gc()  # clean C leftover positions
+    return index, leftovers
+
+
+def compute_spatial_connections(
+    source_dist_tns_idx: int,
+    target_dist_tns_idx: int,
+    mask_params: dict,
+    conn_params: dict,
+) -> int:
+    c_idx0 = ll_sapi.safe_convert_to_c(ctypes.c_size_t, source_dist_tns_idx)
+    c_idx1 = ll_sapi.safe_convert_to_c(ctypes.c_size_t, target_dist_tns_idx)
+    mps = ll_sapi.MPStruct()
+    mps.from_dict(mask_params)
+    cps = ll_sapi.CPStruct()
+    cps.from_dict(conn_params)
+    return check_optional(
+        _nestgpu.compute_spatial_connections(
+            ctypes.byref(c_idx0),
+            ctypes.byref(c_idx1),
+            ctypes.byref(mps),
+            ctypes.byref(cps),
+        )
+    )
+
+
+def get_nodes(
+    dist_tns_index: int | None = None, mask_params: dict | None = None
+) -> ll_sapi.typing.Dict[
+    int,  # Tile index
+    ll_sapi.typing.Dict[
+        int,  # Leaf index
+        ll_sapi.typing.Dict[int, ll_sapi.typing.List[float]],  # Node index : Coordinates
+    ],
+]:
+    c_opt = ll_sapi.OptionalIndex()
+    if dist_tns_index is not None:
+        c_opt.first_ = ll_sapi.safe_convert_to_c(ctypes.c_bool, True)
+        c_opt.second_ = ll_sapi.safe_convert_to_c(ctypes.c_size_t, dist_tns_index)
+    mps = ll_sapi.MPStruct()
+    if mask_params is not None:
+        mps.from_dict(mask_params)
+    res = ll_sapi.nested_node_coord_pair_array_to_dict(
+        safe_ptr_deref(_nestgpu.get_nodes(ctypes.byref(c_opt), ctypes.byref(mps)))
+    )
+    free_gc()
+    return res
+
+
+def get_distributed_node_sequences(
+    dist_tns_index: int,
+) -> ll_sapi.typing.Dict[int, ll_sapi.typing.Dict[int, ll_sapi.typing.Tuple[int, int]]]:
+    c_idx = ll_sapi.safe_convert_to_c(ctypes.c_size_t, dist_tns_index)
+    res = ll_sapi.tiled_node_sequence_pair_array_to_dict(
+        safe_ptr_deref(_nestgpu.get_distributed_node_sequences(ctypes.byref(c_idx)))
+    )
+    free_gc()
+    return res
+
+
+def get_spatial_connections(conn_index: int) -> ll_sapi.typing.Tuple[
+    ll_sapi.typing.Dict[
+        int, ll_sapi.typing.Dict[int, ll_sapi.typing.Dict[int, ll_sapi.typing.Tuple[float, float, int]]]
+    ],
+    ll_sapi.typing.Dict[
+        int, ll_sapi.typing.Dict[int, ll_sapi.typing.Dict[int, ll_sapi.typing.Tuple[float, float, int]]]
+    ],
+]:
+    c_idx = ll_sapi.safe_convert_to_c(ctypes.c_size_t, conn_index)
+    res = safe_ptr_deref(
+        _nestgpu.get_spatial_connections(
+            ctypes.byref(c_idx),
+        )
+    ).to_dict()
+    free_gc()
+    return res["incoming_connections"], res["outgoing_connections"]
+
+
+def get_grid_vertices() -> ll_sapi.typing.Dict[
+    int,  # Tile index
+    ll_sapi.typing.Tuple[
+        ll_sapi.typing.List[ll_sapi.typing.List[float]],  # Tile vertices
+        ll_sapi.typing.Dict[
+            int,  # Sub tile index
+            ll_sapi.typing.List[ll_sapi.typing.List[float]],  # Sub tile vertices
+        ],
+    ],
+]:
+    res = ll_sapi.grid_tile_vertices_pair_array_to_dict(
+        safe_ptr_deref(_nestgpu.get_grid_vertices())
+    )
+    free_gc()
+    return res
+
+
+def get_timer_data() -> ll_sapi.typing.Dict[str, float]:
+    res = ll_sapi.timer_data_pair_array_to_dict(safe_ptr_deref(_nestgpu.get_timer_data()))
+    free_gc()
+    return res
