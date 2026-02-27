@@ -2181,6 +2181,9 @@ extern "C"
   {
     BEGIN_ERR_PROP
     {
+      delete NESTGPU_instance;
+      ConnSpec_instance = ConnSpec();
+      SynSpec_instance = SynSpec();
       capi.reset();
       return true;
     }

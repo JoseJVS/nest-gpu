@@ -3318,6 +3318,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     return ret
 
 
+_nestgpu.reset_api.restype = ctypes.c_bool
 _nestgpu.free_gc.restype = ctypes.c_bool
 _nestgpu.get_num_threads.restype = ll_sapi.OptionalIndex
 _nestgpu.set_num_threads.argtypes = (ctypes.POINTER(ll_sapi.vp_t),)
@@ -3387,6 +3388,10 @@ def check_optional(opt: ctypes.Structure):
 def safe_ptr_deref(ptr: ctypes._Pointer):
     ll_sapi.check_ptr(ptr)
     return ptr.contents
+
+
+def reset_api() -> None:
+    ll_sapi.check_bool(_nestgpu.reset_api())
 
 
 def free_gc() -> None:
