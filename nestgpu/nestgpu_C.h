@@ -427,11 +427,11 @@ extern "C"
 
   sapi::OptionalIndex get_num_threads();
 
-  bool set_num_threads( const sapi::vp_t& num_threads );
+  bool set_num_threads( sapi::vp_t num_threads );
 
   sapi::OptionalIndex get_rng_seed();
 
-  bool set_rng_seed( const uint32_t& seed );
+  bool set_rng_seed( uint32_t seed );
 
   sapi::CharArray* get_rng_type();
 
@@ -443,40 +443,41 @@ extern "C"
     const sapi::CharArray& tile_type,
     const sapi::SpaceTArray& tile_params,
     const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
-    const sapi::split_t& num_splits,
-    const bool& edge_wrap
+    sapi::split_t num_splits,
+    bool edge_wrap
   );
 
-  sapi::OptionalIndex generate_nodes_in_grid(
-    const sapi::largenodeidx_t& num_nodes,
-    const sapi::TileIdxArray& tile_set,
-    const uint8_t& grid_distribution_mode,
-    const uint8_t& tile_distribution_mode
-  );
+  sapi::PairT< bool, sapi::SpatialNodeSequence >
+    generate_nodes_in_grid(
+      sapi::largenodeidx_t num_nodes,
+      const sapi::TileIdxArray& tile_set,
+      uint8_t grid_distribution_mode,
+      uint8_t tile_distribution_mode
+    );
 
-  sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* >
+  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
     insert_positions_in_grid(
       const sapi::NestedSpaceTArray& positions
     );
 
   sapi::OptionalIndex compute_spatial_connections(
-    const std::size_t& dist_tns_source_index,
-    const std::size_t& dist_tns_target_index,
+    std::size_t dist_tns_source_index,
+    std::size_t dist_tns_target_index,
     const sapi::MPStruct& mask_params,
     const sapi::CPStruct& conn_params
   );
 
   sapi::NestedNodeCoordPairArray* get_nodes(
-    const sapi::PairT< bool, std::size_t >& opt_dist_tns_index,
+    sapi::OptionalIndex opt_dist_tns_index,
     const sapi::MPStruct& mask_params
   );
 
   sapi::TiledNodeSequencePairArray* get_distributed_node_sequences(
-    const std::size_t& dist_tns_index
+    std::size_t dist_tns_index
   );
 
   sapi::RCIStruct* get_spatial_connections(
-    const std::size_t& conn_idx
+    std::size_t conn_idx
   );
 
   sapi::GridTileVerticesPairArray* get_grid_vertices();

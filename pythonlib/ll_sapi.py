@@ -746,3 +746,37 @@ def io_struct_template(
 RCIStruct = io_struct_template(_RCIS_FIELDS)
 MPStruct = io_struct_template(_MPS_FIELDS)
 CPStruct = io_struct_template(_CPS_FIELDS)
+
+
+def check_optional(opt: ctypes.Structure):
+    check_bool(opt.first_)
+    return int(opt.second_)
+
+
+def safe_ptr_deref(ptr: ctypes._Pointer):
+    check_ptr(ptr)
+    return ptr.contents
+
+
+def parse_distribution_mode(mode: str | int) -> ctypes.c_uint8:
+    if isinstance(mode, str):
+        match mode.upper():
+            case "FREE":
+                return ctypes.c_uint8(0)
+            case "SQUEEZED":
+                return ctypes.c_uint8(1)
+            case "BALANCED":
+                return ctypes.c_uint8(2)
+            case _:
+                raise ValueError("Invalid distribution mode")
+    if isinstance(mode, int):
+        match mode:
+            case 0:
+                return ctypes.c_uint8(0)
+            case 1:
+                return ctypes.c_uint8(1)
+            case 2:
+                return ctypes.c_uint8(2)
+            case _:
+                raise ValueError("Invalid distribution mode")
+    raise TypeError("Invalid distribution mode argument")

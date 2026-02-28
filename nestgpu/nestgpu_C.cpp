@@ -2208,8 +2208,8 @@ extern "C"
     sapi::OptionalIndex opt;
     BEGIN_ERR_PROP
     {
-      opt.first_ = true;
       opt.second_ = static_cast< std::size_t >( capi.get_num_threads() );
+    opt.first_ = true;
       return opt;
     }
       END_ERR_PROP
@@ -2217,7 +2217,7 @@ extern "C"
     return opt;
   }
 
-  bool set_num_threads( const sapi::vp_t& num_threads )
+  bool set_num_threads( sapi::vp_t num_threads )
   {
     BEGIN_ERR_PROP
     {
@@ -2233,8 +2233,8 @@ extern "C"
     sapi::OptionalIndex opt;
     BEGIN_ERR_PROP
     {
-      opt.first_ = true;
       opt.second_ = static_cast< std::size_t >( capi.get_rng_seed() );
+    opt.first_ = true;
       return opt;
     }
       END_ERR_PROP
@@ -2243,7 +2243,7 @@ extern "C"
   }
 
 
-  bool set_rng_seed( const uint32_t& seed )
+  bool set_rng_seed( uint32_t seed )
   {
     BEGIN_ERR_PROP
     {
@@ -2281,8 +2281,8 @@ extern "C"
     const sapi::CharArray& tile_type,
     const sapi::SpaceTArray& tile_params,
     const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
-    const sapi::split_t& num_splits,
-    const bool& edge_wrap
+    sapi::split_t num_splits,
+    bool edge_wrap
   )
   {
     BEGIN_ERR_PROP
@@ -2302,40 +2302,58 @@ extern "C"
       return false;
   }
 
-  sapi::OptionalIndex generate_nodes_in_grid(
-    const sapi::largenodeidx_t& num_nodes,
-    const sapi::TileIdxArray& tile_set,
-    const uint8_t& grid_distribution_mode,
-    const uint8_t& tile_distribution_mode
-  )
+  sapi::PairT< bool, sapi::SpatialNodeSequence >
+    generate_nodes_in_grid(
+      sapi::largenodeidx_t num_nodes,
+      const sapi::TileIdxArray& tile_set,
+      uint8_t grid_distribution_mode,
+      uint8_t tile_distribution_mode
+    )
   {
-    sapi::OptionalIndex opt;
+    sapi::PairT< bool, sapi::SpatialNodeSequence > pair;
     BEGIN_ERR_PROP
     {
-      opt.first_ = true;
       const auto nodes_per_rank = capi.generate_nodes_in_grid(
         num_nodes,
         tile_set,
         grid_distribution_mode
       );
 
-      //opt.second_ = capi.generate_nodes_in_tiles(
-      //  update_node_counts_per_rank( nodes_per_rank ),
+      //const auto rank_map = update_node_counts_per_rank(
+      //  nodes_per_rank
+      //);
+
+      //if ( const auto search = rank_map.find( capi.get_rank() );
+      //  search != rank_map.end() )
+      //{
+      //  pair.second_.second_ = search->second.first;
+      //  pair.second_.third_ = search->second.second;
+      //}
+      //else
+      //{
+      //  pair.second_.second_ = -1;
+      //  pair.second_.third_ = -1;
+      //}
+
+      //pair.second_.first_ = capi.generate_nodes_in_tiles(
+      //  rank_map,
       //  tile_distribution_mode
       //);
-      return opt;
+
+      pair.first_ = true;
+      return pair;
     }
       END_ERR_PROP
-      opt.first_ = false;
-    return opt;
+      pair.first_ = false;
+    return pair;
   }
 
-  sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* >
+  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
     insert_positions_in_grid(
       const sapi::NestedSpaceTArray& anycoord_array
     )
   {
-    sapi::PairT< sapi::OptionalIndex, sapi::NestedSpaceTArray* > pair;
+    sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* > triplet;
     BEGIN_ERR_PROP
     {
       const auto [
@@ -2345,22 +2363,39 @@ extern "C"
         anycoord_array
       );
 
-      pair.first_.first_ = true;
-      //pair.first_.second_ = capi.insert_positions_in_tiles(
-      //  update_node_counts_per_rank( nodes_per_rank )
+    //const auto rank_map = update_node_counts_per_rank(
+    //  nodes_per_rank
+    //);
+
+    //if ( const auto search = rank_map.find( capi.get_rank() );
+    //  search != rank_map.end() )
+    //{
+    //  triplet.second_.second_ = search->second.first;
+    //  triplet.second_.third_ = search->second.second;
+    //}
+    //else
+    //{
+    //  triplet.second_.second_ = -1;
+    //  triplet.second_.third_ = -1;
+    //}
+
+    //triplet.second_.first_ = capi.insert_positions_in_tiles(
+    //  rank_map
       //);
-      pair.second_ = leftovers;
-      return pair;
+
+    triplet.first_ = true;
+    triplet.third_ = leftovers;
+    return triplet;
     }
       END_ERR_PROP
-      pair.first_.first_ = false;
-    pair.second_ = nullptr;
-    return pair;
+      triplet.first_ = false;
+    triplet.third_ = nullptr;
+    return triplet;
   }
 
   sapi::OptionalIndex compute_spatial_connections(
-    const std::size_t& dist_tns_source_index,
-    const std::size_t& dist_tns_target_index,
+    std::size_t dist_tns_source_index,
+    std::size_t dist_tns_target_index,
     const sapi::MPStruct& mask_params,
     const sapi::CPStruct& conn_params
   )
@@ -2368,13 +2403,13 @@ extern "C"
     sapi::OptionalIndex opt;
     BEGIN_ERR_PROP
     {
-      opt.first_ = true;
       opt.second_ = capi.compute_spatial_connections(
         dist_tns_source_index,
         dist_tns_target_index,
         mask_params,
         conn_params
       ).first;
+      opt.first_ = true;
       return opt;
     }
       END_ERR_PROP
@@ -2383,7 +2418,7 @@ extern "C"
   }
 
   sapi::NestedNodeCoordPairArray* get_nodes(
-    const sapi::PairT< bool, std::size_t >& opt_dist_tns_index,
+    sapi::OptionalIndex opt_dist_tns_index,
     const sapi::MPStruct& mask_params
   )
   {
@@ -2396,7 +2431,7 @@ extern "C"
   }
 
   sapi::TiledNodeSequencePairArray* get_distributed_node_sequences(
-    const std::size_t& dist_tns_index
+    std::size_t dist_tns_index
   )
   {
     BEGIN_ERR_PROP
@@ -2410,7 +2445,7 @@ extern "C"
   }
 
   sapi::RCIStruct* get_spatial_connections(
-    const std::size_t& conn_idx
+    std::size_t conn_idx
   )
   {
     BEGIN_ERR_PROP
