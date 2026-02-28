@@ -3318,23 +3318,6 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     return ret
 
 
-def check_err(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        result = None
-        try:
-            result = func(*args, **kwargs)
-        except:
-            if GetErrorCode() != 0:
-                raise ValueError(GetErrorMessage())
-            pass
-        if GetErrorCode() != 0:
-            raise ValueError(GetErrorMessage())
-        return result
-
-    return wrapper
-
-
 _nestgpu.reset_api.restype = ctypes.c_bool
 _nestgpu.free_gc.restype = ctypes.c_bool
 _nestgpu.get_num_threads.restype = ll_sapi.OptionalIndex
@@ -3407,54 +3390,66 @@ _nestgpu.get_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridTileVerticesPair
 _nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.TimerDataPairArray)
 
 
-@check_err
 def reset_api() -> None:
-    ll_sapi.check_bool(_nestgpu.reset_api())
+    res = _nestgpu.reset_api()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def free_gc() -> None:
-    ll_sapi.check_bool(_nestgpu.free_gc())
+    res = _nestgpu.free_gc()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def get_num_threads() -> int:
-    return ll_sapi.check_optional(_nestgpu.get_num_threads())
+    res = _nestgpu.get_num_threads()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
+    return ll_sapi.check_optional(res)
 
 
-@check_err
 def set_num_threads(num_threads: int) -> None:
-    ll_sapi.check_bool(
-        _nestgpu.set_num_threads(ll_sapi.safe_convert_to_c(ll_sapi.vp_t, num_threads))
-    )
+    res = _nestgpu.set_num_threads(ll_sapi.safe_convert_to_c(ll_sapi.vp_t, num_threads))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def get_rng_seed() -> int:
-    return ll_sapi.check_optional(_nestgpu.get_rng_seed())
+    res = _nestgpu.get_rng_seed()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(res)
 
 
-@check_err
 def set_rng_seed(seed: int) -> None:
-    ll_sapi.check_bool(
-        _nestgpu.set_rng_seed(ll_sapi.safe_convert_to_c(ctypes.c_uint32, seed))
-    )
+    res = _nestgpu.set_rng_seed(ll_sapi.safe_convert_to_c(ctypes.c_uint32, seed))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def get_rng_type() -> str:
-    res = ll_sapi.carr_to_str(ll_sapi.safe_ptr_deref(_nestgpu.get_rng_type()))
+    res = _nestgpu.get_rng_type()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.carr_to_str(ll_sapi.safe_ptr_deref(res))
     free_gc()
     return res
 
 
-@check_err
 def set_rng_type(rng_type: str) -> None:
     carr = ll_sapi.str_to_carr(rng_type)
-    ll_sapi.check_bool(_nestgpu.set_rng_type(ctypes.byref(carr)))
+    res = _nestgpu.set_rng_type(ctypes.byref(carr))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def generate_tile_grid(
     grid_origin: typing.Collection[float],
     grid_dimensions: typing.Collection[int],
@@ -3475,20 +3470,20 @@ def generate_tile_grid(
     tt_arr = ll_sapi.str_to_carr(tile_type)
     tp_arr = ll_sapi.float_col_to_sta(tile_params)
     rto_arr = ll_sapi.nested_int_col_to_nested_tia(rank_tile_owner_ship)
-    ll_sapi.check_bool(
-        _nestgpu.generate_tile_grid(
-            ctypes.byref(origin_arr),
-            ctypes.byref(dims_arr),
-            ctypes.byref(tt_arr),
-            ctypes.byref(tp_arr),
-            ctypes.byref(rto_arr),
-            ll_sapi.safe_convert_to_c(ll_sapi.split_t, splits),
-            ll_sapi.safe_convert_to_c(ctypes.c_bool, edge_wrap),
-        )
+    res = _nestgpu.generate_tile_grid(
+        ctypes.byref(origin_arr),
+        ctypes.byref(dims_arr),
+        ctypes.byref(tt_arr),
+        ctypes.byref(tp_arr),
+        ctypes.byref(rto_arr),
+        ll_sapi.safe_convert_to_c(ll_sapi.split_t, splits),
+        ll_sapi.safe_convert_to_c(ctypes.c_bool, edge_wrap),
     )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(res)
 
 
-@check_err
 def generate_nodes_in_grid(
     model_name: str,
     num_nodes: int = 1,
@@ -3511,6 +3506,8 @@ def generate_nodes_in_grid(
         ll_sapi.parse_distribution_mode(grid_distribution_mode),
         ll_sapi.parse_distribution_mode(tile_distribution_mode),
     )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(res_t.first_)
     local_sequence = False
     if 0 <= res_t.second_.second_:
@@ -3527,7 +3524,6 @@ def generate_nodes_in_grid(
     )
 
 
-@check_err
 def insert_positions_in_grid(
     model_name: str,
     positions: typing.Collection[typing.Collection[float]],
@@ -3545,6 +3541,8 @@ def insert_positions_in_grid(
         ctypes.byref(c_pos),
     )  # internal cpp copy 2 + C leftovers
     del c_pos  # delete copy 1
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(res_t.first_)
     leftovers = ll_sapi.nested_sta_to_nested_float_col(
         ll_sapi.safe_ptr_deref(res_t.third_)
@@ -3566,39 +3564,39 @@ def insert_positions_in_grid(
     return sp_ns, leftovers
 
 
-@check_err
 def compute_spatial_connections(
     sp_ns_source: ll_sapi.SpatialNodeSeq,
     sp_ns_target: ll_sapi.SpatialNodeSeq,
     mask_params: dict,
     conn_params: dict,
-    synspec_params: dict,
+    synspec_params: dict | None = None,
 ) -> int:
-    for param_name in synspec_params:
-        if param_name == "receptor" or param_name == "synapse_group":
-            val = synspec_params[param_name]
-            if (param_name == "synapse_group") and isinstance(val, SynGroup):
-                val = val.i_syn_group
-            SetSynSpecIntParam(param_name, val)
-        else:
-            raise ValueError(
-                "Only receptor port or synapse group parameters are possible SynSpec arguments for spatial connections"
-            )
+    if synspec_params is not None:
+        for param_name in synspec_params:
+            if param_name == "receptor" or param_name == "synapse_group":
+                val = synspec_params[param_name]
+                if (param_name == "synapse_group") and isinstance(val, SynGroup):
+                    val = val.i_syn_group
+                SetSynSpecIntParam(param_name, val)
+            else:
+                raise ValueError(
+                    "Only receptor port or synapse group parameters are possible SynSpec arguments for spatial connections"
+                )
     mps = ll_sapi.MPStruct()
     mps.from_dict(mask_params)
     cps = ll_sapi.CPStruct()
     cps.from_dict(conn_params)
-    return ll_sapi.check_optional(
-        _nestgpu.compute_spatial_connections(
-            ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_ns_source.spatial_index),
-            ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_ns_target.spatial_index),
-            ctypes.byref(mps),
-            ctypes.byref(cps),
-        )
+    res = _nestgpu.compute_spatial_connections(
+        ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_ns_source.spatial_index),
+        ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_ns_target.spatial_index),
+        ctypes.byref(mps),
+        ctypes.byref(cps),
     )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(res)
 
 
-@check_err
 def get_nodes(
     sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
 ) -> typing.Dict[
@@ -3617,43 +3615,41 @@ def get_nodes(
     mps = ll_sapi.MPStruct()
     if mask_params is not None:
         mps.from_dict(mask_params)
-    res = ll_sapi.nested_node_coord_pair_array_to_dict(
-        ll_sapi.safe_ptr_deref(_nestgpu.get_nodes(c_opt, ctypes.byref(mps)))
-    )
+    res = _nestgpu.get_nodes(c_opt, ctypes.byref(mps))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.nested_node_coord_pair_array_to_dict(ll_sapi.safe_ptr_deref(res))
     free_gc()
     return res
 
 
-@check_err
 def get_distributed_node_sequences(
     sp_node_seq: ll_sapi.SpatialNodeSeq,
 ) -> typing.Dict[int, typing.Dict[int, typing.Tuple[int, int]]]:
-    res = ll_sapi.tiled_node_sequence_pair_array_to_dict(
-        ll_sapi.safe_ptr_deref(
-            _nestgpu.get_distributed_node_sequences(
-                ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_node_seq.spatial_index)
-            )
-        )
+    res = _nestgpu.get_distributed_node_sequences(
+        ll_sapi.safe_convert_to_c(ctypes.c_size_t, sp_node_seq.spatial_index)
     )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.tiled_node_sequence_pair_array_to_dict(ll_sapi.safe_ptr_deref(res))
     free_gc()
     return res
 
 
-@check_err
 def get_spatial_connections(conn_index: int) -> typing.Tuple[
     typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
     typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
 ]:
-    res = ll_sapi.safe_ptr_deref(
-        _nestgpu.get_spatial_connections(
-            ll_sapi.safe_convert_to_c(ctypes.c_size_t, conn_index),
-        )
-    ).to_dict()
+    res = _nestgpu.get_spatial_connections(
+        ll_sapi.safe_convert_to_c(ctypes.c_size_t, conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.safe_ptr_deref(res).to_dict()
     free_gc()
     return res["incoming_connections"], res["outgoing_connections"]
 
 
-@check_err
 def get_grid_vertices() -> typing.Dict[
     int,  # Tile index
     typing.Tuple[
@@ -3664,17 +3660,18 @@ def get_grid_vertices() -> typing.Dict[
         ],
     ],
 ]:
-    res = ll_sapi.grid_tile_vertices_pair_array_to_dict(
-        ll_sapi.safe_ptr_deref(_nestgpu.get_grid_vertices())
-    )
+    res = _nestgpu.get_grid_vertices()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.grid_tile_vertices_pair_array_to_dict(ll_sapi.safe_ptr_deref(res))
     free_gc()
     return res
 
 
-@check_err
 def get_timer_data() -> typing.Dict[str, float]:
-    res = ll_sapi.timer_data_pair_array_to_dict(
-        ll_sapi.safe_ptr_deref(_nestgpu.get_timer_data())
-    )
+    res = _nestgpu.get_timer_data()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    res = ll_sapi.timer_data_pair_array_to_dict(ll_sapi.safe_ptr_deref(res))
     free_gc()
     return res
