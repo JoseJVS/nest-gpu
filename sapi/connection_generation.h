@@ -12,41 +12,33 @@ inline void consolidate_connection_map(
     TileConnectionInfo& tci
 )
 {
-    for ( auto& [tile_index, tile_lci_map] : tci.aggregated_connection_map_ )
+    assert( ( tci.total_generated_connections_ == 0 ) == tci.procedural_connection_list_.empty() );
+    tci.prepare_vectors();
+
+    auto ci_fl_move_it = std::make_move_iterator( tci.procedural_connection_list_.begin() );
+    while ( !tci.procedural_connection_list_.empty() )
     {
-        assert( !tile_lci_map.empty() );
+        auto ci_fl = *ci_fl_move_it++;
+        tci.procedural_connection_list_.pop_front();
 
-        for ( auto& [leaf_index, lci] : tile_lci_map )
+        auto ci_move_it = std::make_move_iterator( ci_fl.begin() );
+        while ( !ci_fl.empty() )
         {
-            if ( lci.connection_map_.empty() )
-                continue;
+            const auto [driver_index, pool_index, weight, delay, multiplicity] = *ci_move_it++;
+            ci_fl.pop_front();
 
-            tci.total_generated_connections_ += lci.total_generated_connections_;
-
-            for ( auto& [driver_index, pool_conns] : lci.connection_map_ )
+            for ( mult_t mult = 0; mult < multiplicity; ++mult )
             {
-                assert( !pool_conns.empty() );
-
-                const auto emplace_res = tci.consolidated_connection_map_.emplace(
-                    std::make_pair(
-                        nodeidx_t( driver_index ),
-                        std::move( pool_conns )
-                    )
-                );
-                assert( emplace_res.second );
+                tci.connection_sources_.emplace_back( driver_index );
+                tci.connection_targets_.emplace_back( pool_index );
+                tci.connection_weights_.emplace_back( weight );
+                tci.connection_delays_.emplace_back( delay );
             }
-
-            lci.connection_map_.clear();
         }
-
-        tile_lci_map.clear();
     }
 
-    tci.aggregated_connection_map_.clear();
-
-    // Check overflow
-    assert( 0 <= tci.total_generated_connections_ &&
-        ( ( tci.total_generated_connections_ == 0 ) == tci.consolidated_connection_map_.empty() ) );
+    // Check correctness
+    assert( static_cast< std::size_t >( tci.total_generated_connections_ ) == tci.connection_sources_.size() );
 }
 
 
@@ -65,7 +57,7 @@ void compute_connections_across_tiles(
     assert(
         rng_manager.is_initialized() &&
         cg_array.is_initialized() &&
-        tci.aggregated_connection_map_.empty()
+        tci.procedural_connection_list_.empty()
     );
 
     if ( rpi.displacement_checks_map_.consolidated_info_map_.empty() )
@@ -79,13 +71,6 @@ void compute_connections_across_tiles(
         // At this point there should be no sparsity in the map
         assert( !tile_dc_map_pair_it->second.empty() );
 
-        const auto tile_conn_map_it = tci.aggregated_connection_map_.emplace(
-            std::make_pair(
-                tileidx_t( tile_dc_map_pair_it->first ),
-                std::unordered_map< tileidx_t, LeafConnectionInfo >()
-            )
-        ).first;
-
         for ( auto leaf_dc_map_pair_it = tile_dc_map_pair_it->second.begin();
             leaf_dc_map_pair_it != tile_dc_map_pair_it->second.end();
             ++leaf_dc_map_pair_it )
@@ -93,15 +78,11 @@ void compute_connections_across_tiles(
             // At this point there should be no sparsity in the map
             assert( !leaf_dc_map_pair_it->second.empty() );
 
-            const auto leaf_conn_map_it = tile_conn_map_it->second.emplace(
-                std::make_pair(
-                    tileidx_t( leaf_dc_map_pair_it->first ),
-                    LeafConnectionInfo()
-                )
-            ).first;
+            tci.procedural_connection_list_.emplace_front();
+            const auto leaf_conn_list_it = tci.procedural_connection_list_.begin();
 
-#pragma omp task default( none ) shared( rng_manager, cg_array )\
-firstprivate( leaf_conn_map_it, leaf_dc_map_pair_it, tile_dc_map_pair_it,\
+#pragma omp task default( none ) shared( tci, rng_manager, cg_array )\
+firstprivate( leaf_conn_list_it, leaf_dc_map_pair_it, tile_dc_map_pair_it,\
     target_rank, inverted_pool_driver, allow_multiplicity, allow_self_connections )
             {
                 const auto tid = get_thread_num();
@@ -110,7 +91,7 @@ firstprivate( leaf_conn_map_it, leaf_dc_map_pair_it, tile_dc_map_pair_it,\
                     tile_dc_map_pair_it->first, leaf_dc_map_pair_it->first
                 );
                 cg_array.get_thread_item( tid )->compute_connections(
-                    leaf_conn_map_it->second, leaf_dc_map_pair_it->second,
+                    tci, *leaf_conn_list_it, leaf_dc_map_pair_it->second,
                     rng, allow_multiplicity, allow_self_connections
                 );
             }

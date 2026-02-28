@@ -15,10 +15,11 @@ vp_t: typing.TypeAlias = ctypes.c_int32
 tix_t: typing.TypeAlias = ctypes.c_int32
 nix_t: typing.TypeAlias = ctypes.c_int32
 lnix_t: typing.TypeAlias = ctypes.c_int64
-conn_t: typing.TypeAlias = ctypes.c_float
 mult_t: typing.TypeAlias = ctypes.c_uint16
 split_t: typing.TypeAlias = ctypes.c_uint8
 space_t: typing.TypeAlias = ctypes.c_double
+conn_index_t: typing.TypeAlias = ctypes.c_uint32
+conn_param_t: typing.TypeAlias = ctypes.c_float
 CData: typing.TypeAlias = ctypes._SimpleCData | ctypes.Structure | ctypes._Pointer
 
 
@@ -105,6 +106,15 @@ def pair_array_template(k: type[CData], v: type[CData]) -> type[ctypes.Structure
     return array_template(pair_template(k, v))
 
 
+class CIStruct(ctypes.Structure):
+    _fields_ = [
+        ("source_index_", conn_index_t),
+        ("target_index_", conn_index_t),
+        ("connection_weight_", conn_param_t),
+        ("connection_delay_", conn_param_t),
+    ]
+
+
 OptionalIndex = pair_template(ctypes.c_bool, ctypes.c_size_t)
 SpatialNodeSequence = triplet_template(ctypes.c_size_t, nix_t, nix_t)
 CharArray = array_template(ctypes.c_char)
@@ -118,15 +128,9 @@ NestedTileIdxArray = array_template(TileIdxArray)
 TiledNodeSequencePairArray = pair_array_template(
     vp_t, pair_array_template(tix_t, pair_template(nix_t, nix_t))
 )
-ConnectionPairArray = pair_array_template(
+ConnectionInfoArray = pair_array_template(
     vp_t,
-    pair_array_template(
-        nix_t,
-        pair_array_template(
-            nix_t,
-            triplet_template(conn_t, conn_t, mult_t),
-        ),
-    ),
+    array_template(CIStruct),
 )
 NodeCoordPairArray = pair_array_template(
     tix_t, pair_array_template(nix_t, array_template(space_t))
@@ -284,6 +288,27 @@ nested_sta_to_nested_float_col = lambda n_arr: nested_num_arr_to_nested_num_col(
 )
 
 
+def tuple_to_cistruct(tup: typing.Tuple[int, int, float, float]) -> CIStruct:
+    if len(tup) != 4:
+        raise ValueError("Incorrect tuple length for CIStruct")
+    cis = CIStruct()
+    cis.source_index_ = safe_convert_to_c(conn_index_t, tup[0])
+    cis.target_index_ = safe_convert_to_c(conn_index_t, tup[1])
+    cis.connection_weight_ = safe_convert_to_c(conn_param_t, tup[2])
+    cis.connection_delay_ = safe_convert_to_c(conn_param_t, tup[3])
+    return cis
+
+
+def cistruct_to_tuple(cis: CIStruct) -> tuple:
+    tup = (
+        c_data_to_py_int(cis.source_index_),
+        c_data_to_py_int(cis.target_index_),
+        c_data_to_py_float(cis.connection_weight_),
+        c_data_to_py_float(cis.connection_delay_),
+    )
+    return tup
+
+
 def dict_to_tiled_node_sequence_pair_array(
     d: typing.Dict[
         int,  # MPI rank
@@ -350,57 +375,23 @@ def tiled_node_sequence_pair_array_to_dict(
 
 
 def dict_to_connection_pair_array(
-    d: typing.Dict[
-        int,  # MPI rank
-        typing.Dict[
-            int,  # Source node index
-            typing.Dict[
-                int,  # Target node index
-                typing.Tuple[
-                    float, float, int
-                ],  # Connection weight, delay, multiplicity
-            ],
-        ],
-    ],
-) -> ctypes.Structure:  # ConnectionPairArray
-    cnnpa = ConnectionPairArray()
+    d: typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
+) -> ctypes.Structure:  # ConnectionInfoArray
+    cnnpa = ConnectionInfoArray()
     cnnpa.resize(len(d))
-    for r, (rank, source_conn_map) in enumerate(d.items()):
+    for r, (rank, conn_collection) in enumerate(d.items()):
         rank_conn_parr = cnnpa.array_[r]
         rank_conn_parr.first_ = safe_convert_to_c(vp_t, rank)
-        rank_conn_parr.second_.resize(len(source_conn_map))
-        for s, (source_node, target_conn_map) in enumerate(source_conn_map.items()):
-            source_conn_parr = rank_conn_parr.second_.array_[s]
-            source_conn_parr.first_ = safe_convert_to_c(nix_t, source_node)
-            source_conn_parr.second_.resize(len(target_conn_map))
-            for t, (target_node, conn_info) in enumerate(target_conn_map.items()):
-                target_conn_pair = source_conn_parr.second_.array_[t]
-                target_conn_pair.first_ = safe_convert_to_c(nix_t, target_node)
-                target_conn_pair.second_.first_ = safe_convert_to_c(
-                    conn_t, conn_info[0]
-                )
-                target_conn_pair.second_.second_ = safe_convert_to_c(
-                    conn_t, conn_info[1]
-                )
-                target_conn_pair.second_.third_ = safe_convert_to_c(
-                    mult_t, conn_info[2]
-                )
+        rank_conn_parr.second_.resize(len(conn_collection))
+        for conn_idx, conn_tuple in enumerate(conn_collection):
+            rank_conn_parr.second_.array_[conn_idx] = tuple_to_cistruct(conn_tuple)
 
     return cnnpa
 
 
 def connection_pair_array_to_dict(
-    cnnpa: ctypes.Structure,  # ConnectionPairArray
-) -> typing.Dict[
-    int,  # MPI rank
-    typing.Dict[
-        int,  # Source node index
-        typing.Dict[
-            int,  # Target node index
-            typing.Tuple[float, float, int],  # Connection weight, delay, multiplicity
-        ],
-    ],
-]:
+    cnnpa: ctypes.Structure,  # ConnectionInfoArray
+) -> typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]]:
     if cnnpa.size_ < 1:
         return dict()
     else:
@@ -409,32 +400,14 @@ def connection_pair_array_to_dict(
         for r in range(cnnpa.size_):
             rank_conn_parr = cnnpa.array_[r]
             rank = c_data_to_py_int(rank_conn_parr.first_)
-            rank_dict = res[rank] = dict()
+            conn_list = res[rank] = list()
             if rank_conn_parr.second_.size_ > 0:
                 check_ptr(rank_conn_parr.second_.array_)
-                for s in range(rank_conn_parr.second_.size_):
-                    source_conn_parr = rank_conn_parr.second_.array_[s]
-                    source_node = c_data_to_py_int(source_conn_parr.first_)
-                    target_dict = rank_dict[source_node] = dict()
-                    if source_conn_parr.second_.size_ > 0:
-                        check_ptr(source_conn_parr.second_.array_)
-                        for t in range(source_conn_parr.second_.size_):
-                            target_conn_pair = source_conn_parr.second_.array_[t]
-                            target_node = c_data_to_py_int(target_conn_pair.first_)
-                            conn_info = (
-                                c_data_to_py_float(target_conn_pair.second_.first_),
-                                c_data_to_py_float(target_conn_pair.second_.second_),
-                                c_data_to_py_int(target_conn_pair.second_.third_),
-                            )
-                            target_dict[target_node] = conn_info
-
-                        if len(target_dict) != source_conn_parr.second_.size_:
-                            raise ValueError("Corrupted connection pair array")
-
-                    elif bool(source_conn_parr.second_.array_):
-                        raise ValueError("Corrupted connection pair array")
-
-                if len(rank_dict) != rank_conn_parr.second_.size_:
+                for conn_index in range(rank_conn_parr.second_.size_):
+                    conn_list.append(
+                        cistruct_to_tuple(rank_conn_parr.second_.array_[conn_index])
+                    )
+                if len(conn_list) != rank_conn_parr.second_.size_:
                     raise ValueError("Corrupted connection pair array")
 
             elif bool(rank_conn_parr.second_.array_):
@@ -666,14 +639,14 @@ _CONVERTERS = {
         tiled_node_sequence_pair_array_to_dict,
         dict_to_tiled_node_sequence_pair_array,
     ),
-    ConnectionPairArray: (connection_pair_array_to_dict, dict_to_connection_pair_array),
+    ConnectionInfoArray: (connection_pair_array_to_dict, dict_to_connection_pair_array),
     NodeCoordPairArray: (node_coord_pair_array_to_dict, dict_to_node_coord_pair_array),
     TimerDataPairArray: (timer_data_pair_array_to_dict, dict_to_timer_data_pair_array),
 }
 
 _RCIS_FIELDS = (
-    ("incoming_connections", ConnectionPairArray, lambda: dict()),
-    ("outgoing_connections", ConnectionPairArray, lambda: dict()),
+    ("incoming_connections", ConnectionInfoArray, lambda: dict()),
+    ("outgoing_connections", ConnectionInfoArray, lambda: dict()),
 )
 
 _MPS_FIELDS = (

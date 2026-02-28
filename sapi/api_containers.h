@@ -61,10 +61,6 @@ extern "C"
         PairArrayT< tileidx_t,
         PairT< nodeidx_t,
         nodeidx_t > > > TiledNodeSequencePairArray;
-    typedef PairArrayT< vp_t,
-        PairArrayT< nodeidx_t,
-        PairArrayT< nodeidx_t,
-        TripletT< conn_t, conn_t, mult_t > > > > ConnectionPairArray;
     typedef PairArrayT< tileidx_t,
         PairArrayT< nodeidx_t,
         ArrayT< space_t > > > NodeCoordPairArray;
@@ -75,10 +71,21 @@ extern "C"
         PairArrayT< tileidx_t, NestedSpaceTArray > > > GridTileVerticesPairArray;
     typedef PairArrayT< CharArray, double > TimerDataPairArray;
 
+    struct CIStruct
+    {
+        conn_index_t source_index_;
+        conn_index_t target_index_;
+        conn_param_t connection_weight_;
+        conn_param_t connection_delay_;
+    };
+
+    typedef PairArrayT< vp_t,
+        ArrayT< CIStruct > > ConnectionInfoArray;
+
     struct RCIStruct
     {
-        ConnectionPairArray incoming_connections_;
-        ConnectionPairArray outgoing_connections_;
+        ConnectionInfoArray incoming_connections_;
+        ConnectionInfoArray outgoing_connections_;
     };
 
     struct MPStruct

@@ -19,7 +19,8 @@ typedef int8_t shift_t; // Needs to be signed and smaller than tileidx_t
 typedef int32_t count_t; // Needs to be signed
 typedef uint16_t mult_t; // For connection multiplicity
 typedef double space_t; // For spatial data
-typedef float conn_t; // For connection parameters
+typedef uint32_t conn_index_t; // For connection indexes
+typedef float conn_param_t; // For connection parameters
 
 constexpr static const uint8_t BATCHING_THRESHOLD = 100;
 constexpr static const uint8_t TOLERANCE = 2;

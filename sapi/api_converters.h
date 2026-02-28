@@ -247,7 +247,7 @@ dist_tns_map_to_tns_pair_array(
 
 
 inline void copy_to_conn_pair_array_from_conn_info_map(
-    ConnectionPairArray& cpa,
+    ConnectionInfoArray& cpa,
     const std::unordered_map< vp_t, TileConnectionInfo >& conn_info_map,
     GC& gc
 )
@@ -259,38 +259,27 @@ inline void copy_to_conn_pair_array_from_conn_info_map(
     {
         const auto rank_ntm_pp = &cpa.array_[ rix++ ];
         rank_ntm_pp->first_ = rank;
-        rank_ntm_pp->second_.resize( tile_ci.consolidated_connection_map_.size(), gc );
+        rank_ntm_pp->second_.resize( tile_ci.total_generated_connections_, gc );
 
-        std::size_t six = 0;
-        for ( const auto& [source_index, target_map] : tile_ci.consolidated_connection_map_ )
+        for ( count_t conn_idx = 0; conn_idx < tile_ci.total_generated_connections_; ++conn_idx )
         {
-            const auto node_tm_pp = &rank_ntm_pp->second_.array_[ six++ ];
-            node_tm_pp->first_ = source_index;
-            node_tm_pp->second_.resize( target_map.size(), gc );
-
-            std::size_t tix = 0;
-            for ( const auto& [target_index, conn_data] : target_map )
-            {
-                const auto target_conn_pp = &node_tm_pp->second_.array_[ tix++ ];
-                target_conn_pp->first_ = target_index;
-                std::tie(
-                    target_conn_pp->second_.first_,
-                    target_conn_pp->second_.second_,
-                    target_conn_pp->second_.third_
-                ) = conn_data;
-            }
+            const auto ci_struct_p = &rank_ntm_pp->second_.array_[ conn_idx ];
+            ci_struct_p->source_index_ = tile_ci.connection_sources_[ conn_idx ];
+            ci_struct_p->target_index_ = tile_ci.connection_targets_[ conn_idx ];
+            ci_struct_p->connection_weight_ = tile_ci.connection_weights_[ conn_idx ];
+            ci_struct_p->connection_delay_ = tile_ci.connection_delays_[ conn_idx ];
         }
     }
 }
 
 
-inline ConnectionPairArray*
+inline ConnectionInfoArray*
 conn_info_map_to_conn_pair_array(
     const std::unordered_map< vp_t, TileConnectionInfo >& conn_info_map,
     GC& gc
 )
 {
-    auto cpa_ptr = gc.make_collected< ConnectionPairArray >();
+    auto cpa_ptr = gc.make_collected< ConnectionInfoArray >();
     copy_to_conn_pair_array_from_conn_info_map( *cpa_ptr, conn_info_map, gc );
     return cpa_ptr;
 }

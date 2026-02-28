@@ -25,7 +25,8 @@ public:
     virtual bool is_initialized() const = 0;
 
     virtual void compute_connections(
-        LeafConnectionInfo& lci,
+        TileConnectionInfo& tci,
+        std::forward_list< ConnectionInfo >& conn_list,
         ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
         nest::RngPtr const& rng,
         const bool& allow_multiplicity,
@@ -75,7 +76,8 @@ public:
     ) const = 0;
 
     void compute_connections(
-        LeafConnectionInfo& lci,
+        TileConnectionInfo& tci,
+        std::forward_list< ConnectionInfo >& conn_list,
         ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
         nest::RngPtr const& rng,
         const bool& allow_multiplicity,
@@ -118,7 +120,8 @@ inline bool _remove_self_target(
 
 template < typename CoordT >
 void ProbabilisticCG< CoordT >::compute_connections(
-    LeafConnectionInfo& lci,
+    TileConnectionInfo& tci,
+    std::forward_list< ConnectionInfo >& conn_list,
     ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
     nest::RngPtr const& rng,
     const bool& allow_multiplicity,
@@ -128,7 +131,7 @@ void ProbabilisticCG< CoordT >::compute_connections(
     assert(
         is_initialized() &&
         rng != nullptr &&
-        lci.connection_map_.empty() &&
+        conn_list.empty() &&
         !displacement_map.empty()
     );
 
@@ -157,6 +160,7 @@ void ProbabilisticCG< CoordT >::compute_connections(
         : []( mult_t&, mult_t&& multiplicity )
         { return multiplicity; };
 
+    count_t total_connections = 0;
     for ( auto& [driver_index, pool_map] : displacement_map )
     {
         assert( !pool_map.empty() );
@@ -166,7 +170,6 @@ void ProbabilisticCG< CoordT >::compute_connections(
         ) ) continue;
 
         auto max_num_connections = this->tnc_;
-        std::unordered_map< nodeidx_t, ConnectionInfo > temp_target_map;
         for ( auto& [pool_index, displacement] : pool_map )
         {
             if ( !keep_connecting( max_num_connections ) )
@@ -182,35 +185,30 @@ void ProbabilisticCG< CoordT >::compute_connections(
             );
             if ( multiplicity < 1 ) continue;
 
-            lci.total_generated_connections_ += multiplicity;
+            total_connections += multiplicity;
 
-            temp_target_map.emplace(
-                std::make_pair(
-                    nodeidx_t( pool_index ),
-                    std::make_tuple(
-                        this->cfc_.weight_functor_( displacement ),
-                        this->cfc_.delay_functor_( displacement ),
-                        mult_t( multiplicity )
-                    )
+            conn_list.emplace_front(
+                ConnectionInfo(
+                    conn_index_t( driver_index ),
+                    conn_index_t( pool_index ),
+                    conn_param_t( this->cfc_.weight_functor_( displacement ) ),
+                    conn_param_t( this->cfc_.delay_functor_( displacement ) ),
+                    mult_t( multiplicity )
                 )
             );
         }
-
-        if ( !temp_target_map.empty() )
-            lci.connection_map_.emplace(
-                std::make_pair(
-                    nodeidx_t( driver_index ),
-                    std::move( temp_target_map )
-                )
-            );
 
         pool_map.clear();
     }
 
     // Check overflow
-    assert( 0 <= lci.total_generated_connections_ );
+    assert( 0 <= total_connections );
 
     displacement_map.clear();
+
+    if ( 0 < total_connections )
+#pragma omp atomic
+        tci.total_generated_connections_ += total_connections;
 }
 
 
@@ -319,7 +317,8 @@ public:
     std::unique_ptr< ConnectionGenerator< CoordT > > clone() const override;
 
     void compute_connections(
-        LeafConnectionInfo& lci,
+        TileConnectionInfo& tci,
+        std::forward_list< ConnectionInfo >& conn_list,
         ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
         nest::RngPtr const& rng,
         const bool& allow_multiplicity,
@@ -356,7 +355,8 @@ inline std::unique_ptr< ConnectionGenerator< CoordT > > FixedNumberCG< CoordT >:
 
 template < typename CoordT >
 void FixedNumberCG< CoordT >::compute_connections(
-    LeafConnectionInfo& lci,
+    TileConnectionInfo& tci,
+    std::forward_list< ConnectionInfo >& conn_list,
     ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
     nest::RngPtr const& rng,
     const bool& allow_multiplicity,
@@ -366,7 +366,7 @@ void FixedNumberCG< CoordT >::compute_connections(
     assert(
         is_initialized() &&
         rng != nullptr &&
-        lci.connection_map_.empty() &&
+        conn_list.empty() &&
         !displacement_map.empty()
     );
 
@@ -376,6 +376,7 @@ void FixedNumberCG< CoordT >::compute_connections(
         return;
     }
 
+    count_t total_connections = 0;
     for ( auto& [driver_index, pool_map] : displacement_map )
     {
         assert( !pool_map.empty() );
@@ -383,13 +384,6 @@ void FixedNumberCG< CoordT >::compute_connections(
         if ( _remove_self_target(
             driver_index, pool_map, allow_self_connections
         ) ) continue;
-
-        const auto driver_emplace_it = lci.connection_map_.emplace(
-            std::make_pair(
-                nodeidx_t( driver_index ),
-                std::unordered_map< nodeidx_t, ConnectionInfo >()
-            )
-        ).first;
 
         const auto connection_counts = generate_connection_counts(
             pool_map.size(),
@@ -403,16 +397,15 @@ void FixedNumberCG< CoordT >::compute_connections(
             const auto multiplicity = *connection_count_it++;
             if ( multiplicity < 1 ) continue;
 
-            lci.total_generated_connections_ += multiplicity;
+            total_connections += multiplicity;
 
-            driver_emplace_it->second.emplace(
-                std::make_pair(
-                    nodeidx_t( pool_index ),
-                    std::make_tuple(
-                        this->cfc_.weight_functor_( displacement ),
-                        this->cfc_.delay_functor_( displacement ),
-                        mult_t( multiplicity )
-                    )
+            conn_list.emplace_front(
+                ConnectionInfo(
+                    conn_index_t( driver_index ),
+                    conn_index_t( pool_index ),
+                    conn_param_t( this->cfc_.weight_functor_( displacement ) ),
+                    conn_param_t( this->cfc_.delay_functor_( displacement ) ),
+                    mult_t( multiplicity )
                 )
             );
         }
@@ -421,9 +414,13 @@ void FixedNumberCG< CoordT >::compute_connections(
     }
 
     // Check overflow
-    assert( 0 <= lci.total_generated_connections_ );
+    assert( 0 <= total_connections );
 
     displacement_map.clear();
+
+    if ( 0 < total_connections )
+#pragma omp atomic
+        tci.total_generated_connections_ += total_connections;
 }
 
 
