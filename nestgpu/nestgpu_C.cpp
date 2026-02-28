@@ -2452,6 +2452,46 @@ extern "C"
     return triplet;
   }
 
+  void create_spatial_connections(
+    const int& source_rank,
+    const int& target_rank,
+    sapi::TileConnectionInfo& tci
+  )
+  {
+    if ( tci.total_generated_connections_ < 1 )
+      return;
+
+    inode_t* sources = tci.connection_sources_.data();
+    inode_t* targets = tci.connection_targets_.data();
+    ConnSpec_instance.rule_ = ConnectionRules::ONE_TO_ONE;
+    SynSpec_instance.delay_distr_ = 1;
+    SynSpec_instance.weight_distr_ = 1;
+    SynSpec_instance.weight_h_array_pt_ = tci.connection_weights_.data();
+    SynSpec_instance.delay_h_array_pt_ = tci.connection_delays_.data();
+
+    if ( source_rank == target_rank )
+      NESTGPU_instance->Connect(
+        sources,
+        tci.connection_sources_.size(),
+        targets,
+        tci.connection_targets_.size(),
+        ConnSpec_instance,
+        SynSpec_instance
+      );
+    else
+      NESTGPU_instance->RemoteConnect(
+        source_rank,
+        sources,
+        tci.connection_sources_.size(),
+        target_rank,
+        targets,
+        tci.connection_targets_.size(),
+        -1,
+        ConnSpec_instance,
+        SynSpec_instance
+      );
+  }
+
   sapi::OptionalIndex compute_spatial_connections(
     std::size_t dist_tns_source_index,
     std::size_t dist_tns_target_index,
@@ -2462,12 +2502,23 @@ extern "C"
     sapi::OptionalIndex opt;
     BEGIN_ERR_PROP
     {
-      opt.second_ = capi.compute_spatial_connections(
+      const auto [conn_index, conn_map_ptr] = capi.compute_spatial_connections(
         dist_tns_source_index,
         dist_tns_target_index,
         mask_params,
         conn_params
-      ).first;
+      );
+
+      const auto local_rank = static_cast< int >( capi.get_rank() );
+      if ( !conn_map_ptr->outgoing_connections_.empty() )
+        for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->outgoing_connections_ )
+          create_spatial_connections( local_rank, remote_rank, tile_connection_info );
+
+      if ( !conn_map_ptr->incoming_connections_.empty() )
+        for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->incoming_connections_ )
+          create_spatial_connections( remote_rank, local_rank, tile_connection_info );
+
+      opt.second_ = conn_index;
       opt.first_ = true;
       return opt;
     }

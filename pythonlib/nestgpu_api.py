@@ -3464,6 +3464,12 @@ def generate_tile_grid(
     splits: int,
     edge_wrap: bool,
 ) -> None:
+    if not (2 <= len(grid_origin) == len(grid_dimensions) <= 3):
+        raise ValueError("Invalid grid dimensions")
+    if len(tile_params) == 0:
+        raise ValueError("Invalid tile params")
+    if len(rank_tile_owner_ship) == 0:
+        raise ValueError("Invalid ownership map")
     origin_arr = ll_sapi.float_col_to_sta(grid_origin)
     dims_arr = ll_sapi.int_col_to_tia(grid_dimensions)
     tt_arr = ll_sapi.str_to_carr(tile_type)
@@ -3566,7 +3572,18 @@ def compute_spatial_connections(
     sp_ns_target: ll_sapi.SpatialNodeSeq,
     mask_params: dict,
     conn_params: dict,
+    synspec_params: dict,
 ) -> int:
+    for param_name in synspec_params:
+        if param_name == "receptor" or param_name == "synapse_group":
+            val = synspec_params[param_name]
+            if (param_name == "synapse_group") and isinstance(val, SynGroup):
+                val = val.i_syn_group
+            SetSynSpecIntParam(param_name, val)
+        else:
+            raise ValueError(
+                "Only receptor port or synapse group parameters are possible SynSpec arguments for spatial connections"
+            )
     mps = ll_sapi.MPStruct()
     mps.from_dict(mask_params)
     cps = ll_sapi.CPStruct()
@@ -3624,12 +3641,8 @@ def get_distributed_node_sequences(
 
 @check_err
 def get_spatial_connections(conn_index: int) -> typing.Tuple[
-    typing.Dict[
-        int, typing.Dict[int, typing.Dict[int, typing.Tuple[float, float, int]]]
-    ],
-    typing.Dict[
-        int, typing.Dict[int, typing.Dict[int, typing.Tuple[float, float, int]]]
-    ],
+    typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
+    typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
 ]:
     res = ll_sapi.safe_ptr_deref(
         _nestgpu.get_spatial_connections(
