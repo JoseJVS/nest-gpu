@@ -3342,6 +3342,8 @@ _nestgpu.generate_tile_grid.restype = ctypes.c_bool
 
 _nestgpu.generate_nodes_in_grid.argtypes = (
     ll_sapi.lnix_t,
+    ctypes.c_int,
+    ctypes.POINTER(ll_sapi.CharArray),
     ctypes.POINTER(ll_sapi.TileIdxArray),
     ctypes.c_uint8,
     ctypes.c_uint8,
@@ -3350,7 +3352,11 @@ _nestgpu.generate_nodes_in_grid.restype = ll_sapi.pair_template(
     ctypes.c_bool, ll_sapi.SpatialNodeSequence
 )
 
-_nestgpu.insert_positions_in_grid.argtypes = (ctypes.POINTER(ll_sapi.NestedSpaceTArray),)
+_nestgpu.insert_positions_in_grid.argtypes = (
+    ctypes.c_int,
+    ctypes.POINTER(ll_sapi.CharArray),
+    ctypes.POINTER(ll_sapi.NestedSpaceTArray),
+)
 _nestgpu.insert_positions_in_grid.restype = ll_sapi.triplet_template(
     ctypes.c_bool,
     ll_sapi.SpatialNodeSequence,
@@ -3397,7 +3403,7 @@ def get_num_threads() -> int:
 
 def set_num_threads(num_threads: int) -> None:
     ll_sapi.check_bool(
-        _nestgpu.set_num_threads(ll_sapi.safe_convert_to_c(vp_t, num_threads))
+        _nestgpu.set_num_threads(ll_sapi.safe_convert_to_c(ll_sapi.vp_t, num_threads))
     )
 
 
@@ -3450,62 +3456,82 @@ def generate_tile_grid(
 
 
 def generate_nodes_in_grid(
-    num_nodes: int,
+    model_name: str,
+    num_nodes: int = 1,
+    num_ports: int = 1,
+    status_dict: dict | None = None,
     tiles: typing.Set[int] | None = None,
     grid_distribution_mode: str | int = "balanced",
     tile_distribution_mode: str | int = "squeezed",
 ) -> ll_sapi.SpatialNodeSeq:
+    c_mname = ll_sapi.str_to_carr(model_name)
     tiles_arr = ll_sapi.TileIdxArray()
     tiles_arr.size_ = 0
     if tiles is not None and len(tiles) > 0:
         tiles_arr = ll_sapi.int_col_to_tia(tiles)
     res_t = _nestgpu.generate_nodes_in_grid(
         ll_sapi.safe_convert_to_c(ll_sapi.lnix_t, num_nodes),
+        ll_sapi.safe_convert_to_c(ctypes.c_int, num_ports),
+        ctypes.byref(c_mname),
         ctypes.byref(tiles_arr),
         ll_sapi.parse_distribution_mode(grid_distribution_mode),
         ll_sapi.parse_distribution_mode(tile_distribution_mode),
     )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(res_t.first_)
-    valid_sequence = False
+    local_sequence = False
     if 0 <= res_t.second_.second_:
         if res_t.second_.third_ < 1:
             raise ValueError("Malformed spatial node sequence")
-        valid_sequence = True
+        local_sequence = True
+    if local_sequence and status_dict is not None:
+        SetStatus(NodeSeq(res_t.second_.second_, res_t.second_.third_), status_dict)
     return ll_sapi.SpatialNodeSeq(
         res_t.second_.first_,
         num_nodes,
-        res_t.second_.second_ if valid_sequence else None,
-        res_t.second_.third_ if valid_sequence else None,
+        res_t.second_.second_ if local_sequence else None,
+        res_t.second_.third_ if local_sequence else None,
     )
 
 
 def insert_positions_in_grid(
+    model_name: str,
     positions: typing.Collection[typing.Collection[float]],
+    num_ports: int = 1,
+    status_dict: dict | None = None,
 ) -> typing.Tuple[ll_sapi.SpatialNodeSeq, typing.List[typing.List[float]]]:
     num_pos = len(positions)
     if positions is None or num_pos < 1:
         raise ValueError("Cannot insert empty position collection")
+    c_mname = ll_sapi.str_to_carr(model_name)
     c_pos = ll_sapi.nested_float_col_to_nested_sta(positions)  # copy 1
     res_t = _nestgpu.insert_positions_in_grid(
-        ctypes.byref(c_pos)
+        ll_sapi.safe_convert_to_c(ctypes.c_int, num_ports),
+        ctypes.byref(c_mname),
+        ctypes.byref(c_pos),
     )  # internal cpp copy 2 + C leftovers
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
     del c_pos  # delete copy 1
     ll_sapi.check_bool(res_t.first_)
     leftovers = ll_sapi.nested_sta_to_nested_float_col(
         ll_sapi.safe_ptr_deref(res_t.third_)
     )
     free_gc()  # clean C leftover positions
-    valid_sequence = False
+    local_sequence = False
     if 0 <= res_t.second_.second_:
         if res_t.second_.third_ < 1:
             raise ValueError("Malformed spatial node sequence")
-        valid_sequence = True
+        local_sequence = True
     sp_ns = ll_sapi.SpatialNodeSeq(
         res_t.second_.first_,
         num_pos - len(leftovers),
-        res_t.second_.second_ if valid_sequence else None,
-        res_t.second_.third_ if valid_sequence else None,
+        res_t.second_.second_ if local_sequence else None,
+        res_t.second_.third_ if local_sequence else None,
     )
+    if local_sequence and status_dict is not None:
+        SetStatus(NodeSeq(res_t.second_.second_, res_t.second_.third_), status_dict)
     return sp_ns, leftovers
 
 
