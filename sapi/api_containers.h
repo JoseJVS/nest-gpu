@@ -48,6 +48,7 @@ using PairArrayT = ArrayT< PairT< K, V > >;
 extern "C"
 {
     typedef PairT< bool, std::size_t > OptionalIndex;
+    typedef TripletT< std::size_t, nodeidx_t, nodeidx_t > SpatialNodeSequence;
     typedef ArrayT< char > CharArray;
     typedef ArrayT< space_t > SpaceTArray;
     typedef ArrayT< tileidx_t > TileIdxArray;
@@ -85,10 +86,13 @@ extern "C"
         // At least one required
         CharArray mask_blueprint_name_;
         SpaceTArray mask_blueprint_params_;
+        SpaceTArray mask_blueprint_offset_;
         CharArray source_mask_name_;
         SpaceTArray source_mask_params_;
+        SpaceTArray source_mask_offset_;
         CharArray target_mask_name_;
         SpaceTArray target_mask_params_;
+        SpaceTArray target_mask_offset_;
     };
 
     struct CPStruct

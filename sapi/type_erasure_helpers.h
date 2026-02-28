@@ -28,7 +28,15 @@ struct StateLessCreator
         throw std::runtime_error( "Undefined creation method for state-less creator" );
     }
 
-    virtual std::unique_ptr< RT > create( const std::vector< space_t >& params ) const
+    virtual std::unique_ptr< RT > create( const std::vector< space_t >& ) const
+    {
+        throw std::runtime_error( "Undefined creation method for state-less creator" );
+    }
+
+    virtual std::unique_ptr< RT > create(
+        const std::vector< space_t >&,
+        const std::vector< space_t >&
+    ) const
     {
         throw std::runtime_error( "Undefined creation method for state-less creator" );
     }

@@ -24,10 +24,13 @@ public:
     MaskCollection(
         const std::string& blueprint_name,
         const std::vector< space_t >& blueprint_params,
+        const std::vector< space_t >& blueprint_offset,
         const std::string& source_mask_name,
         const std::vector< space_t >& source_mask_params,
+        const std::vector< space_t >& source_mask_offset,
         const std::string& target_mask_name,
         const std::vector< space_t >& target_mask_params,
+        const std::vector< space_t >& target_mask_offset,
         const CreatorRegistry< Mask< CoordT > >& mc_registry
     );
 
@@ -106,19 +109,28 @@ template < typename CoordT >
 MaskCollection< CoordT >::MaskCollection(
     const std::string& blueprint_name,
     const std::vector< space_t >& blueprint_params,
+    const std::vector< space_t >& blueprint_offset,
     const std::string& source_mask_name,
     const std::vector< space_t >& source_mask_params,
+    const std::vector< space_t >& source_mask_offset,
     const std::string& target_mask_name,
     const std::vector< space_t >& target_mask_params,
+    const std::vector< space_t >& target_mask_offset,
     const CreatorRegistry< Mask< CoordT > >& mc_registry
 )
 {
     if ( !blueprint_name.empty() )
-        blueprint_ = mc_registry.get_creator( blueprint_name )->create( blueprint_params );
+        blueprint_ = mc_registry.get_creator( blueprint_name )->create(
+            blueprint_params, blueprint_offset
+        );
     if ( !source_mask_name.empty() )
-        source_mask_ = mc_registry.get_creator( source_mask_name )->create( source_mask_params );
+        source_mask_ = mc_registry.get_creator( source_mask_name )->create(
+            source_mask_params, source_mask_offset
+        );
     if ( !target_mask_name.empty() )
-        target_mask_ = mc_registry.get_creator( target_mask_name )->create( target_mask_params );
+        target_mask_ = mc_registry.get_creator( target_mask_name )->create(
+            target_mask_params, target_mask_offset
+        );
 }
 
 

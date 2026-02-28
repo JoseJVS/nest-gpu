@@ -371,14 +371,14 @@ Tile2D::project_point_to_surface(
     for ( const auto& vertex : vertices_ )
     {
         const auto d2 = distance2( coord, vertex );
-        if ( leq_test( d2, d_first ) )
+        if ( d2 < d_first )
         {
             second = first;
             d_second = d_first;
             first = v_index;
             d_first = d2;
         }
-        else if ( leq_test( d2, d_second ) )
+        else if ( d2 < d_second )
         {
             second = v_index;
             d_second = d2;

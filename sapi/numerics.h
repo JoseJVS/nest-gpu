@@ -13,7 +13,7 @@ namespace sapi
 {
 constexpr static const space_t SP_PI_180 = space_t( M_PI ) / space_t( 180 );
 constexpr static const space_t SP_EPSILON = std::numeric_limits< space_t >::epsilon() * TOLERANCE;
-constexpr static const space_t SP_RELATIVE_EPSILON = 1 / ( SP_EPSILON * ( 1L << RELATIVE_TOLERANCE ) );
+constexpr static const space_t SP_RELATIVE_EPSILON = space_t( 1 ) / ( SP_EPSILON * ( 1L << RELATIVE_TOLERANCE ) );
 
 
 template < typename T >
@@ -87,8 +87,9 @@ constexpr void running_compensation(
     space_t& temp
 )
 {
+    // See https://en.wikipedia.org/wiki/Kahan_summation_algorithm#Precision
     temp = sum + number;
-    err = abs_less( number, sum )
+    err += abs_less( number, sum )
         ? ( sum - temp ) + number
         : ( number - temp ) + sum;
     sum = temp;
@@ -118,7 +119,7 @@ constexpr void compensated_sum_v(
 template < typename... Targs >
 constexpr space_t compensated_sum( Targs&&... numbers )
 {
-    space_t sum = 0.0, err = 0.0, temp;
+    space_t sum = 0.0, err = 0.0, temp = 0.0;
     compensated_sum_v( sum, err, temp, std::forward< Targs >( numbers )... );
     return clamp_epsilon_0( sum + err );
 }

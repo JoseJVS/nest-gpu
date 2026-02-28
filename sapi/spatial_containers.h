@@ -38,10 +38,13 @@ struct MaskParameters
     // At least one required
     std::string mask_blueprint_name_;
     std::vector< space_t > mask_blueprint_params_;
+    std::vector< space_t > mask_blueprint_offset_;
     std::string source_mask_name_;
     std::vector< space_t > source_mask_params_;
+    std::vector< space_t > source_mask_offset_;
     std::string target_mask_name_;
     std::vector< space_t > target_mask_params_;
+    std::vector< space_t > target_mask_offset_;
 };
 
 

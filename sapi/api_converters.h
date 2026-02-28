@@ -489,10 +489,13 @@ mpstruct_to_mask_params(
 
     mp.mask_blueprint_name_ = charray_to_string( mps.mask_blueprint_name_ );
     mp.mask_blueprint_params_ = array_to_vector( mps.mask_blueprint_params_ );
+    mp.mask_blueprint_offset_ = array_to_vector( mps.mask_blueprint_offset_ );
     mp.source_mask_name_ = charray_to_string( mps.source_mask_name_ );
     mp.source_mask_params_ = array_to_vector( mps.source_mask_params_ );
+    mp.source_mask_offset_ = array_to_vector( mps.source_mask_offset_ );
     mp.target_mask_name_ = charray_to_string( mps.target_mask_name_ );
     mp.target_mask_params_ = array_to_vector( mps.target_mask_params_ );
+    mp.target_mask_offset_ = array_to_vector( mps.target_mask_offset_ );
 
     return mp;
 }

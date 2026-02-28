@@ -9,8 +9,6 @@ Authors: JoseJVS.
 """
 
 import ctypes
-import pathlib
-import sys
 import typing
 
 vp_t: typing.TypeAlias = ctypes.c_int32
@@ -22,6 +20,52 @@ mult_t: typing.TypeAlias = ctypes.c_uint16
 split_t: typing.TypeAlias = ctypes.c_uint8
 space_t: typing.TypeAlias = ctypes.c_double
 CData: typing.TypeAlias = ctypes._SimpleCData | ctypes.Structure | ctypes._Pointer
+
+
+class SpatialNodeSeq:
+    def __init__(
+        self,
+        spatial_index: int,
+        total_length: int,
+        local_index: int | None = None,
+        local_length: int | None = None,
+    ) -> None:
+        self._spatial_index = spatial_index
+        self._total_length = total_length
+        self._local_index = local_index
+        self._local_length = local_length
+
+    @property
+    def spatial_index(self) -> int:
+        return self._spatial_index
+
+    @spatial_index.setter
+    def spatial_index(self, **_) -> typing.NoReturn:
+        raise AttributeError("Cannot set spatial index")
+
+    @property
+    def total_length(self) -> int:
+        return self._total_length
+
+    @total_length.setter
+    def total_length(self, **_) -> typing.NoReturn:
+        raise AttributeError("Cannot set total length")
+
+    @property
+    def local_index(self) -> int | None:
+        return self._local_index
+
+    @local_index.setter
+    def local_index(self, **_) -> typing.NoReturn:
+        raise AttributeError("Cannot set local index")
+
+    @property
+    def local_length(self) -> int | None:
+        return self._local_length
+
+    @local_length.setter
+    def local_length(self, **_) -> typing.NoReturn:
+        raise AttributeError("Cannot set local length")
 
 
 def pair_template(t0: type[CData], t1: type[CData]) -> type[ctypes.Structure]:
@@ -62,6 +106,7 @@ def pair_array_template(k: type[CData], v: type[CData]) -> type[ctypes.Structure
 
 
 OptionalIndex = pair_template(ctypes.c_bool, ctypes.c_size_t)
+SpatialNodeSequence = triplet_template(ctypes.c_size_t, nix_t, nix_t)
 CharArray = array_template(ctypes.c_char)
 SpaceTArray = array_template(space_t)
 TileIdxArray = array_template(tix_t)
@@ -634,10 +679,13 @@ _RCIS_FIELDS = (
 _MPS_FIELDS = (
     ("mask_blueprint_name", CharArray, lambda: ""),
     ("mask_blueprint_params", SpaceTArray, lambda: tuple()),
+    ("mask_blueprint_offset", SpaceTArray, lambda: tuple()),
     ("source_mask_name", CharArray, lambda: ""),
     ("source_mask_params", SpaceTArray, lambda: tuple()),
+    ("source_mask_offset", SpaceTArray, lambda: tuple()),
     ("target_mask_name", CharArray, lambda: ""),
     ("target_mask_params", SpaceTArray, lambda: tuple()),
+    ("target_mask_offset", SpaceTArray, lambda: tuple()),
 )
 
 _CPS_FIELDS = (

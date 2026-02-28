@@ -103,7 +103,7 @@ inline void set_max_omp_threads( const vp_t& num_threads )
 #ifdef HAVE_OMP
     if ( omp_in_parallel() )
         throw std::runtime_error( "Cannot change OpenMP threads in parallel context" );
-    if ( num_threads < 1 || 1 << 31 < num_threads )
+    if ( num_threads < 1 || 1 << 30 < num_threads )
         throw std::invalid_argument( "Incorrect number of threads to set" );
     omp_set_num_threads( num_threads );
 #endif

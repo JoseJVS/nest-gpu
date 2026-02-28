@@ -599,10 +599,13 @@ void SpatialManager< CoordT >::_initialize_mask_parameters(
     const auto mask_collection = MaskCollection< CoordT >(
         mask_params.mask_blueprint_name_,
         mask_params.mask_blueprint_params_,
+        mask_params.mask_blueprint_offset_,
         mask_params.source_mask_name_,
         mask_params.source_mask_params_,
+        mask_params.source_mask_offset_,
         mask_params.target_mask_name_,
         mask_params.target_mask_params_,
+        mask_params.target_mask_offset_,
         mk_registry_
     );
 

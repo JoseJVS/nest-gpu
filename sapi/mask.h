@@ -16,11 +16,11 @@ enum OverlapLevel
 
 
 template < typename CoordT >
-struct Mask : public Clonable< Mask < CoordT > >
+class Mask : public Clonable< Mask < CoordT > >
 {
+public:
     const bool has_origin_;
     const space_t radius2_;
-    const CoordT origin_;
 
     Mask() = delete;
     Mask( const Mask& ) = default;
@@ -29,6 +29,8 @@ struct Mask : public Clonable< Mask < CoordT > >
     Mask( const space_t& radius );
 
     Mask( const CoordT& origin, const space_t& radius );
+
+    virtual void set_offset( CoordT&& offset );
 
     virtual std::optional< Displacement< CoordT > >
         coord_in_mask(
@@ -65,6 +67,10 @@ struct Mask : public Clonable< Mask < CoordT > >
             const Tile< CoordT >* const& tile,
             const std::optional< CoordT >& coord = {}
         ) const;
+
+protected:
+    CoordT origin_;
+    std::optional< CoordT > offset_;
 };
 
 
@@ -84,6 +90,15 @@ Mask< CoordT >::Mask( const CoordT& origin, const space_t& radius )
     , origin_( origin )
 {
     assert( !almost_zero( radius2_ ) && !std::signbit( radius ) );
+}
+
+
+template < typename CoordT >
+inline void Mask< CoordT >::set_offset( CoordT&& coord )
+{
+    if ( has_origin_ )
+        origin_ = origin_ + coord;
+    offset_.emplace( std::move( coord ) );
 }
 
 

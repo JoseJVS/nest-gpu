@@ -21,21 +21,22 @@ coord_in_circular_mask(
 
 
 inline std::optional< Displacement< Coord2D > >
-coord_in_parallelogram_mask(
+coord_in_algebraic_mask(
     const Coord2D& mask_origin,
     const space_t& circular_radius2,
     const Coord2D& basis_vertex,
     const Coord2D& basis_vector0,
     const Coord2D& basis_vector1,
     const space_t& det_01,
-    const Coord2D& coord
+    const Coord2D& coord,
+    const bool& triangular_comparison
 )
 {
     // Get displacement from mask origin
     Displacement< Coord2D > disp( coord - mask_origin );
 
     // Fast rejection method
-    if ( leq_test( circular_radius2, disp.distance2_ ) )
+    if ( !leq_test( disp.distance2_, circular_radius2 ) )
         return {};
 
     // Get projection coefficients of coord onto parallelogram basis vectors
@@ -44,7 +45,7 @@ coord_in_parallelogram_mask(
         basis_vector0,
         basis_vector1,
         det_01,
-        false // Triangular comparison
+        triangular_comparison
     )
         ? std::make_optional( std::move( disp ) )
         : std::optional< Displacement< Coord2D > >();
@@ -92,7 +93,7 @@ coord_in_elliptical_mask(
     Displacement< Coord2D > disp( coord - mask_origin );
 
     // Fast rejection method
-    if ( leq_test( semi_major_axe2, disp.distance2_ ) )
+    if ( !leq_test( disp.distance2_, semi_major_axe2 ) )
         return {};
 
     // Given ellipse with h, k center, a semi major, b semi minor, @ rotation
