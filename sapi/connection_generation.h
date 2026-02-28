@@ -45,7 +45,8 @@ inline void consolidate_connection_map(
     tci.aggregated_connection_map_.clear();
 
     // Check overflow
-    assert( 0 <= tci.total_generated_connections_ );
+    assert( 0 <= tci.total_generated_connections_ &&
+        ( ( tci.total_generated_connections_ == 0 ) == tci.consolidated_connection_map_.empty() ) );
 }
 
 

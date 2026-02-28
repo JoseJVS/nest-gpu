@@ -447,7 +447,9 @@ void communicate_connect_distributed_pair_data(
             dispatch_connection_procedures(
                 source_side_queue,
                 distributed_pair_data.source_side_info_,
-                rank_connection_map.outgoing_connections_,
+                inverted_connection_rule
+                ? rank_connection_map.incoming_connections_
+                : rank_connection_map.outgoing_connections_,
                 mc_array,
                 cg_array,
                 random_manager,
@@ -472,7 +474,9 @@ void communicate_connect_distributed_pair_data(
             dispatch_connection_procedures(
                 target_side_queue,
                 distributed_pair_data.target_side_info_,
-                rank_connection_map.incoming_connections_,
+                inverted_connection_rule
+                ? rank_connection_map.outgoing_connections_
+                : rank_connection_map.incoming_connections_,
                 mc_array,
                 cg_array,
                 random_manager,
