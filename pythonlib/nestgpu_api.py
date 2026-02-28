@@ -8,6 +8,7 @@ import platform
 import sys
 import typing
 import unicodedata
+from functools import wraps
 
 from . import ll_sapi
 
@@ -3317,6 +3318,23 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     return ret
 
 
+def check_err(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = None
+        try:
+            result = func(*args, **kwargs)
+        except:
+            if GetErrorCode() != 0:
+                raise ValueError(GetErrorMessage())
+            pass
+        if GetErrorCode() != 0:
+            raise ValueError(GetErrorMessage())
+        return result
+
+    return wrapper
+
+
 _nestgpu.reset_api.restype = ctypes.c_bool
 _nestgpu.free_gc.restype = ctypes.c_bool
 _nestgpu.get_num_threads.restype = ll_sapi.OptionalIndex
@@ -3389,45 +3407,54 @@ _nestgpu.get_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridTileVerticesPair
 _nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.TimerDataPairArray)
 
 
+@check_err
 def reset_api() -> None:
     ll_sapi.check_bool(_nestgpu.reset_api())
 
 
+@check_err
 def free_gc() -> None:
     ll_sapi.check_bool(_nestgpu.free_gc())
 
 
+@check_err
 def get_num_threads() -> int:
     return ll_sapi.check_optional(_nestgpu.get_num_threads())
 
 
+@check_err
 def set_num_threads(num_threads: int) -> None:
     ll_sapi.check_bool(
         _nestgpu.set_num_threads(ll_sapi.safe_convert_to_c(ll_sapi.vp_t, num_threads))
     )
 
 
+@check_err
 def get_rng_seed() -> int:
     return ll_sapi.check_optional(_nestgpu.get_rng_seed())
 
 
+@check_err
 def set_rng_seed(seed: int) -> None:
     ll_sapi.check_bool(
         _nestgpu.set_rng_seed(ll_sapi.safe_convert_to_c(ctypes.c_uint32, seed))
     )
 
 
+@check_err
 def get_rng_type() -> str:
     res = ll_sapi.carr_to_str(ll_sapi.safe_ptr_deref(_nestgpu.get_rng_type()))
     free_gc()
     return res
 
 
+@check_err
 def set_rng_type(rng_type: str) -> None:
     carr = ll_sapi.str_to_carr(rng_type)
     ll_sapi.check_bool(_nestgpu.set_rng_type(ctypes.byref(carr)))
 
 
+@check_err
 def generate_tile_grid(
     grid_origin: typing.Collection[float],
     grid_dimensions: typing.Collection[int],
@@ -3455,6 +3482,7 @@ def generate_tile_grid(
     )
 
 
+@check_err
 def generate_nodes_in_grid(
     model_name: str,
     num_nodes: int = 1,
@@ -3477,8 +3505,6 @@ def generate_nodes_in_grid(
         ll_sapi.parse_distribution_mode(grid_distribution_mode),
         ll_sapi.parse_distribution_mode(tile_distribution_mode),
     )
-    if GetErrorCode() != 0:
-        raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(res_t.first_)
     local_sequence = False
     if 0 <= res_t.second_.second_:
@@ -3495,6 +3521,7 @@ def generate_nodes_in_grid(
     )
 
 
+@check_err
 def insert_positions_in_grid(
     model_name: str,
     positions: typing.Collection[typing.Collection[float]],
@@ -3511,8 +3538,6 @@ def insert_positions_in_grid(
         ctypes.byref(c_mname),
         ctypes.byref(c_pos),
     )  # internal cpp copy 2 + C leftovers
-    if GetErrorCode() != 0:
-        raise ValueError(GetErrorMessage())
     del c_pos  # delete copy 1
     ll_sapi.check_bool(res_t.first_)
     leftovers = ll_sapi.nested_sta_to_nested_float_col(
@@ -3535,6 +3560,7 @@ def insert_positions_in_grid(
     return sp_ns, leftovers
 
 
+@check_err
 def compute_spatial_connections(
     sp_ns_source: ll_sapi.SpatialNodeSeq,
     sp_ns_target: ll_sapi.SpatialNodeSeq,
@@ -3555,6 +3581,7 @@ def compute_spatial_connections(
     )
 
 
+@check_err
 def get_nodes(
     sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
 ) -> typing.Dict[
@@ -3580,6 +3607,7 @@ def get_nodes(
     return res
 
 
+@check_err
 def get_distributed_node_sequences(
     sp_node_seq: ll_sapi.SpatialNodeSeq,
 ) -> typing.Dict[int, typing.Dict[int, typing.Tuple[int, int]]]:
@@ -3594,6 +3622,7 @@ def get_distributed_node_sequences(
     return res
 
 
+@check_err
 def get_spatial_connections(conn_index: int) -> typing.Tuple[
     typing.Dict[
         int, typing.Dict[int, typing.Dict[int, typing.Tuple[float, float, int]]]
@@ -3611,6 +3640,7 @@ def get_spatial_connections(conn_index: int) -> typing.Tuple[
     return res["incoming_connections"], res["outgoing_connections"]
 
 
+@check_err
 def get_grid_vertices() -> typing.Dict[
     int,  # Tile index
     typing.Tuple[
@@ -3628,6 +3658,7 @@ def get_grid_vertices() -> typing.Dict[
     return res
 
 
+@check_err
 def get_timer_data() -> typing.Dict[str, float]:
     res = ll_sapi.timer_data_pair_array_to_dict(
         ll_sapi.safe_ptr_deref(_nestgpu.get_timer_data())
