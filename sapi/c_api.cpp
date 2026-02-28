@@ -117,6 +117,7 @@ void sapi::CAPI::generate_tile_grid(
         spatial_manager_ = std::make_unique< SpatialManager< Coord3D > >(
             local_rank_, num_processes_
         );
+        break;
 
     default:
         throw std::invalid_argument( "Incorrect grid dimensions" );
