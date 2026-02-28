@@ -21,10 +21,10 @@
     NESTGPU_instance->SetErrorMessage( "Memory allocation error." );   \
     NESTGPU_instance->SetErrorCode( 1 );                               \
   }                                                                    \
-  catch ( ... )                                                        \
+  catch ( const std::exception& e )                                                        \
   {                                                                    \
     NESTGPU_instance->SetErrorFlag( true );                            \
-    NESTGPU_instance->SetErrorMessage( "Error in NESTGPU function." ); \
+    NESTGPU_instance->SetErrorMessage( e.what() ); \
     NESTGPU_instance->SetErrorCode( 255 );                             \
   }                                                                    \
   if ( NESTGPU_instance->OnException() == ON_EXCEPTION_EXIT )          \

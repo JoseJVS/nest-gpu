@@ -31,6 +31,7 @@
 #include "propagate_error.h"
 
 #include "c_api.h"
+#include "api_converters.h"
 
 
 extern "C"
@@ -804,6 +805,8 @@ extern "C"
     BEGIN_ERR_PROP
     {
       ret = NESTGPU_instance->ConnectMpiInit( argc, argv );
+    capi.set_rank( NESTGPU_instance->HostId() );
+    capi.set_num_processes( NESTGPU_instance->HostNum() );
     }
     END_ERR_PROP return ret;
   }
@@ -2302,9 +2305,64 @@ extern "C"
       return false;
   }
 
+  sapi::RankNodeSequenceMap
+    update_node_counts_per_rank(
+      const sapi::NodeCountVector nodes_per_rank,
+      const sapi::CharArray& model_name,
+      const int& num_ports
+    )
+  {
+    sapi::RankNodeSequenceMap rns_map;
+    const auto model = sapi::charray_to_string( model_name );
+    if ( 1 < capi.get_num_processes() )
+    {
+      sapi::vp_t rank = 0;
+      for ( const auto& node_count : nodes_per_rank )
+      {
+        if ( node_count < 1 ) continue;
+
+        const auto remote_nodeseq = NESTGPU_instance->RemoteCreate(
+          static_cast< int >( rank ), model, static_cast< inode_t >( node_count ), num_ports
+        );
+
+        const auto emplace_it = rns_map.emplace(
+          std::make_pair(
+            sapi::vp_t( rank ),
+            sapi::NodeSequence( remote_nodeseq.node_seq.i0, remote_nodeseq.node_seq.n )
+          )
+        );
+
+        if ( !emplace_it.second )
+          throw std::runtime_error( "Corrupted rank node sequence map" );
+
+        ++rank;
+      }
+    }
+    else
+    {
+      const auto nodeseq = NESTGPU_instance->Create(
+        model, static_cast< inode_t >( nodes_per_rank[ capi.get_rank() ] ), num_ports
+      );
+
+      const auto emplace_it = rns_map.emplace(
+        std::make_pair(
+          capi.get_rank(),
+          sapi::NodeSequence( nodeseq.i0, nodeseq.n )
+        )
+      );
+
+      if ( !emplace_it.second )
+        throw std::runtime_error( "Corrupted rank node sequence map" );
+    }
+
+    return rns_map;
+  }
+
   sapi::PairT< bool, sapi::SpatialNodeSequence >
     generate_nodes_in_grid(
       sapi::largenodeidx_t num_nodes,
+      int num_ports,
+      const sapi::CharArray& model_name,
       const sapi::TileIdxArray& tile_set,
       uint8_t grid_distribution_mode,
       uint8_t tile_distribution_mode
@@ -2319,26 +2377,26 @@ extern "C"
         grid_distribution_mode
       );
 
-      //const auto rank_map = update_node_counts_per_rank(
-      //  nodes_per_rank
-      //);
+      const auto rank_map = update_node_counts_per_rank(
+        nodes_per_rank, model_name, num_ports
+      );
 
-      //if ( const auto search = rank_map.find( capi.get_rank() );
-      //  search != rank_map.end() )
-      //{
-      //  pair.second_.second_ = search->second.first;
-      //  pair.second_.third_ = search->second.second;
-      //}
-      //else
-      //{
-      //  pair.second_.second_ = -1;
-      //  pair.second_.third_ = -1;
-      //}
+      if ( const auto search = rank_map.find( capi.get_rank() );
+        search != rank_map.end() )
+      {
+        pair.second_.second_ = search->second.first;
+        pair.second_.third_ = search->second.second;
+      }
+      else
+      {
+        pair.second_.second_ = -1;
+        pair.second_.third_ = -1;
+      }
 
-      //pair.second_.first_ = capi.generate_nodes_in_tiles(
-      //  rank_map,
-      //  tile_distribution_mode
-      //);
+      pair.second_.first_ = capi.generate_nodes_in_tiles(
+        rank_map,
+        tile_distribution_mode
+      );
 
       pair.first_ = true;
       return pair;
@@ -2350,42 +2408,43 @@ extern "C"
 
   sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
     insert_positions_in_grid(
+      int num_ports,
+      const sapi::CharArray& model_name,
       const sapi::NestedSpaceTArray& anycoord_array
     )
   {
     sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* > triplet;
     BEGIN_ERR_PROP
     {
-      const auto [
-        nodes_per_rank,
-        leftovers
-      ] = capi.insert_positions_in_grid(
-        anycoord_array
+      const auto [nodes_per_rank, leftovers] =
+      capi.insert_positions_in_grid( anycoord_array );
+
+      if ( leftovers->size_ == anycoord_array.size_ )
+        throw std::runtime_error( "Failed to insert any provided node position" );
+
+      const auto rank_map = update_node_counts_per_rank(
+        nodes_per_rank, model_name, num_ports
       );
 
-    //const auto rank_map = update_node_counts_per_rank(
-    //  nodes_per_rank
-    //);
+      if ( const auto search = rank_map.find( capi.get_rank() );
+        search != rank_map.end() )
+      {
+        triplet.second_.second_ = search->second.first;
+        triplet.second_.third_ = search->second.second;
+      }
+      else
+      {
+        triplet.second_.second_ = -1;
+        triplet.second_.third_ = -1;
+      }
 
-    //if ( const auto search = rank_map.find( capi.get_rank() );
-    //  search != rank_map.end() )
-    //{
-    //  triplet.second_.second_ = search->second.first;
-    //  triplet.second_.third_ = search->second.second;
-    //}
-    //else
-    //{
-    //  triplet.second_.second_ = -1;
-    //  triplet.second_.third_ = -1;
-    //}
+      triplet.second_.first_ = capi.insert_positions_in_tiles(
+        rank_map
+      );
 
-    //triplet.second_.first_ = capi.insert_positions_in_tiles(
-    //  rank_map
-      //);
-
-    triplet.first_ = true;
-    triplet.third_ = leftovers;
-    return triplet;
+      triplet.first_ = true;
+      triplet.third_ = leftovers;
+      return triplet;
     }
       END_ERR_PROP
       triplet.first_ = false;

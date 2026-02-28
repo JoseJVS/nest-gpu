@@ -450,6 +450,8 @@ extern "C"
   sapi::PairT< bool, sapi::SpatialNodeSequence >
     generate_nodes_in_grid(
       sapi::largenodeidx_t num_nodes,
+      int num_ports,
+      const sapi::CharArray& model_name,
       const sapi::TileIdxArray& tile_set,
       uint8_t grid_distribution_mode,
       uint8_t tile_distribution_mode
@@ -457,6 +459,8 @@ extern "C"
 
   sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
     insert_positions_in_grid(
+      int num_ports,
+      const sapi::CharArray& model_name,
       const sapi::NestedSpaceTArray& positions
     );
 
