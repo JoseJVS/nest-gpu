@@ -53,6 +53,7 @@ def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
 
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
+    nestgpu.SetBoolParam("check_node_maps", True)
 
     if sq_grid and 1 < num_processes:
         LOG.info("RANK %i SAPI: generating %ix%i tile grid", local_rank, sqrt_procs)
