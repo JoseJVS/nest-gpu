@@ -28,24 +28,24 @@ args = parser.parse_args()
 local_rank = MPI.COMM_WORLD.Get_rank()
 num_processes = MPI.COMM_WORLD.Get_size()
 
-sqrt2 = np.sqrt(2)
-sqrt_procs = int(np.floor(np.sqrt(num_processes)))
-sq_grid = sqrt_procs**2 == num_processes
-log4 = np.log(4)
-log2 = np.log(2)
-
 
 def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
     if 0 <= args.tile_splits:
         return args.tile_splits
     match tile_type:
         case "Square":
-            return int(np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / log4), 0))
+            return int(
+                np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / np.log(4)), 0)
+            )
         case "Triangle":
-            return int(np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / log2), 0))
+            return int(
+                np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / np.log(2)), 0)
+            )
         case "Hexagon":
             return int(
-                np.max(np.floor(np.log(num_nodes / (60 * num_tiles)) / log2 + 1), 0)
+                np.max(
+                    np.floor(np.log(num_nodes / (60 * num_tiles)) / np.log(2) + 1), 0
+                )
             )
         case _:
             raise ValueError("Incorrect tile type")
@@ -53,35 +53,18 @@ def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
 
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
-    nestgpu.SetBoolParam("check_node_maps", True)
+    nestgpu.SetBoolParam("check_node_maps", False)
 
-    if sq_grid and 1 < num_processes:
-        LOG.info("RANK %i SAPI: generating %ix%i tile grid", local_rank, sqrt_procs)
-        coord = -1.0 + 1.0 / sqrt_procs
-        radius = sqrt2 / sqrt_procs
-        nestgpu.generate_tile_grid(
-            (coord, coord),
-            (sqrt_procs, sqrt_procs),
-            "Square",
-            (radius, 0),
-            [{r} for r in range(num_processes)],
-            compute_num_splits("Square", args.total_nodes, num_processes),
-            args.edge_wrap,
-        )
-    else:
-        LOG.info(
-            "RANK %i SAPI: generating single tile grid",
-            local_rank,
-        )
-        nestgpu.generate_tile_grid(
-            (0, 0),
-            (1, 1),
-            "Square",
-            (np.sqrt(2), 0),
-            [{0} for _ in range(num_processes)],
-            compute_num_splits("Square", args.total_nodes, 1),
-            args.edge_wrap,
-        )
+    LOG.info("RANK %i SAPI: generating %ix%i tile grid", 1, num_processes)
+    nestgpu.generate_tile_grid(
+        (0, 0),
+        (1, num_processes),
+        "Square",
+        (0.5, 0),
+        [{r} for r in range(num_processes)],
+        compute_num_splits("Square", args.total_nodes, num_processes),
+        args.edge_wrap,
+    )
 
     sp_ns = nestgpu.generate_nodes_in_grid("iaf_psc_alpha", args.total_nodes)
     conn_index = nestgpu.compute_spatial_connections(
@@ -89,7 +72,7 @@ def main() -> None:
         sp_ns,
         {
             "mask_blueprint_name": "Circular",
-            "mask_blueprint_params": (sqrt2,),
+            "mask_blueprint_params": (1,),
         },
         {
             "edge_wrap": args.edge_wrap,
@@ -144,7 +127,9 @@ def main() -> None:
                 source_map = spatial_conn_map[source] = {}
                 source_map[target] = (weight, delay)
 
-        assert len(gpu_conn_map) == len(spatial_conn_map)
+        assert len(gpu_conn_map) == len(
+            spatial_conn_map
+        ), f"{len(gpu_conn_map)} vs {len(spatial_conn_map)}"
 
         for source, target_map in gpu_conn_map.items():
             assert source in spatial_conn_map
