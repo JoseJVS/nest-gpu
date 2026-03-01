@@ -37,6 +37,8 @@
 extern "C"
 {
   static sapi::CAPI capi;
+  static std::unordered_map< std::size_t, sapi::RankNodeSequenceMap >
+    spatial_node_sequence_map;
   static NESTGPU* NESTGPU_instance = nullptr;
   ConnSpec ConnSpec_instance;
   SynSpec SynSpec_instance;
@@ -2381,7 +2383,7 @@ extern "C"
         grid_distribution_mode
       );
 
-      const auto rank_map = update_node_counts_per_rank(
+      auto rank_map = update_node_counts_per_rank(
         nodes_per_rank, model_name, num_ports
       );
 
@@ -2401,6 +2403,16 @@ extern "C"
         rank_map,
         tile_distribution_mode
       );
+
+      const auto emplace_it = spatial_node_sequence_map.emplace(
+        std::make_pair(
+          std::size_t( pair.second_.first_ ),
+          std::move( rank_map
+          )
+        )
+      );
+      if ( !emplace_it.second )
+        throw std::runtime_error( "Corrupted spatial node sequence map" );
 
       pair.first_ = true;
       return pair;
@@ -2466,7 +2478,9 @@ extern "C"
     if ( tci.total_generated_connections_ < 1 )
       return;
 
-    ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_NODES;
+    ConnSpec_instance.rule_ = ConnectionRules::ONE_TO_ONE;
+    ConnSpec_instance.total_num_ = tci.total_generated_connections_;
+    ConnSpec_instance.use_all_remote_source_nodes_ = true;
     SynSpec_instance.delay_distr_ = 1;
     SynSpec_instance.weight_distr_ = 1;
     SynSpec_instance.weight_h_array_pt_ = tci.connection_weights_.data();
@@ -2511,6 +2525,56 @@ extern "C"
         mask_params,
         conn_params
       );
+
+      const auto dist_tns_source_it = spatial_node_sequence_map.find( dist_tns_source_index );
+      const auto dist_tns_target_it = spatial_node_sequence_map.find( dist_tns_target_index );
+      if ( dist_tns_source_it == spatial_node_sequence_map.end() ||
+        dist_tns_target_it == spatial_node_sequence_map.end() )
+        throw std::runtime_error( "Corrupted spatial node sequence map" );
+
+      bool is_source = true;
+      const auto host_str = "RANK " + std::to_string( capi.get_rank() ) +
+        std::string( ": checking spatial node sequence maps on " );
+      for ( const auto dtns_it : { dist_tns_source_it, dist_tns_target_it } )
+      {
+        const auto check_incoming = is_source == conn_params.inverted_conn_rule_;
+        if ( const auto local_ns = dtns_it->second.find( capi.get_rank() );
+          local_ns != dist_tns_source_it->second.end() )
+        {
+          std::cout << host_str +
+            std::string( check_incoming ? "incoming connections\n" : "outgoing connections\n" );
+          const auto first_local = local_ns->second.first;
+          const auto one_after_last_local = first_local + local_ns->second.second;
+          for ( const auto& [rank, conn_map] : check_incoming
+            ? conn_map_ptr->incoming_connections_ : conn_map_ptr->outgoing_connections_ )
+          {
+            const auto rank_ns = &dist_tns_target_it->second.at( rank );
+            const auto first_remote = rank_ns->first;
+            const auto one_after_last_remote = first_remote + rank_ns->second;
+            for ( sapi::count_t idx = 0; idx < conn_map.total_generated_connections_; ++idx )
+            {
+              const auto source = static_cast< sapi::nodeidx_t >( conn_map.connection_sources_[ idx ] );
+              const auto target = static_cast< sapi::nodeidx_t >( conn_map.connection_targets_[ idx ] );
+
+              if ( check_incoming )
+              {
+                if ( target < first_local || one_after_last_local <= target )
+                  throw std::runtime_error( "Corrupted incoming connection map local side" );
+                if ( source < first_remote || one_after_last_remote <= source )
+                  throw std::runtime_error( "Corrupted incoming connection map remote side" );
+              }
+              else
+              {
+                if ( source < first_local || one_after_last_local <= source )
+                  throw std::runtime_error( "Corrupted inverted outgoing connection map local side" );
+                if ( target < first_remote || one_after_last_remote <= target )
+                  throw std::runtime_error( "Corrupted inverted outgoing connection map remote side" );
+              }
+            }
+          }
+        }
+        is_source = false;
+      }
 
       const bool is_remote = 1 < capi.get_num_processes();
       const auto local_rank = static_cast< int >( capi.get_rank() );
