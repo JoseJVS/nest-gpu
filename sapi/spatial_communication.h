@@ -101,7 +101,8 @@ compute_distributed_spatial_connections(
         );
         tile_overlap_timer->start();
 
-        auto [has_targets, has_local_targets] = compute_distributed_tile_overlap(
+        const auto [has_targets, has_local_targets] =
+            compute_distributed_tile_overlap(
             dpi,
             dist_tns_source,
             dist_tns_target,
@@ -212,11 +213,11 @@ void communicate_payload_async(
     const vp_t& tag
 )
 {
-    for ( const auto& [vp, rpi] : rank_info_map )
+    for ( const auto& [rank, rpi] : rank_info_map )
     {
-        if ( vp == local_rank ) continue;
+        if ( rank == local_rank ) continue;
         assert(
-            request_queue.pending_ranks_.find( vp ) == request_queue.pending_ranks_.end() &&
+            request_queue.pending_ranks_.find( rank ) == request_queue.pending_ranks_.end() &&
             rpi.sender_info_.data_payload_.size() < std::numeric_limits< vp_t >::max()
         );
         const auto payload_size = static_cast< vp_t >( rpi.sender_info_.data_payload_.size() );
@@ -226,13 +227,13 @@ void communicate_payload_async(
             rpi.sender_info_.data_payload_.data(),
             payload_size,
             MPI_INT64_T,
-            vp,
+            rank,
             tag,
             MPI_COMM_WORLD,
             &( *request_it++ )
         );
 
-        request_queue.pending_ranks_.insert( vp );
+        request_queue.pending_ranks_.insert( rank );
     }
 }
 

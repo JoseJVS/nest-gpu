@@ -17,7 +17,8 @@ void sapi::CAPI::free_gc()
 }
 
 
-sapi::vp_t sapi::CAPI::get_rank() const
+sapi::vp_t
+sapi::CAPI::get_rank() const
 {
     return local_rank_;
 }
@@ -34,7 +35,8 @@ void sapi::CAPI::set_rank( const vp_t& rank )
 }
 
 
-sapi::vp_t sapi::CAPI::get_num_processes() const
+sapi::vp_t
+sapi::CAPI::get_num_processes() const
 {
     return num_processes_;
 }
@@ -51,7 +53,8 @@ void sapi::CAPI::set_num_processes( const vp_t& num_processes )
 }
 
 
-sapi::vp_t sapi::CAPI::get_num_threads() const
+sapi::vp_t
+sapi::CAPI::get_num_threads() const
 {
     return get_max_omp_threads();
 }
@@ -64,7 +67,8 @@ void sapi::CAPI::set_num_threads( const vp_t& num_threads )
         spatial_manager_->update_num_threads();
 }
 
-uint32_t sapi::CAPI::get_rng_seed() const
+uint32_t
+sapi::CAPI::get_rng_seed() const
 {
     return seed_;
 }
@@ -78,7 +82,8 @@ void sapi::CAPI::set_rng_seed( const uint32_t& seed )
 }
 
 
-sapi::CharArray* sapi::CAPI::get_rng_type()
+sapi::CharArray*
+sapi::CAPI::get_rng_type()
 {
     return string_to_charray( rng_type_, gc_ );
 }
@@ -164,7 +169,8 @@ sapi::CAPI::generate_nodes_in_grid(
 }
 
 
-std::size_t sapi::CAPI::generate_nodes_in_tiles(
+std::size_t
+sapi::CAPI::generate_nodes_in_tiles(
     const RankNodeSequenceMap& node_sequence_map,
     const uint8_t& distribution_mode
 )
@@ -198,7 +204,8 @@ sapi::CAPI::insert_positions_in_grid(
 }
 
 
-std::size_t sapi::CAPI::insert_positions_in_tiles(
+std::size_t
+sapi::CAPI::insert_positions_in_tiles(
     const RankNodeSequenceMap& node_sequence_map
 )
 {

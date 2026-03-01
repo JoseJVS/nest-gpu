@@ -447,7 +447,7 @@ void compute_displacement_checks_across_tile_pairs(
                     )
                 ).first;
 
-            // Loop over paired leafs aggregated by source leaf
+            // Loop over paired leafs aggregated by local leaf
             for ( auto source_leaf_target_map_pair_it =
                 remote_tile_tpi_map_pair_it->second.aggregated_leaf_pairs_.cbegin();
                 source_leaf_target_map_pair_it !=
@@ -508,7 +508,7 @@ void compute_displacement_checks_across_tile_pairs(
                     // If the remote leaf is found then its vector cannot be empty
                     assert( !remote_node_vec_it->second.empty() );
 
-                    // For each leaf aggregation map create a node aggregation map 
+                    // For each leaf aggregation map create a node aggregation list 
                     const auto node_aggregation_it =
                         local_leaf_aggregation_it->second.emplace(
                             std::make_pair(
