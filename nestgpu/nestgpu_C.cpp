@@ -2319,7 +2319,11 @@ extern "C"
       sapi::vp_t rank = 0;
       for ( const auto& node_count : nodes_per_rank )
       {
-        if ( node_count < 1 ) continue;
+        if ( node_count < 1 )
+        {
+          ++rank;
+          continue;
+        }
 
         const auto remote_nodeseq = NESTGPU_instance->RemoteCreate(
           static_cast< int >( rank ), model, static_cast< inode_t >( node_count ), num_ports
@@ -2455,38 +2459,37 @@ extern "C"
   void create_spatial_connections(
     const int& source_rank,
     const int& target_rank,
-    sapi::TileConnectionInfo& tci
+    sapi::TileConnectionInfo& tci,
+    const bool& remote
   )
   {
     if ( tci.total_generated_connections_ < 1 )
       return;
 
-    inode_t* sources = tci.connection_sources_.data();
-    inode_t* targets = tci.connection_targets_.data();
-    ConnSpec_instance.rule_ = ConnectionRules::ONE_TO_ONE;
+    ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_NODES;
     SynSpec_instance.delay_distr_ = 1;
     SynSpec_instance.weight_distr_ = 1;
     SynSpec_instance.weight_h_array_pt_ = tci.connection_weights_.data();
     SynSpec_instance.delay_h_array_pt_ = tci.connection_delays_.data();
 
-    if ( source_rank == target_rank )
-      NESTGPU_instance->Connect(
-        sources,
-        tci.connection_sources_.size(),
-        targets,
-        tci.connection_targets_.size(),
+    if ( remote )
+      NESTGPU_instance->RemoteConnect(
+        source_rank,
+        tci.connection_sources_.data(),
+        static_cast< inode_t >( tci.total_generated_connections_ ),
+        target_rank,
+        tci.connection_targets_.data(),
+        static_cast< inode_t >( tci.total_generated_connections_ ),
+        -1,
         ConnSpec_instance,
         SynSpec_instance
       );
     else
-      NESTGPU_instance->RemoteConnect(
-        source_rank,
-        sources,
-        tci.connection_sources_.size(),
-        target_rank,
-        targets,
-        tci.connection_targets_.size(),
-        -1,
+      NESTGPU_instance->Connect(
+        tci.connection_sources_.data(),
+        static_cast< inode_t >( tci.total_generated_connections_ ),
+        tci.connection_targets_.data(),
+        static_cast< inode_t >( tci.total_generated_connections_ ),
         ConnSpec_instance,
         SynSpec_instance
       );
@@ -2509,14 +2512,15 @@ extern "C"
         conn_params
       );
 
+      const bool is_remote = 1 < capi.get_num_processes();
       const auto local_rank = static_cast< int >( capi.get_rank() );
       if ( !conn_map_ptr->outgoing_connections_.empty() )
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->outgoing_connections_ )
-          create_spatial_connections( local_rank, remote_rank, tile_connection_info );
+          create_spatial_connections( local_rank, static_cast< int >( remote_rank ), tile_connection_info, is_remote );
 
       if ( !conn_map_ptr->incoming_connections_.empty() )
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->incoming_connections_ )
-          create_spatial_connections( remote_rank, local_rank, tile_connection_info );
+          create_spatial_connections( static_cast< int >( remote_rank ), local_rank, tile_connection_info, is_remote );
 
       opt.second_ = conn_index;
       opt.first_ = true;
