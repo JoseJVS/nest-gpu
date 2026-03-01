@@ -14,7 +14,7 @@ from mpi4py import MPI
 import nestgpu
 
 parser = ArgumentParser()
-parser.add_argument("--tile_splits", type=int, default=3)
+parser.add_argument("--tile_splits", type=int, default=-1)
 parser.add_argument("--edge_wrap", action="store_true")
 parser.add_argument("--total_nodes", type=int, default=1000)
 parser.add_argument("--rand_pos", action="store_true")
@@ -40,14 +40,16 @@ log2 = np.log(2)
 
 
 def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
+    if 0 <= args.tile_splits:
+        return args.tile_splits
     match tile_type:
         case "Square":
-            return int(np.max(np.ceil(np.log(num_nodes / (10 * num_tiles)) / log4), 0))
+            return int(np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / log4), 0))
         case "Triangle":
-            return int(np.max(np.ceil(np.log(num_nodes / (10 * num_tiles)) / log2), 0))
+            return int(np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / log2), 0))
         case "Hexagon":
             return int(
-                np.max(np.ceil(np.log(num_nodes / (60 * num_tiles)) / log2 + 1), 0)
+                np.max(np.floor(np.log(num_nodes / (60 * num_tiles)) / log2 + 1), 0)
             )
         case _:
             raise ValueError("Incorrect tile type")
@@ -106,6 +108,8 @@ def main() -> None:
             "prob_ufs_params": [] if args.fixed_conn else [[args.beta]],
         },
     )
+
+    nestgpu.Calibrate()
 
 
 if __name__ == "__main__":
