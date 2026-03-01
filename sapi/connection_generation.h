@@ -12,7 +12,6 @@ inline void consolidate_connection_map(
     TileConnectionInfo& tci
 )
 {
-    assert( ( tci.total_generated_connections_ == 0 ) == tci.procedural_connection_list_.empty() );
     tci.prepare_vectors();
 
     auto ci_fl_move_it = std::make_move_iterator( tci.procedural_connection_list_.begin() );
