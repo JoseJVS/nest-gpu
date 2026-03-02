@@ -1,4 +1,5 @@
 import logging
+import sys
 from argparse import ArgumentParser
 from traceback import format_exc
 
@@ -13,20 +14,18 @@ parser = ArgumentParser()
 parser.add_argument("--tile_splits", type=int, default=-1)
 parser.add_argument("--edge_wrap", action="store_true")
 parser.add_argument("--total_nodes", type=int, default=1000)
-parser.add_argument("--rand_pos", action="store_true")
 parser.add_argument("--fixed_conn", action="store_true")
 parser.add_argument("--conn_chance", type=float, default=1.0)
 parser.add_argument("--beta", type=float, default=0.2)
-parser.add_argument("--cutoff", type=float, default=5)
 parser.add_argument("--rng_seed", type=int, default=12345)
-parser.add_argument("--output_dir", type=str, default=".")
-parser.add_argument("--output_prefix", type=str, default="nest_comparison")
-parser.add_argument("--output_format", type=str, default=".pdf")
 parser.add_argument("--verbosity", type=int, default=20)
 args = parser.parse_args()
 
-local_rank = MPI.COMM_WORLD.Get_rank()
-num_processes = MPI.COMM_WORLD.Get_size()
+
+def update_verbosity():
+    stdout = logging.StreamHandler(sys.stdout)
+    stdout.setFormatter(logging.Formatter("%(levelname)s:\n%(message)s"))
+    logging.basicConfig(level=args.verbosity, handlers=(stdout,))
 
 
 def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
@@ -53,20 +52,26 @@ def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
 
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
-    nestgpu.SetBoolParam("check_node_maps", False)
+    nestgpu.SetBoolParam("check_node_maps", True)
 
-    LOG.info("RANK %i SAPI: generating %ix%i tile grid", 1, num_processes)
+    local_rank = nestgpu.HostId()
+    num_processes = nestgpu.HostNum()
+
+    LOG.info("RANK %i: generating 1x1 tile grid", local_rank)
     nestgpu.generate_tile_grid(
         (0, 0),
-        (1, num_processes),
+        (1, 1),
         "Square",
-        (0.5, 0),
-        [{r} for r in range(num_processes)],
-        compute_num_splits("Square", args.total_nodes, num_processes),
+        (1, 0),
+        [{0} for r in range(num_processes)],
+        compute_num_splits("Square", args.total_nodes, 1),
         args.edge_wrap,
     )
 
+    LOG.info("RANK %i: generating %i nodes in grid", local_rank, args.total_nodes)
     sp_ns = nestgpu.generate_nodes_in_grid("iaf_psc_alpha", args.total_nodes)
+
+    LOG.info("RANK %i: computing spatial connections", local_rank)
     conn_index = nestgpu.compute_spatial_connections(
         sp_ns,
         sp_ns,
@@ -93,8 +98,10 @@ def main() -> None:
         },
     )
 
+    LOG.info("RANK %i: calibrating network", local_rank)
     nestgpu.Calibrate()
 
+    LOG.info("RANK %i: checking local connections", local_rank)
     if sp_ns.local_index is not None and sp_ns.local_length is not None:
         ns = nestgpu.NodeSeq(sp_ns.local_index, sp_ns.local_length)
         conn_list = nestgpu.GetConnections(ns, ns)
@@ -141,10 +148,12 @@ def main() -> None:
                 computed_sp_delay = float(
                     int(np.round(np.float32(sp_delay) / np.float32(0.1)))
                     * np.float32(0.1)
-                )
+                )  # Conversion to mimic delay discretization in kernel
                 assert weight == sp_weight and np.isclose(delay, computed_sp_delay)
 
+
 if __name__ == "__main__":
+    update_verbosity()
     try:
         nestgpu.ConnectMpiInit()
         main()
