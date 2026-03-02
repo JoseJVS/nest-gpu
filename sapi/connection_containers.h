@@ -17,6 +17,42 @@ namespace sapi
 typedef std::tuple< conn_index_t, conn_index_t, conn_param_t, conn_param_t, mult_t > ConnectionInfo;
 
 
+struct ConnectionVectors
+{
+    count_t sizes_ = 0;
+
+    std::vector< conn_index_t > connection_sources_;
+    std::vector< conn_index_t > connection_targets_;
+    std::vector< conn_param_t > connection_weights_;
+    std::vector< conn_param_t > connection_delays_;
+
+    ConnectionVectors() = default;
+    ConnectionVectors( const ConnectionVectors& ) = delete;
+    ConnectionVectors( ConnectionVectors&& ) = default;
+
+    void prepare_vectors( const count_t& size )
+    {
+        assert(
+            0 <= size &&
+            connection_sources_.empty() &&
+            connection_targets_.empty() &&
+            connection_weights_.empty() &&
+            connection_delays_.empty()
+        );
+
+        if ( size == 0 )
+            return;
+
+        connection_sources_.reserve( size );
+        connection_targets_.reserve( size );
+        connection_weights_.reserve( size );
+        connection_delays_.reserve( size );
+
+        sizes_ = size;
+    }
+};
+
+
 // Maps are aggregated by driver tile/node
 struct TileConnectionInfo
 {
@@ -24,10 +60,7 @@ struct TileConnectionInfo
 
     std::forward_list< std::forward_list< ConnectionInfo > > procedural_connection_list_;
 
-    std::vector< conn_index_t > connection_sources_;
-    std::vector< conn_index_t > connection_targets_;
-    std::vector< conn_param_t > connection_weights_;
-    std::vector< conn_param_t > connection_delays_;
+    std::vector< ConnectionVectors > source_unique_connection_vectors_;
 
     TileConnectionInfo() = default;
     TileConnectionInfo( const TileConnectionInfo& ) = delete;
@@ -39,18 +72,6 @@ struct TileConnectionInfo
         return build_connection_map() == tci.build_connection_map();
     }
 
-    void prepare_vectors()
-    {
-        assert( 0 <= total_generated_connections_ );
-        if ( total_generated_connections_ == 0 )
-            return;
-
-        connection_sources_.reserve( total_generated_connections_ );
-        connection_targets_.reserve( total_generated_connections_ );
-        connection_weights_.reserve( total_generated_connections_ );
-        connection_delays_.reserve( total_generated_connections_ );
-    }
-
     std::map< conn_index_t,
         std::map< conn_index_t,
         std::tuple< conn_param_t, conn_param_t, mult_t > > >
@@ -60,40 +81,40 @@ struct TileConnectionInfo
             std::map< conn_index_t,
             std::tuple< conn_param_t, conn_param_t, mult_t > > > conn_map;
 
-        assert( static_cast< std::size_t >( total_generated_connections_ )
-            == connection_sources_.size() );
-
-        for ( count_t conn_idx = 0; conn_idx < total_generated_connections_; ++conn_idx )
+        for ( const auto& conn_vec : source_unique_connection_vectors_ )
         {
-            const auto source = connection_sources_[ conn_idx ];
-            const auto target = connection_targets_[ conn_idx ];
-            const auto weight = connection_weights_[ conn_idx ];
-            const auto delay = connection_delays_[ conn_idx ];
+            for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
+            {
+                const auto source = conn_vec.connection_sources_[ conn_idx ];
+                const auto target = conn_vec.connection_targets_[ conn_idx ];
+                const auto weight = conn_vec.connection_weights_[ conn_idx ];
+                const auto delay = conn_vec.connection_delays_[ conn_idx ];
 
-            auto source_search = conn_map.find( source );
-            if ( source_search == conn_map.end() )
-                source_search = conn_map.emplace(
-                    std::make_pair(
-                        source,
-                        std::map< conn_index_t,
-                        std::tuple< conn_param_t, conn_param_t, mult_t > >()
-                    )
-                ).first;
-
-            auto target_search = source_search->second.find( target );
-            if ( target_search == source_search->second.end() )
-                target_search = source_search->second.emplace(
-                    std::make_pair(
-                        target,
-                        std::make_tuple(
-                            weight,
-                            delay,
-                            1
+                auto source_search = conn_map.find( source );
+                if ( source_search == conn_map.end() )
+                    source_search = conn_map.emplace(
+                        std::make_pair(
+                            source,
+                            std::map< conn_index_t,
+                            std::tuple< conn_param_t, conn_param_t, mult_t > >()
                         )
-                    )
-                ).first;
-            else
-                std::get< 2 >( target_search->second ) += 1;
+                    ).first;
+
+                auto target_search = source_search->second.find( target );
+                if ( target_search == source_search->second.end() )
+                    target_search = source_search->second.emplace(
+                        std::make_pair(
+                            target,
+                            std::make_tuple(
+                                weight,
+                                delay,
+                                1
+                            )
+                        )
+                    ).first;
+                else
+                    std::get< 2 >( target_search->second ) += 1;
+            }
         }
 
         return conn_map;

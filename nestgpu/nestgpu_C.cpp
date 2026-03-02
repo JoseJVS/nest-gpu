@@ -2438,7 +2438,7 @@ extern "C"
       if ( leftovers->size_ == anycoord_array.size_ )
         throw std::runtime_error( "Failed to insert any provided node position" );
 
-      const auto rank_map = update_node_counts_per_rank(
+      auto rank_map = update_node_counts_per_rank(
         nodes_per_rank, model_name, num_ports
       );
 
@@ -2458,6 +2458,15 @@ extern "C"
         rank_map
       );
 
+      const auto emplace_it = spatial_node_sequence_map.emplace(
+        std::make_pair(
+          std::size_t( triplet.second_.first_ ),
+          std::move( rank_map )
+        )
+      );
+      if ( !emplace_it.second )
+        throw std::runtime_error( "Corrupted spatial node sequence map" );
+
       triplet.first_ = true;
       triplet.third_ = leftovers;
       return triplet;
@@ -2471,39 +2480,39 @@ extern "C"
   void create_spatial_connections(
     const int& source_rank,
     const int& target_rank,
-    sapi::TileConnectionInfo& tci,
+    sapi::ConnectionVectors& conn_vec,
     const bool& remote
   )
   {
-    if ( tci.total_generated_connections_ < 1 )
+    if ( conn_vec.sizes_ < 1 )
       return;
 
     ConnSpec_instance.rule_ = ConnectionRules::ONE_TO_ONE;
-    ConnSpec_instance.total_num_ = tci.total_generated_connections_;
+    ConnSpec_instance.total_num_ = conn_vec.sizes_;
     ConnSpec_instance.use_all_remote_source_nodes_ = true;
     SynSpec_instance.delay_distr_ = 1;
     SynSpec_instance.weight_distr_ = 1;
-    SynSpec_instance.weight_h_array_pt_ = tci.connection_weights_.data();
-    SynSpec_instance.delay_h_array_pt_ = tci.connection_delays_.data();
+    SynSpec_instance.weight_h_array_pt_ = conn_vec.connection_weights_.data();
+    SynSpec_instance.delay_h_array_pt_ = conn_vec.connection_delays_.data();
 
     if ( remote )
       NESTGPU_instance->RemoteConnect(
         source_rank,
-        tci.connection_sources_.data(),
-        static_cast< inode_t >( tci.total_generated_connections_ ),
+        conn_vec.connection_sources_.data(),
+        static_cast< inode_t >( conn_vec.sizes_ ),
         target_rank,
-        tci.connection_targets_.data(),
-        static_cast< inode_t >( tci.total_generated_connections_ ),
+        conn_vec.connection_targets_.data(),
+        static_cast< inode_t >( conn_vec.sizes_ ),
         -1,
         ConnSpec_instance,
         SynSpec_instance
       );
     else
       NESTGPU_instance->Connect(
-        tci.connection_sources_.data(),
-        static_cast< inode_t >( tci.total_generated_connections_ ),
-        tci.connection_targets_.data(),
-        static_cast< inode_t >( tci.total_generated_connections_ ),
+        conn_vec.connection_sources_.data(),
+        static_cast< inode_t >( conn_vec.sizes_ ),
+        conn_vec.connection_targets_.data(),
+        static_cast< inode_t >( conn_vec.sizes_ ),
         ConnSpec_instance,
         SynSpec_instance
       );
@@ -2556,24 +2565,27 @@ extern "C"
               const auto rank_ns = &dtns_it_array[ ( idx + 1 ) % 2 ]->second.at( rank );
               const auto first_remote = rank_ns->first;
               const auto one_after_last_remote = first_remote + rank_ns->second;
-              for ( sapi::count_t idx = 0; idx < conn_map.total_generated_connections_; ++idx )
+              for ( const auto& conn_vec : conn_map.source_unique_connection_vectors_ )
               {
-                const auto source = static_cast< sapi::nodeidx_t >( conn_map.connection_sources_[ idx ] );
-                const auto target = static_cast< sapi::nodeidx_t >( conn_map.connection_targets_[ idx ] );
+                for ( sapi::count_t idx = 0; idx < conn_vec.sizes_; ++idx )
+                {
+                  const auto source = static_cast< sapi::nodeidx_t >( conn_vec.connection_sources_[ idx ] );
+                  const auto target = static_cast< sapi::nodeidx_t >( conn_vec.connection_targets_[ idx ] );
 
-                if ( check_incoming )
-                {
-                  if ( target < first_local || one_after_last_local <= target )
-                    throw std::runtime_error( "Corrupted incoming connection map local side" );
-                  if ( source < first_remote || one_after_last_remote <= source )
-                    throw std::runtime_error( "Corrupted incoming connection map remote side" );
-                }
-                else
-                {
-                  if ( source < first_local || one_after_last_local <= source )
-                    throw std::runtime_error( "Corrupted inverted outgoing connection map local side" );
-                  if ( target < first_remote || one_after_last_remote <= target )
-                    throw std::runtime_error( "Corrupted inverted outgoing connection map remote side" );
+                  if ( check_incoming )
+                  {
+                    if ( target < first_local || one_after_last_local <= target )
+                      throw std::runtime_error( "Corrupted incoming connection map local side" );
+                    if ( source < first_remote || one_after_last_remote <= source )
+                      throw std::runtime_error( "Corrupted incoming connection map remote side" );
+                  }
+                  else
+                  {
+                    if ( source < first_local || one_after_last_local <= source )
+                      throw std::runtime_error( "Corrupted inverted outgoing connection map local side" );
+                    if ( target < first_remote || one_after_last_remote <= target )
+                      throw std::runtime_error( "Corrupted inverted outgoing connection map remote side" );
+                  }
                 }
               }
             }
@@ -2588,11 +2600,13 @@ extern "C"
       const auto local_rank = static_cast< int >( capi.get_rank() );
       if ( !conn_map_ptr->outgoing_connections_.empty() )
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->outgoing_connections_ )
-          create_spatial_connections( local_rank, static_cast< int >( remote_rank ), tile_connection_info, is_remote );
+          for ( auto& conn_vec : tile_connection_info.source_unique_connection_vectors_ )
+            create_spatial_connections( local_rank, static_cast< int >( remote_rank ), conn_vec, is_remote );
 
       if ( !conn_map_ptr->incoming_connections_.empty() )
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->incoming_connections_ )
-          create_spatial_connections( static_cast< int >( remote_rank ), local_rank, tile_connection_info, is_remote );
+          for ( auto& conn_vec : tile_connection_info.source_unique_connection_vectors_ )
+            create_spatial_connections( static_cast< int >( remote_rank ), local_rank, conn_vec, is_remote );
 
       opt.second_ = conn_index;
       opt.first_ = true;

@@ -261,14 +261,22 @@ inline void copy_to_conn_pair_array_from_conn_info_map(
         rank_ntm_pp->first_ = rank;
         rank_ntm_pp->second_.resize( tile_ci.total_generated_connections_, gc );
 
-        for ( count_t conn_idx = 0; conn_idx < tile_ci.total_generated_connections_; ++conn_idx )
+        count_t total_conn_idx = 0;
+        for ( const auto& conn_vec : tile_ci.source_unique_connection_vectors_ )
         {
-            const auto ci_struct_p = &rank_ntm_pp->second_.array_[ conn_idx ];
-            ci_struct_p->source_index_ = tile_ci.connection_sources_[ conn_idx ];
-            ci_struct_p->target_index_ = tile_ci.connection_targets_[ conn_idx ];
-            ci_struct_p->connection_weight_ = tile_ci.connection_weights_[ conn_idx ];
-            ci_struct_p->connection_delay_ = tile_ci.connection_delays_[ conn_idx ];
+            for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
+            {
+                const auto ci_struct_p = &rank_ntm_pp->second_.array_[ total_conn_idx + conn_idx ];
+                ci_struct_p->source_index_ = conn_vec.connection_sources_[ conn_idx ];
+                ci_struct_p->target_index_ = conn_vec.connection_targets_[ conn_idx ];
+                ci_struct_p->connection_weight_ = conn_vec.connection_weights_[ conn_idx ];
+                ci_struct_p->connection_delay_ = conn_vec.connection_delays_[ conn_idx ];
+            }
+            total_conn_idx += conn_vec.sizes_;
         }
+
+        if ( total_conn_idx != tile_ci.total_generated_connections_ )
+            throw std::runtime_error( "Corrupted ConnectionInfoArray" );
     }
 }
 
