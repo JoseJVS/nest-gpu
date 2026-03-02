@@ -2253,6 +2253,7 @@ extern "C"
     BEGIN_ERR_PROP
     {
       capi.set_rng_seed( seed );
+    NESTGPU_instance->SetRandomSeed( seed );
       return true;
     }
       END_ERR_PROP
@@ -2407,8 +2408,7 @@ extern "C"
       const auto emplace_it = spatial_node_sequence_map.emplace(
         std::make_pair(
           std::size_t( pair.second_.first_ ),
-          std::move( rank_map
-          )
+          std::move( rank_map )
         )
       );
       if ( !emplace_it.second )
@@ -2526,20 +2526,23 @@ extern "C"
         conn_params
       );
 
-      const auto dist_tns_source_it = spatial_node_sequence_map.find( dist_tns_source_index );
-      const auto dist_tns_target_it = spatial_node_sequence_map.find( dist_tns_target_index );
-      if ( dist_tns_source_it == spatial_node_sequence_map.end() ||
-        dist_tns_target_it == spatial_node_sequence_map.end() )
+      const std::array< std::unordered_map< std::size_t, sapi::RankNodeSequenceMap >::iterator, 2 >
+        dtns_it_array = {
+          spatial_node_sequence_map.find( dist_tns_source_index ),
+          spatial_node_sequence_map.find( dist_tns_target_index )
+      };
+      if ( std::any_of( dtns_it_array.cbegin(), dtns_it_array.cend(),
+        [ & ]( const auto& it ) { return it == spatial_node_sequence_map.end(); } ) )
         throw std::runtime_error( "Corrupted spatial node sequence map" );
 
-      bool is_source = true;
+      uint8_t idx = 0;
       const auto host_str = "RANK " + std::to_string( capi.get_rank() ) +
         std::string( ": checking spatial node sequence maps on " );
-      for ( const auto dtns_it : { dist_tns_source_it, dist_tns_target_it } )
+      for ( const auto dtns_it : dtns_it_array )
       {
-        const auto check_incoming = is_source == conn_params.inverted_conn_rule_;
+        const auto check_incoming = ( idx == 0 ) == conn_params.inverted_conn_rule_;
         if ( const auto local_ns = dtns_it->second.find( capi.get_rank() );
-          local_ns != dist_tns_source_it->second.end() )
+          local_ns != dtns_it->second.end() )
         {
           std::cout << host_str +
             std::string( check_incoming ? "incoming connections\n" : "outgoing connections\n" );
@@ -2548,7 +2551,7 @@ extern "C"
           for ( const auto& [rank, conn_map] : check_incoming
             ? conn_map_ptr->incoming_connections_ : conn_map_ptr->outgoing_connections_ )
           {
-            const auto rank_ns = &dist_tns_target_it->second.at( rank );
+            const auto rank_ns = &dtns_it_array[ ( idx + 1 ) % 2 ]->second.at( rank );
             const auto first_remote = rank_ns->first;
             const auto one_after_last_remote = first_remote + rank_ns->second;
             for ( sapi::count_t idx = 0; idx < conn_map.total_generated_connections_; ++idx )
@@ -2573,7 +2576,7 @@ extern "C"
             }
           }
         }
-        is_source = false;
+        ++idx;
       }
 
       const bool is_remote = 1 < capi.get_num_processes();
