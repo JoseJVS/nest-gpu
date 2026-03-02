@@ -1,6 +1,8 @@
 import logging
 import sys
+import typing
 from argparse import ArgumentParser
+from functools import reduce
 from traceback import format_exc
 
 LOG = logging.getLogger(__name__)
@@ -20,6 +22,20 @@ parser.add_argument("--beta", type=float, default=0.2)
 parser.add_argument("--rng_seed", type=int, default=12345)
 parser.add_argument("--verbosity", type=int, default=20)
 args = parser.parse_args()
+
+
+def middle_factors(n: int) -> typing.Tuple[int, int]:
+    step = 2 if n % 2 else 1
+    factors = reduce(
+        list.__add__,
+        ([i, n // i] for i in range(1, int(np.sqrt(n)) + 1, step) if n % i == 0),
+    )
+    # Should be at least 4 and a multiple of 2 as duplicates are not removed and pairs of factors are inserted
+    if (
+        len(factors) < 4
+    ):  # Under above premise only 1 and N are in list if this condition is true
+        return 1, n
+    return factors[-2], factors[-1]
 
 
 def update_verbosity():
@@ -52,18 +68,19 @@ def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
 
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
-    nestgpu.SetBoolParam("check_node_maps", True)
+    nestgpu.SetBoolParam("check_node_maps", False)
 
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
+    width, length = middle_factors(num_processes)
 
-    LOG.info("RANK %i: generating 1x1 tile grid", local_rank)
+    LOG.info("RANK %i: generating %ix%i tile grid", local_rank, width, length)
     nestgpu.generate_tile_grid(
         (0, 0),
-        (1, 1),
+        (width, length),
         "Square",
-        (1, 0),
-        [{0} for r in range(num_processes)],
+        (0.5, 0),
+        [{r} for r in range(num_processes)],
         compute_num_splits("Square", args.total_nodes, 1),
         args.edge_wrap,
     )
