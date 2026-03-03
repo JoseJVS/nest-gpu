@@ -68,7 +68,7 @@ def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
 
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
-    nestgpu.SetBoolParam("check_node_maps", False)
+    nestgpu.SetBoolParam("check_node_maps", True)
 
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
