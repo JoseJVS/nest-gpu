@@ -302,7 +302,7 @@ vertidx_t sort_vertices(
                 almost_equal_n2[ vix - 1 ] = true;
                 ++equal_n2;
             }
-            else if ( leq_test( largest_n2, edge_n2[ vix ] ) )
+            else if ( largest_n2 < edge_n2[ vix ] )
             {
                 A_vix = vix;
                 B_vix = vix_next;
