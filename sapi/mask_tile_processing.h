@@ -1,25 +1,3 @@
-/*
- *  mask_tile_processing.h
- *
- *  This file is part of NEST GPU.
- *
- *  Copyright (C) 2021 The NEST Initiative
- *
- *  NEST GPU is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  NEST GPU is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
- *
- */
-
 #ifndef MASK_TILE_PROCESSING_H
 #define MASK_TILE_PROCESSING_H
 
@@ -57,10 +35,11 @@ bool tile_overlap(
 template < typename CoordT >
 void insert_leaf_tiles_within_range(
     std::forward_list< LeafPairInfo< CoordT > >& lpi_list,
+    std::vector< bool >& used_image_indexes,
     const Tile< CoordT >* const& driver,
     const Tile< CoordT >* const& pool,
-    const tileidx_t& shifted_image_index,
-    const std::optional< CoordT >& shift_displacement,
+    const tileidx_t& image_index,
+    const std::optional< CoordT >& image_displacement,
     const TAArray< MaskCollection< CoordT > >& mc_array,
     const bool& inverted_connection_rule,
     const bool& inverted_source_target,
@@ -82,12 +61,15 @@ void insert_leaf_tiles_within_range(
             inverted_connection_rule
             ? driver->index_
             : pool->index_,
-            shifted_image_index,
-            shift_displacement
+            image_index,
+            image_displacement
         );
 
 #pragma omp critical
-        lpi_list.emplace_front( std::move( lpi ) );
+        {
+            used_image_indexes[ image_index ] = true;
+            lpi_list.emplace_front( std::move( lpi ) );
+        }
     }
     else
     {
@@ -103,9 +85,9 @@ void insert_leaf_tiles_within_range(
         const auto rem_splits = 0 < splits ? splits - 1 : 0;
 
 #pragma omp taskloop collapse( 2 ) grainsize( 1 ) default( none )\
-    shared( lpi_list, mc_array )\
+    shared( lpi_list, used_image_indexes, mc_array )\
     firstprivate( d_st_count, d_sub_tiles, p_st_count, p_sub_tiles,\
-        shifted_image_index, shift_displacement,\
+        image_index, image_displacement,\
         inverted_connection_rule, inverted_source_target, rem_splits )\
     mergeable final( rem_splits < 2 )
         for ( vertidx_t d_st = 0; d_st < d_st_count; ++d_st )
@@ -116,14 +98,15 @@ void insert_leaf_tiles_within_range(
                 const auto st_pool = p_sub_tiles[ p_st ].get();
                 if ( tile_overlap(
                     st_driver, st_pool, mc_array.get_local_thread_item().get(),
-                    shift_displacement.has_value(), inverted_source_target ) )
+                    image_displacement.has_value(), inverted_source_target ) )
                 {
                     insert_leaf_tiles_within_range(
                         lpi_list,
+                        used_image_indexes,
                         st_driver,
                         st_pool,
-                        shifted_image_index,
-                        shift_displacement,
+                        image_index,
+                        image_displacement,
                         mc_array,
                         inverted_connection_rule,
                         inverted_source_target,
@@ -139,10 +122,31 @@ void insert_leaf_tiles_within_range(
 template < typename CoordT >
 void aggregate_leaf_pairs(
     TilePairInfo< CoordT >& tpi,
-    const tileidx_t& num_images
+    const std::vector< bool >& used_image_indexes
 )
 {
-    assert( 0 < num_images );
+    const tileidx_t valid_images = std::accumulate(
+        used_image_indexes.cbegin(), used_image_indexes.cend(),
+        0, std::plus< tileidx_t >()
+    );
+
+    if ( valid_images < 1 )
+    {
+        assert( tpi.flattened_leaf_pairs_.empty() );
+        return;
+    }
+
+    tileidx_t shifted_index = 0;
+    std::vector< tileidx_t > index_shifts( used_image_indexes.size(), -1 );
+    std::transform(
+        used_image_indexes.cbegin(),
+        used_image_indexes.cend(),
+        index_shifts.begin(),
+        [ & ]( const auto& is_used )
+        { return is_used ? shifted_index++ : -1; }
+    );
+
+    assert( shifted_index == valid_images );
 
     auto leaf_pair_move_it = std::make_move_iterator( tpi.flattened_leaf_pairs_.begin() );
     while ( !tpi.flattened_leaf_pairs_.empty() )
@@ -150,16 +154,19 @@ void aggregate_leaf_pairs(
         auto [
             source_idx,
             target_idx,
-            shifted_image_index,
-            shift_displacement
+            image_index,
+            image_displacement
         ] = *leaf_pair_move_it++;
         tpi.flattened_leaf_pairs_.pop_front();
+
+        const auto shifted_index = index_shifts[ image_index ];
+        assert( 0 <= shifted_index );
 
         const auto source_leaf_it = tpi.aggregated_leaf_pairs_.find( source_idx );
         if ( source_leaf_it == tpi.aggregated_leaf_pairs_.end() )
         {
-            std::vector< std::optional< CoordT > > shift_displacements( num_images );
-            shift_displacements[ shifted_image_index ] = std::move( shift_displacement );
+            std::vector< std::optional< CoordT > > shift_displacements( valid_images );
+            shift_displacements[ shifted_index ] = std::move( image_displacement );
 
             std::unordered_map< tileidx_t,
                 std::vector< std::optional< CoordT > > > target_leaf_map;
@@ -183,8 +190,8 @@ void aggregate_leaf_pairs(
         const auto target_leaf_it = source_leaf_it->second.find( target_idx );
         if ( target_leaf_it == source_leaf_it->second.end() )
         {
-            std::vector< std::optional< CoordT > > shift_displacements( num_images );
-            shift_displacements[ shifted_image_index ] = std::move( shift_displacement );
+            std::vector< std::optional< CoordT > > shift_displacements( valid_images );
+            shift_displacements[ shifted_index ] = std::move( image_displacement );
 
             source_leaf_it->second.emplace(
                 std::make_pair(
@@ -196,7 +203,7 @@ void aggregate_leaf_pairs(
             continue;
         }
 
-        target_leaf_it->second[ shifted_image_index ] = std::move( shift_displacement );
+        target_leaf_it->second[ shifted_index ] = std::move( image_displacement );
     }
 }
 
@@ -215,10 +222,11 @@ void tile_pair_overlap(
 {
     assert( tpi.aggregated_leaf_pairs_.empty() );
 
-    tileidx_t valid_images = 0;
+    tileidx_t image_index = 0;
     const auto driver_tile = driver_tile_pos.tile_.get(); // using unique_ptr::get
     const auto pool_tile = pool_tile_pos.tile_.get();
     const auto mask_collection = mc_array.get_local_thread_item().get();
+    std::vector< bool > used_image_indexes;
 
 #pragma omp taskgroup
     driver_tile->initialize_sub_tiles( splits );
@@ -226,6 +234,7 @@ void tile_pair_overlap(
     if ( edge_wrap )
     {
         assert( !pool_tile_pos.grid_images_.empty() );
+        used_image_indexes.resize( pool_tile_pos.grid_images_.size(), false );
 
 #pragma omp taskgroup
         for ( const auto& pool_image : pool_tile_pos.grid_images_ )
@@ -242,14 +251,15 @@ void tile_pair_overlap(
 #pragma omp taskgroup
             tile_image->initialize_sub_tiles( splits );
 
-#pragma omp task default( none ) shared( pool_image, tpi, mc_array )\
-            firstprivate( valid_images, driver_tile, tile_image,\
+#pragma omp task default( none ) shared( pool_image, tpi, used_image_indexes, mc_array )\
+            firstprivate( image_index, driver_tile, tile_image,\
                 inverted_connection_rule, inverted_source_target, splits )
             insert_leaf_tiles_within_range(
                 tpi.flattened_leaf_pairs_,
+                used_image_indexes,
                 driver_tile,
                 tile_image,
-                valid_images,
+                image_index,
                 pool_image.shift_displacement_,
                 mc_array,
                 inverted_connection_rule,
@@ -257,7 +267,7 @@ void tile_pair_overlap(
                 0 < splits ? splits - 1 : 0
             );
 
-            ++valid_images;
+            ++image_index;
         }
     }
     else
@@ -267,15 +277,18 @@ void tile_pair_overlap(
             )
             return;
 
+        used_image_indexes.resize( 1, false );
+
 #pragma omp taskgroup
         pool_tile->initialize_sub_tiles( splits );
 
 #pragma omp taskgroup
         insert_leaf_tiles_within_range(
             tpi.flattened_leaf_pairs_,
+            used_image_indexes,
             driver_tile,
             pool_tile,
-            valid_images++,
+            image_index++,
             std::optional< CoordT >(),
             mc_array,
             inverted_connection_rule,
@@ -284,9 +297,9 @@ void tile_pair_overlap(
         );
     }
 
-    if ( 0 < valid_images )
-#pragma omp task default( none ) shared( tpi ) firstprivate( valid_images )
-        aggregate_leaf_pairs( tpi, valid_images );
+    if ( !used_image_indexes.empty() )
+#pragma omp task default( none ) shared( tpi ) firstprivate( used_image_indexes )
+        aggregate_leaf_pairs( tpi, used_image_indexes );
 }
 
 
