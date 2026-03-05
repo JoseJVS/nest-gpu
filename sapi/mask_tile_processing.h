@@ -57,7 +57,7 @@ bool tile_overlap(
 template < typename CoordT >
 void insert_leaf_tiles_within_range(
     std::forward_list< LeafPairInfo< CoordT > >& lpi_list,
-    std::vector< bool >& used_image_indexes,
+    tileidx_t& used_image_indexes,
     const Tile< CoordT >* const& driver,
     const Tile< CoordT >* const& pool,
     const tileidx_t& image_index,
@@ -87,11 +87,11 @@ void insert_leaf_tiles_within_range(
             image_displacement
         );
 
+#pragma omp atomic
+        used_image_indexes |= 1 << image_index;
+
 #pragma omp critical
-        {
-            used_image_indexes[ image_index ] = true;
-            lpi_list.emplace_front( std::move( lpi ) );
-        }
+        lpi_list.emplace_front( std::move( lpi ) );
     }
     else
     {
@@ -144,31 +144,23 @@ void insert_leaf_tiles_within_range(
 template < typename CoordT >
 void aggregate_leaf_pairs(
     TilePairInfo< CoordT >& tpi,
-    const std::vector< bool >& used_image_indexes
+    const tileidx_t& used_image_indexes,
+    const tileidx_t& total_image_indexes
 )
 {
-    const tileidx_t valid_images = std::accumulate(
-        used_image_indexes.cbegin(), used_image_indexes.cend(),
-        0, std::plus< tileidx_t >()
-    );
-
-    if ( valid_images < 1 )
-    {
-        assert( tpi.flattened_leaf_pairs_.empty() );
+    if ( tpi.flattened_leaf_pairs_.empty() )
         return;
+
+    std::vector< tileidx_t > index_shifts( total_image_indexes, -1 );
+
+    tileidx_t valid_images = 0;
+    for ( tileidx_t index = 0; index < total_image_indexes; ++index )
+    {
+        if ( 0 < ( used_image_indexes & 1 << index ) )
+            index_shifts[ index ] = valid_images++;
     }
 
-    tileidx_t shifted_index = 0;
-    std::vector< tileidx_t > index_shifts( used_image_indexes.size(), -1 );
-    std::transform(
-        used_image_indexes.cbegin(),
-        used_image_indexes.cend(),
-        index_shifts.begin(),
-        [ & ]( const auto& is_used )
-        { return is_used ? shifted_index++ : -1; }
-    );
-
-    assert( shifted_index == valid_images );
+    assert( 0 < valid_images );
 
     auto leaf_pair_move_it = std::make_move_iterator( tpi.flattened_leaf_pairs_.begin() );
     while ( !tpi.flattened_leaf_pairs_.empty() )
@@ -245,10 +237,10 @@ void tile_pair_overlap(
     assert( tpi.aggregated_leaf_pairs_.empty() );
 
     tileidx_t image_index = 0;
+    tileidx_t used_image_indexes = 0;
     const auto driver_tile = driver_tile_pos.tile_.get(); // using unique_ptr::get
     const auto pool_tile = pool_tile_pos.tile_.get();
     const auto mask_collection = mc_array.get_local_thread_item().get();
-    std::vector< bool > used_image_indexes;
 
 #pragma omp taskgroup
     driver_tile->initialize_sub_tiles( splits );
@@ -256,7 +248,6 @@ void tile_pair_overlap(
     if ( edge_wrap )
     {
         assert( !pool_tile_pos.grid_images_.empty() );
-        used_image_indexes.resize( pool_tile_pos.grid_images_.size(), false );
 
 #pragma omp taskgroup
         for ( const auto& pool_image : pool_tile_pos.grid_images_ )
@@ -299,8 +290,6 @@ void tile_pair_overlap(
             )
             return;
 
-        used_image_indexes.resize( 1, false );
-
 #pragma omp taskgroup
         pool_tile->initialize_sub_tiles( splits );
 
@@ -319,9 +308,9 @@ void tile_pair_overlap(
         );
     }
 
-    if ( !used_image_indexes.empty() )
-#pragma omp task default( none ) shared( tpi ) firstprivate( used_image_indexes )
-        aggregate_leaf_pairs( tpi, used_image_indexes );
+    if ( 0 < image_index )
+#pragma omp task default( none ) shared( tpi ) firstprivate( used_image_indexes, image_index )
+        aggregate_leaf_pairs( tpi, used_image_indexes, image_index );
 }
 
 
