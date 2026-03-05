@@ -3337,7 +3337,6 @@ _nestgpu.generate_tile_grid.argtypes = (
     ctypes.POINTER(ll_sapi.SpaceTArray),
     ctypes.POINTER(ll_sapi.NestedTileIdxArray),
     ll_sapi.split_t,
-    ctypes.c_bool,
 )
 _nestgpu.generate_tile_grid.restype = ctypes.c_bool
 
@@ -3457,7 +3456,6 @@ def generate_tile_grid(
     tile_params: typing.Collection[float],
     rank_tile_owner_ship: typing.Collection[typing.Set[int]],
     splits: int,
-    edge_wrap: bool,
 ) -> None:
     if not (2 <= len(grid_origin) == len(grid_dimensions) <= 3):
         raise ValueError("Invalid grid dimensions")
@@ -3477,7 +3475,6 @@ def generate_tile_grid(
         ctypes.byref(tp_arr),
         ctypes.byref(rto_arr),
         ll_sapi.safe_convert_to_c(ll_sapi.split_t, splits),
-        ll_sapi.safe_convert_to_c(ctypes.c_bool, edge_wrap),
     )
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())

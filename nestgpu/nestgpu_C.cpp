@@ -2287,8 +2287,7 @@ extern "C"
     const sapi::CharArray& tile_type,
     const sapi::SpaceTArray& tile_params,
     const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
-    sapi::split_t num_splits,
-    bool edge_wrap
+    sapi::split_t num_splits
   )
   {
     BEGIN_ERR_PROP
@@ -2299,8 +2298,7 @@ extern "C"
         tile_type,
         tile_params,
         rank_tiles_ownership_map,
-        num_splits,
-        edge_wrap
+        num_splits
       );
       return true;
     }

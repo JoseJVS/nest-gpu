@@ -443,8 +443,7 @@ extern "C"
     const sapi::CharArray& tile_type,
     const sapi::SpaceTArray& tile_params,
     const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
-    sapi::split_t num_splits,
-    bool edge_wrap
+    sapi::split_t num_splits
   );
 
   sapi::PairT< bool, sapi::SpatialNodeSequence >
