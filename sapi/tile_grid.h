@@ -84,8 +84,9 @@ struct TilePosition
 {
     GridPosition< CoordT > position_;
     std::unique_ptr< Tile< CoordT > > tile_;
-    std::unordered_set< tileidx_t > tile_neighborhood_;
     std::vector< ShiftedImage< CoordT > > grid_images_;
+    std::unordered_set< tileidx_t > direct_tile_neighborhood_;
+    std::unordered_set< tileidx_t > wrapped_tile_neighborhood_;
 
     TilePosition() = default;
     TilePosition( const TilePosition& ) = delete;
@@ -95,6 +96,13 @@ struct TilePosition
     TilePosition& operator=( TilePosition&& );
 
     const Tile< CoordT >* get_tile() const;
+
+    const std::unordered_set< tileidx_t >&
+        get_tile_neighborhood( const bool& edge_wrap ) const;
+
+    bool in_neighborhood(
+        const tileidx_t& index, const bool& edge_wrap
+    ) const;
 
     std::string to_string() const;
 
@@ -107,8 +115,9 @@ inline TilePosition< CoordT >& TilePosition< CoordT >::operator=( TilePosition&&
 {
     position_ = std::move( tp.position_ );
     tile_ = std::move( tp.tile_ );
-    tile_neighborhood_ = std::move( tp.tile_neighborhood_ );
     grid_images_ = std::move( tp.grid_images_ );
+    direct_tile_neighborhood_ = std::move( tp.direct_tile_neighborhood_ );
+    wrapped_tile_neighborhood_ = std::move( tp.wrapped_tile_neighborhood_ );
 
     return *this;
 }
@@ -123,12 +132,32 @@ inline const Tile< CoordT >* TilePosition< CoordT >::get_tile() const
 
 
 template < typename CoordT >
+const std::unordered_set< tileidx_t >&
+TilePosition< CoordT >::get_tile_neighborhood( const bool& edge_wrap ) const
+{
+    return edge_wrap ? wrapped_tile_neighborhood_ : direct_tile_neighborhood_;
+}
+
+
+template < typename CoordT >
+bool TilePosition< CoordT >::in_neighborhood(
+    const tileidx_t& index, const bool& edge_wrap
+) const
+{
+    if ( edge_wrap )
+        return wrapped_tile_neighborhood_.find( index ) != wrapped_tile_neighborhood_.end();
+    else
+        return direct_tile_neighborhood_.find( index ) != direct_tile_neighborhood_.end();
+}
+
+
+template < typename CoordT >
 std::string TilePosition< CoordT >::to_string() const
 {
     assert( tile_ );
     std::string res = tile_->c_radius_.origin_.to_string() + ": [ ";
-    auto num_neighbors = tile_neighborhood_.size();
-    for ( const auto& neighbor_index : tile_neighborhood_ )
+    auto num_neighbors = wrapped_tile_neighborhood_.size();
+    for ( const auto& neighbor_index : wrapped_tile_neighborhood_ )
         res += std::to_string( neighbor_index ) +
         ( num_neighbors-- > 1 ? ", " : " ]" );
 
@@ -141,7 +170,8 @@ inline bool TilePosition< CoordT >::operator==( const TilePosition& tp ) const
 {
     return position_ == tp.position_ &&
         *tile_ == *tp.tile_ &&
-        tile_neighborhood_ == tp.tile_neighborhood_ &&
+        direct_tile_neighborhood_ == tp.direct_tile_neighborhood_ &&
+        wrapped_tile_neighborhood_ == tp.wrapped_tile_neighborhood_ &&
         grid_images_ == tp.grid_images_;
 }
 
@@ -152,7 +182,6 @@ struct TileGrid
     split_t splits_ = 0;
     bool has_split_ = false;
     tileidx_t num_tiles_ = 0;
-    bool is_edge_wrapped_ = false;
     GridPosition< CoordT > dimensions_;
     BoundingBox< CoordT > bounding_box_;
     std::vector< TilePosition< CoordT > > positions_;
@@ -203,8 +232,6 @@ TileGrid< CoordT >& TileGrid< CoordT >::operator=( TileGrid&& tg )
     tg.has_split_ = false;
     num_tiles_ = tg.num_tiles_;
     tg.num_tiles_ = 0;
-    is_edge_wrapped_ = tg.is_edge_wrapped_;
-    tg.is_edge_wrapped_ = false;
 
     dimensions_ = std::move( tg.dimensions_ );
     bounding_box_ = std::move( tg.bounding_box_ );

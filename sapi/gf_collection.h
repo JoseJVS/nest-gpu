@@ -60,7 +60,7 @@ public:
     GFCollection& operator=( GFCollection&& );
 
     bool is_initialized() const;
-    bool check_dimensions( const bool& edge_wrap ) const;
+    bool check_dimensions() const;
     std::unique_ptr< GFCollection > clone() const override;
 
     const CoordT& get_grid_origin() const;
@@ -161,11 +161,10 @@ inline bool GFCollection< CoordT >::is_initialized() const
 
 
 template < typename CoordT >
-inline bool GFCollection< CoordT >::check_dimensions( const bool& edge_wrap ) const
+inline bool GFCollection< CoordT >::check_dimensions() const
 {
     return ctc_->check_dimensions(
-        grid_dimensions_,
-        edge_wrap
+        grid_dimensions_
     );
 }
 

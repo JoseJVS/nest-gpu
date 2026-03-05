@@ -125,8 +125,7 @@ void sapi::CAPI::generate_tile_grid(
     const CharArray& tile_type,
     const SpaceTArray& tile_params,
     const NestedTileIdxArray& rank_tiles_ownership_map,
-    const split_t& num_splits,
-    const bool& edge_wrap
+    const split_t& num_splits
 )
 {
     if ( manager_initialized() )
@@ -163,8 +162,7 @@ void sapi::CAPI::generate_tile_grid(
         charray_to_string( tile_type ),
         array_to_vector( tile_params ),
         nested_array_to_set_vector( rank_tiles_ownership_map ),
-        num_splits,
-        edge_wrap
+        num_splits
     );
 }
 

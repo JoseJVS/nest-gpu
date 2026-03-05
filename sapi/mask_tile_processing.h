@@ -1,3 +1,25 @@
+/*
+ *  mask_tile_processing.h
+ *
+ *  This file is part of NEST GPU.
+ *
+ *  Copyright (C) 2021 The NEST Initiative
+ *
+ *  NEST GPU is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  NEST GPU is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #ifndef MASK_TILE_PROCESSING_H
 #define MASK_TILE_PROCESSING_H
 
@@ -524,9 +546,7 @@ void rank_pair_overlap(
 #pragma omp taskgroup
         for ( const auto& [target_tile_index, target_node_sequence] : tns_target )
         {
-            if ( only_neighborhood &&
-                source_tile_pos->tile_neighborhood_.find( target_tile_index ) ==
-                source_tile_pos->tile_neighborhood_.end() )
+            if ( only_neighborhood && !source_tile_pos->in_neighborhood( target_tile_index, edge_wrap ) )
                 continue;
 
             const auto target_tile_pos = tile_grid.positions_.cbegin() + target_tile_index;
@@ -620,8 +640,7 @@ void distributed_overlap(
     {
         const auto is_remote = rank != grid_neighborhood.local_rank_;
         if ( only_neighborhood && is_remote &&
-            grid_neighborhood.local_rank_neighbors_->find( rank ) ==
-            grid_neighborhood.local_rank_neighbors_->end() )
+            !grid_neighborhood.in_neighborhood( rank, edge_wrap) )
             continue;
 
         const auto emplace_it = rpi_map.emplace(
@@ -671,8 +690,7 @@ compute_distributed_tile_overlap(
         grid_neighborhood.has_owners_ &&
         !grid_node_col.tiles_node_coord_map_.empty() &&
         mc_array.is_initialized() &&
-        mc_array.get_local_thread_item()->has_blueprint() &&
-        edge_wrap <= tile_grid.is_edge_wrapped_
+        mc_array.get_local_thread_item()->has_blueprint()
     );
 
     bool is_source = false;

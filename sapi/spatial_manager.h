@@ -63,8 +63,7 @@ public:
         const std::string& tile_type,
         const std::vector< space_t >& tile_params,
         std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
-        const split_t& num_splits,
-        const bool& edge_wrap
+        const split_t& num_splits
     ) = 0;
 
     virtual NodeCountVector
@@ -197,8 +196,7 @@ public:
         const std::string& tile_type,
         const std::vector< space_t >& tile_params,
         std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
-        const split_t& num_splits,
-        const bool& edge_wrap
+        const split_t& num_splits
     ) override;
 
     NodeCountVector
@@ -323,8 +321,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
     const std::string& tile_type,
     const std::vector< space_t >& tile_params,
     std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
-    const split_t& num_splits,
-    const bool& edge_wrap
+    const split_t& num_splits
 )
 {
     if ( initialized_grid_ )
@@ -343,7 +340,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
         ctc_registry_
     );
 
-    if ( !gc.check_dimensions( edge_wrap ) )
+    if ( !gc.check_dimensions() )
         throw std::invalid_argument(
             "Grid cannot be instantiated with the dimension | rotation | edge wrapping combination"
         );
@@ -352,8 +349,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
 
     tile_grid_ = generate_tile_grid(
         gc.get_grid_dimensions(),
-        gc_array_,
-        edge_wrap
+        gc_array_
     );
 
     ggt->stop();

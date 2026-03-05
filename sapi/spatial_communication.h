@@ -100,8 +100,6 @@ compute_distributed_spatial_connections(
 {
     if ( !mc_array.get_local_thread_item()->has_blueprint() )
         throw std::invalid_argument( "Spatial connections require mask blueprints" );
-    if ( !tile_grid.is_edge_wrapped_ && edge_wrap )
-        throw std::invalid_argument( "Edge wrapped connections require edge wrapped grid" );
 
     const auto connect_timer = timer_register.get_register_timer( "compute_distributed_spatial_connections_time" );
     connect_timer->start();

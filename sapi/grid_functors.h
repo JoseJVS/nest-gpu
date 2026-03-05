@@ -107,8 +107,7 @@ struct BaseCachedTileCreator : public Clonable< BaseCachedTileCreator< CoordT > 
     }
 
     virtual bool check_dimensions(
-        const GridPosition< CoordT >& grid_dimensions,
-        const bool& edge_wrap
+        const GridPosition< CoordT >& grid_dimensions
     ) const = 0;
 
     virtual std::unique_ptr< Tile< CoordT > > create_tile(

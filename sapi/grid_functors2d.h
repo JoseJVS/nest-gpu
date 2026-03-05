@@ -222,11 +222,10 @@ struct SquareCTC : public BaseCachedTile2DCreator< SquareCTC >
     }
 
     bool check_dimensions(
-        const GridPosition< Coord2D >& grid_dimensions,
-        const bool& edge_wrap
+        const GridPosition< Coord2D >& grid_dimensions
     ) const override
     {
-        if ( ( edge_wrap || ( grid_dimensions[ 0 ] + grid_dimensions[ 1 ] > 2 ) )
+        if ( ( grid_dimensions[ 0 ] + grid_dimensions[ 1 ] > 2 )
             && ( int64_t( rotation_ ) % 45 != 0 ) )
             return false;
 
@@ -263,16 +262,15 @@ struct TriangleCTC : public BaseCachedTile2DCreator< TriangleCTC >
     }
 
     bool check_dimensions(
-        const GridPosition< Coord2D >& grid_dimensions,
-        const bool& edge_wrap
+        const GridPosition< Coord2D >& grid_dimensions
     ) const override
     {
         const bool many_tiles = grid_dimensions[ 0 ] + grid_dimensions[ 1 ] > 2;
-        if ( !edge_wrap && !many_tiles )
+        if ( !many_tiles )
             return true;
-        if ( ( edge_wrap || many_tiles ) && ( int64_t( mirrored_rotation_ ) % 180 != 0 ) )
+        if ( many_tiles && ( int64_t( mirrored_rotation_ ) % 180 != 0 ) )
             return false;
-        if ( edge_wrap && many_tiles && ( grid_dimensions[ 0 ] % 2 != 0 ) )
+        if ( many_tiles && ( grid_dimensions[ 0 ] % 2 != 0 ) )
             return false;
 
         return true;
@@ -305,16 +303,15 @@ struct HexagonCTC : public BaseCachedTile2DCreator< HexagonCTC >
     }
 
     bool check_dimensions(
-        const GridPosition< Coord2D >& grid_dimensions,
-        const bool& edge_wrap
+        const GridPosition< Coord2D >& grid_dimensions
     ) const override
     {
         const bool many_tiles = grid_dimensions[ 0 ] + grid_dimensions[ 1 ] > 2;
-        if ( !edge_wrap && !many_tiles )
+        if ( !many_tiles )
             return true;
-        if ( ( edge_wrap || many_tiles ) && ( int64_t( rotation_ ) % 30 != 0 ) )
+        if ( many_tiles && ( int64_t( rotation_ ) % 30 != 0 ) )
             return false;
-        if ( edge_wrap && many_tiles && ( grid_dimensions[ 1 ] % 2 != 0 ) )
+        if ( many_tiles && ( grid_dimensions[ 1 ] % 2 != 0 ) )
             return false;
 
         return true;

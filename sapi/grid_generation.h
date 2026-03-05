@@ -180,8 +180,7 @@ template < typename CoordT >
 void insert_neighbor(
     TilePosition< CoordT >& tile_pos,
     const GridShift< CoordT >& grid_shift,
-    const GFCollection< CoordT >* const& gf_collection,
-    const bool& edge_wrap
+    const GFCollection< CoordT >* const& gf_collection
 )
 {
     GridPosition< CoordT > neighbor_position;
@@ -201,12 +200,18 @@ void insert_neighbor(
         is_wrapped |= ews.second;
     }
 
-    if ( !edge_wrap && is_wrapped )
-        return;
-
-    tile_pos.tile_neighborhood_.insert(
-        gf_collection->get_index( neighbor_position )
-    );
+    if ( is_wrapped )
+    {
+        tile_pos.wrapped_tile_neighborhood_.insert(
+            gf_collection->get_index( neighbor_position )
+        );
+    }
+    else
+    {
+        const auto index = gf_collection->get_index( neighbor_position );
+        tile_pos.direct_tile_neighborhood_.insert( index );
+        tile_pos.wrapped_tile_neighborhood_.insert( index );
+    }
 }
 
 
@@ -214,8 +219,7 @@ template < typename CoordT >
 void generate_tile_position(
     std::vector< TilePosition< CoordT > >& positions,
     const GridPosition< CoordT >& grid_position,
-    const GFCollection< CoordT >* const& gf_collection,
-    const bool& edge_wrap
+    const GFCollection< CoordT >* const& gf_collection
 )
 {
     GridPositionParity< CoordT > position_parity;
@@ -236,16 +240,14 @@ void generate_tile_position(
         position_parity
     );
 
-    if ( edge_wrap )
-        generate_grid_images( tile_pos, gf_collection );
+    generate_grid_images( tile_pos, gf_collection );
 
     for ( const auto& shift :
         gf_collection->get_grid_shifts()->position_independent_shifts_ )
         insert_neighbor(
             tile_pos,
             shift,
-            gf_collection,
-            edge_wrap
+            gf_collection
         );
 
     auto parity_it = position_parity.cbegin();
@@ -256,8 +258,7 @@ void generate_tile_position(
             insert_neighbor(
                 tile_pos,
                 shift,
-                gf_collection,
-                edge_wrap
+                gf_collection
             );
 
     positions[ gf_collection->get_index( grid_position ) ] = std::move( tile_pos );
@@ -427,19 +428,16 @@ generate_bounding_box_tree(
 template < typename CoordT >
 TileGrid< CoordT > generate_tile_grid(
     const GridPosition< CoordT >& grid_dimensions,
-    const TAArray< GFCollection< CoordT > >& gc_array,
-    const bool& edge_wrap
+    const TAArray< GFCollection< CoordT > >& gc_array
 )
 {
     assert( gc_array.is_initialized() );
 
     auto navigator = DimensionalNavigator< CoordT >( grid_dimensions );
     auto grid = TileGrid< CoordT >( grid_dimensions );
-    grid.is_edge_wrapped_ = edge_wrap;
 
 #pragma omp parallel default( none )\
-shared( grid, navigator, gc_array )\
-firstprivate( edge_wrap )
+shared( grid, navigator, gc_array )
 #pragma omp master
 #pragma omp taskgroup
     for ( auto position_next_pair = navigator.get_pos_and_advance();
@@ -447,12 +445,11 @@ firstprivate( edge_wrap )
         position_next_pair = navigator.get_pos_and_advance() )
 #pragma omp task default( none )\
 shared( grid, gc_array )\
-firstprivate( position_next_pair, edge_wrap )
+firstprivate( position_next_pair )
         generate_tile_position(
             grid.positions_,
             position_next_pair.first,
-            gc_array.get_local_thread_item().get(),
-            edge_wrap
+            gc_array.get_local_thread_item().get()
         );
 
     GridPosition< CoordT > origin;
