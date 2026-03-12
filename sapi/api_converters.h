@@ -284,7 +284,7 @@ inline void copy_to_conn_pair_array_from_conn_info_map(
         rank_ntm_pp->second_.resize( tile_ci.total_generated_connections_, gc );
 
         count_t total_conn_idx = 0;
-        for ( const auto& conn_vec : tile_ci.source_unique_connection_vectors_ )
+        for ( const auto& conn_vec : tile_ci.partitioned_connection_vectors_ )
         {
             for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
             {

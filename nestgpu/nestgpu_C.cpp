@@ -2563,7 +2563,7 @@ extern "C"
               const auto rank_ns = &dtns_it_array[ ( idx + 1 ) % 2 ]->second.at( rank );
               const auto first_remote = rank_ns->first;
               const auto one_after_last_remote = first_remote + rank_ns->second;
-              for ( const auto& conn_vec : conn_map.source_unique_connection_vectors_ )
+              for ( const auto& conn_vec : conn_map.partitioned_connection_vectors_ )
               {
                 for ( sapi::count_t idx = 0; idx < conn_vec.sizes_; ++idx )
                 {
@@ -2594,17 +2594,26 @@ extern "C"
         std::cout << host_str + " finished check successfully\n";
       }
 
-      const bool is_remote = 1 < capi.get_num_processes();
       const auto local_rank = static_cast< int >( capi.get_rank() );
       if ( !conn_map_ptr->outgoing_connections_.empty() )
+      {
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->outgoing_connections_ )
-          for ( auto& conn_vec : tile_connection_info.source_unique_connection_vectors_ )
+        {
+          const auto is_remote = remote_rank != local_rank;
+          for ( auto& conn_vec : tile_connection_info.partitioned_connection_vectors_ )
             create_spatial_connections( local_rank, static_cast< int >( remote_rank ), conn_vec, is_remote );
+        }
+      }
 
       if ( !conn_map_ptr->incoming_connections_.empty() )
+      {
         for ( auto& [remote_rank, tile_connection_info] : conn_map_ptr->incoming_connections_ )
-          for ( auto& conn_vec : tile_connection_info.source_unique_connection_vectors_ )
+        {
+          const auto is_remote = remote_rank != local_rank;
+          for ( auto& conn_vec : tile_connection_info.partitioned_connection_vectors_ )
             create_spatial_connections( static_cast< int >( remote_rank ), local_rank, conn_vec, is_remote );
+        }
+      }
 
       opt.second_ = conn_index;
       opt.first_ = true;

@@ -82,7 +82,7 @@ struct TileConnectionInfo
 
     std::forward_list< std::forward_list< ConnectionInfo > > procedural_connection_list_;
 
-    std::vector< ConnectionVectors > source_unique_connection_vectors_;
+    std::vector< ConnectionVectors > partitioned_connection_vectors_;
 
     TileConnectionInfo() = default;
     TileConnectionInfo( const TileConnectionInfo& ) = delete;
@@ -103,7 +103,7 @@ struct TileConnectionInfo
             std::map< conn_index_t,
             std::tuple< conn_param_t, conn_param_t, mult_t > > > conn_map;
 
-        for ( const auto& conn_vec : source_unique_connection_vectors_ )
+        for ( const auto& conn_vec : partitioned_connection_vectors_ )
         {
             for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
             {
