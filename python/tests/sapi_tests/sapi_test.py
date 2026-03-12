@@ -13,15 +13,15 @@ from mpi4py import MPI
 import nestgpu
 
 parser = ArgumentParser()
-parser.add_argument("--tile_splits", type=int, default=-1)
-parser.add_argument("--edge_wrap", action="store_true")
-parser.add_argument("--total_nodes", type=int, default=1000)
-parser.add_argument("--fixed_conn", action="store_true")
-parser.add_argument("--conn_chance", type=float, default=1.0)
-parser.add_argument("--beta", type=float, default=0.2)
 parser.add_argument("--rng_seed", type=int, default=12345)
 parser.add_argument("--verbosity", type=int, default=20)
 args = parser.parse_args()
+
+
+def update_verbosity():
+    stdout = logging.StreamHandler(sys.stdout)
+    stdout.setFormatter(logging.Formatter("%(levelname)s:\n%(message)s"))
+    logging.basicConfig(level=args.verbosity, handlers=(stdout,))
 
 
 def middle_factors(n: int) -> typing.Tuple[int, int]:
@@ -38,34 +38,6 @@ def middle_factors(n: int) -> typing.Tuple[int, int]:
     return factors[-2], factors[-1]
 
 
-def update_verbosity():
-    stdout = logging.StreamHandler(sys.stdout)
-    stdout.setFormatter(logging.Formatter("%(levelname)s:\n%(message)s"))
-    logging.basicConfig(level=args.verbosity, handlers=(stdout,))
-
-
-def compute_num_splits(tile_type: str, num_nodes: int, num_tiles: int) -> int:
-    if 0 <= args.tile_splits:
-        return args.tile_splits
-    match tile_type:
-        case "Square":
-            return int(
-                np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / np.log(4)), 0)
-            )
-        case "Triangle":
-            return int(
-                np.max(np.floor(np.log(num_nodes / (10 * num_tiles)) / np.log(2)), 0)
-            )
-        case "Hexagon":
-            return int(
-                np.max(
-                    np.floor(np.log(num_nodes / (60 * num_tiles)) / np.log(2) + 1), 0
-                )
-            )
-        case _:
-            raise ValueError("Incorrect tile type")
-
-
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
     nestgpu.SetBoolParam("check_node_maps", True)
@@ -73,20 +45,20 @@ def main() -> None:
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
     width, length = middle_factors(num_processes)
+    total_nodes = 3 * num_processes
 
     LOG.info("RANK %i: generating %ix%i tile grid", local_rank, width, length)
     nestgpu.generate_tile_grid(
         (0, 0),
-        (width, length),
+        (1, 1),
         "Square",
-        (0.5, 0),
-        [{r} for r in range(num_processes)],
-        compute_num_splits("Square", args.total_nodes, 1),
-        args.edge_wrap,
+        (0.1, 0),
+        [{0} for r in range(num_processes)],
+        0,
     )
 
-    LOG.info("RANK %i: generating %i nodes in grid", local_rank, args.total_nodes)
-    sp_ns = nestgpu.generate_nodes_in_grid("iaf_psc_alpha", args.total_nodes)
+    LOG.info("RANK %i: generating %i nodes in grid", local_rank, total_nodes)
+    sp_ns = nestgpu.generate_nodes_in_grid("iaf_psc_alpha", total_nodes)
 
     LOG.info("RANK %i: computing spatial connections", local_rank)
     conn_index = nestgpu.compute_spatial_connections(
@@ -97,7 +69,7 @@ def main() -> None:
             "mask_blueprint_params": (1,),
         },
         {
-            "edge_wrap": args.edge_wrap,
+            "edge_wrap": True,
             "only_neighborhood": False,
             "allow_self_connections": False,
             "allow_multiplicity": False,
@@ -108,10 +80,10 @@ def main() -> None:
             "delay_df_name": "Distance",
             "delay_ufs_names": ["Offset"],
             "delay_ufs_params": [[0.1]],
-            "prob_df_name": "Constant" if args.fixed_conn else "Distance",
-            "prob_df_params": [args.conn_chance] if args.fixed_conn else [],
-            "prob_ufs_names": [] if args.fixed_conn else ["Exponential"],
-            "prob_ufs_params": [] if args.fixed_conn else [[args.beta]],
+            "prob_df_name": "Constant",
+            "prob_df_params": [1.0],
+            "prob_ufs_names": [],
+            "prob_ufs_params": [],
         },
     )
 
