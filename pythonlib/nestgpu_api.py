@@ -3335,6 +3335,7 @@ _nestgpu.generate_tile_grid.argtypes = (
     ctypes.POINTER(ll_sapi.TileIdxArray),
     ctypes.POINTER(ll_sapi.CharArray),
     ctypes.POINTER(ll_sapi.SpaceTArray),
+    ctypes.POINTER(ll_sapi.AngleTArray),
     ctypes.POINTER(ll_sapi.NestedTileIdxArray),
     ll_sapi.split_t,
 )
@@ -3383,10 +3384,12 @@ _nestgpu.get_distributed_node_sequences.restype = ctypes.POINTER(
 )
 
 _nestgpu.get_spatial_connections.argtypes = (ctypes.c_size_t,)
-_nestgpu.get_spatial_connections.restype = ctypes.POINTER(ll_sapi.RCIStruct)
+_nestgpu.get_spatial_connections.restype = ctypes.POINTER(
+    ll_sapi.RemoteConnectionInfoPair
+)
 
 _nestgpu.get_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridTileVerticesPairArray)
-_nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.TimerDataPairArray)
+_nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.RecordedTimesArrayPair)
 
 
 def reset_api() -> None:
@@ -3407,7 +3410,6 @@ def get_num_threads() -> int:
     res = _nestgpu.get_num_threads()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
-    ll_sapi.check_bool(res)
     return ll_sapi.check_optional(res)
 
 
@@ -3453,26 +3455,29 @@ def generate_tile_grid(
     grid_origin: typing.Collection[float],
     grid_dimensions: typing.Collection[int],
     tile_type: str,
-    tile_params: typing.Collection[float],
+    tile_lengths: typing.Collection[float],
+    tile_rotations: typing.Collection[int],
     rank_tile_owner_ship: typing.Collection[typing.Set[int]],
     splits: int,
 ) -> None:
     if not (2 <= len(grid_origin) == len(grid_dimensions) <= 3):
         raise ValueError("Invalid grid dimensions")
-    if len(tile_params) == 0:
+    if len(tile_lengths) == 0:
         raise ValueError("Invalid tile params")
     if len(rank_tile_owner_ship) == 0:
         raise ValueError("Invalid ownership map")
     origin_arr = ll_sapi.float_col_to_sta(grid_origin)
     dims_arr = ll_sapi.int_col_to_tia(grid_dimensions)
     tt_arr = ll_sapi.str_to_carr(tile_type)
-    tp_arr = ll_sapi.float_col_to_sta(tile_params)
+    tl_arr = ll_sapi.float_col_to_sta(tile_lengths)
+    tr_arr = ll_sapi.int_col_to_ata(tile_rotations)
     rto_arr = ll_sapi.nested_int_col_to_nested_tia(rank_tile_owner_ship)
     res = _nestgpu.generate_tile_grid(
         ctypes.byref(origin_arr),
         ctypes.byref(dims_arr),
         ctypes.byref(tt_arr),
-        ctypes.byref(tp_arr),
+        ctypes.byref(tl_arr),
+        ctypes.byref(tr_arr),
         ctypes.byref(rto_arr),
         ll_sapi.safe_convert_to_c(ll_sapi.split_t, splits),
     )
@@ -3634,17 +3639,21 @@ def get_distributed_node_sequences(
 
 
 def get_spatial_connections(conn_index: int) -> typing.Tuple[
-    typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
-    typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
+    typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]],
+    typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]],
 ]:
     res = _nestgpu.get_spatial_connections(
         ll_sapi.safe_convert_to_c(ctypes.c_size_t, conn_index),
     )
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
-    res = ll_sapi.safe_ptr_deref(res).to_dict()
+    pair = ll_sapi.safe_ptr_deref(res)
+    t = (
+        ll_sapi.connection_info_pair_to_dict(pair.first_),
+        ll_sapi.connection_info_pair_to_dict(pair.second_),
+    )
     free_gc()
-    return res["incoming_connections"], res["outgoing_connections"]
+    return t
 
 
 def get_grid_vertices() -> typing.Dict[
@@ -3669,6 +3678,8 @@ def get_timer_data() -> typing.Dict[str, float]:
     res = _nestgpu.get_timer_data()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
-    res = ll_sapi.timer_data_pair_array_to_dict(ll_sapi.safe_ptr_deref(res))
+    pair = ll_sapi.safe_ptr_deref(res)
+    d = ll_sapi.rank_timer_data_pair_array_to_dict(pair.first_)
+    d |= ll_sapi.thread_timer_data_pair_array_to_dict(pair.second_)
     free_gc()
-    return res
+    return d

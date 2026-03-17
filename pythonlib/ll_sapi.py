@@ -18,6 +18,7 @@ lnix_t: typing.TypeAlias = ctypes.c_int64
 mult_t: typing.TypeAlias = ctypes.c_uint16
 split_t: typing.TypeAlias = ctypes.c_uint8
 space_t: typing.TypeAlias = ctypes.c_double
+angle_t: typing.TypeAlias = ctypes.c_int16
 conn_index_t: typing.TypeAlias = ctypes.c_uint32
 conn_param_t: typing.TypeAlias = ctypes.c_float
 CData: typing.TypeAlias = ctypes._SimpleCData | ctypes.Structure | ctypes._Pointer
@@ -106,20 +107,12 @@ def pair_array_template(k: type[CData], v: type[CData]) -> type[ctypes.Structure
     return array_template(pair_template(k, v))
 
 
-class CIStruct(ctypes.Structure):
-    _fields_ = [
-        ("source_index_", conn_index_t),
-        ("target_index_", conn_index_t),
-        ("connection_weight_", conn_param_t),
-        ("connection_delay_", conn_param_t),
-    ]
-
-
 OptionalIndex = pair_template(ctypes.c_bool, ctypes.c_size_t)
 SpatialNodeSequence = triplet_template(ctypes.c_size_t, nix_t, nix_t)
 CharArray = array_template(ctypes.c_char)
 SpaceTArray = array_template(space_t)
 TileIdxArray = array_template(tix_t)
+AngleTArray = array_template(angle_t)
 
 NestedCharArray = array_template(CharArray)
 NestedSpaceTArray = array_template(SpaceTArray)
@@ -127,10 +120,6 @@ NestedTileIdxArray = array_template(TileIdxArray)
 
 TiledNodeSequencePairArray = pair_array_template(
     vp_t, pair_array_template(tix_t, pair_template(nix_t, nix_t))
-)
-ConnectionInfoArray = pair_array_template(
-    vp_t,
-    array_template(CIStruct),
 )
 NodeCoordPairArray = pair_array_template(
     tix_t, pair_array_template(nix_t, array_template(space_t))
@@ -140,7 +129,30 @@ GridTileVerticesPairArray = pair_array_template(
     tix_t,
     pair_template(NestedSpaceTArray, pair_array_template(tix_t, NestedSpaceTArray)),
 )
-TimerDataPairArray = pair_array_template(CharArray, ctypes.c_double)
+
+DoubleArray = array_template(ctypes.c_double)
+RankTimerDataPairArray = pair_array_template(CharArray, ctypes.c_double)
+ThreadTimerDataPairArray = pair_array_template(CharArray, DoubleArray)
+RecordedTimesArrayPair = pair_template(RankTimerDataPairArray, ThreadTimerDataPairArray)
+
+
+class ConnectionInfoStruct(ctypes.Structure):
+    _fields_ = [
+        ("source_index_", conn_index_t),
+        ("target_index_", conn_index_t),
+        ("connection_weight_", conn_param_t),
+        ("connection_delay_", conn_param_t),
+    ]
+
+
+ConnectionInfoPartition = array_template(ConnectionInfoStruct)
+ConnectionInfoPairArray = pair_array_template(
+    vp_t,
+    array_template(ConnectionInfoPartition),
+)
+RemoteConnectionInfoPair = pair_template(
+    ConnectionInfoPairArray, ConnectionInfoPairArray
+)
 
 
 def check_bool(b_val: ctypes.c_bool) -> None:
@@ -265,17 +277,6 @@ def nested_num_arr_to_nested_num_col(
             for i in range(nested_num_arr.size_)
         ]
 
-
-int_col_to_tia = lambda col: num_col_to_num_arr(num_arr_type=TileIdxArray, num_col=col)
-tia_to_int_col = lambda arr: num_arr_to_num_col(num_type=int, num_arr=arr)
-nested_int_col_to_nested_tia = lambda n_col: nested_num_col_to_nested_arr(
-    num_arr_type=TileIdxArray,
-    nested_num_arr_type=NestedTileIdxArray,
-    nested_num_col=n_col,
-)
-nested_tia_to_nested_int_col = lambda n_arr: nested_num_arr_to_nested_num_col(
-    num_type=int, nested_num_arr=n_arr
-)
 float_col_to_sta = lambda col: num_col_to_num_arr(num_arr_type=SpaceTArray, num_col=col)
 sta_to_float_col = lambda arr: num_arr_to_num_col(num_type=float, num_arr=arr)
 nested_float_col_to_nested_sta = lambda n_col: nested_num_col_to_nested_arr(
@@ -287,27 +288,22 @@ nested_sta_to_nested_float_col = lambda n_arr: nested_num_arr_to_nested_num_col(
     num_type=float, nested_num_arr=n_arr
 )
 
+int_col_to_tia = lambda col: num_col_to_num_arr(num_arr_type=TileIdxArray, num_col=col)
+tia_to_int_col = lambda arr: num_arr_to_num_col(num_type=int, num_arr=arr)
+nested_int_col_to_nested_tia = lambda n_col: nested_num_col_to_nested_arr(
+    num_arr_type=TileIdxArray,
+    nested_num_arr_type=NestedTileIdxArray,
+    nested_num_col=n_col,
+)
+nested_tia_to_nested_int_col = lambda n_arr: nested_num_arr_to_nested_num_col(
+    num_type=int, nested_num_arr=n_arr
+)
 
-def tuple_to_cistruct(tup: typing.Tuple[int, int, float, float]) -> CIStruct:
-    if len(tup) != 4:
-        raise ValueError("Incorrect tuple length for CIStruct")
-    cis = CIStruct()
-    cis.source_index_ = safe_convert_to_c(conn_index_t, tup[0])
-    cis.target_index_ = safe_convert_to_c(conn_index_t, tup[1])
-    cis.connection_weight_ = safe_convert_to_c(conn_param_t, tup[2])
-    cis.connection_delay_ = safe_convert_to_c(conn_param_t, tup[3])
-    return cis
+int_col_to_ata = lambda col: num_col_to_num_arr(num_arr_type=AngleTArray, num_col=col)
+ata_to_int_col = lambda arr: num_arr_to_num_col(num_type=int, num_arr=arr)
 
-
-def cistruct_to_tuple(cis: CIStruct) -> tuple:
-    tup = (
-        c_data_to_py_int(cis.source_index_),
-        c_data_to_py_int(cis.target_index_),
-        c_data_to_py_float(cis.connection_weight_),
-        c_data_to_py_float(cis.connection_delay_),
-    )
-    return tup
-
+float_col_to_da = lambda col: num_col_to_num_arr(num_arr_type=DoubleArray, num_col=col)
+da_to_float_col = lambda arr: num_arr_to_num_col(num_type=float, num_arr=arr)
 
 def dict_to_tiled_node_sequence_pair_array(
     d: typing.Dict[
@@ -374,24 +370,72 @@ def tiled_node_sequence_pair_array_to_dict(
         return res
 
 
-def dict_to_connection_pair_array(
-    d: typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]],
+def tuple_to_connection_info_struct(
+    tup: typing.Tuple[int, int, float, float],
+) -> ConnectionInfoStruct:
+    if len(tup) != 4:
+        raise ValueError("Incorrect tuple length for CIStruct")
+    cis = ConnectionInfoStruct()
+    cis.source_index_ = safe_convert_to_c(conn_index_t, tup[0])
+    cis.target_index_ = safe_convert_to_c(conn_index_t, tup[1])
+    cis.connection_weight_ = safe_convert_to_c(conn_param_t, tup[2])
+    cis.connection_delay_ = safe_convert_to_c(conn_param_t, tup[3])
+    return cis
+
+
+def connection_info_struct_to_tuple(cis: ConnectionInfoStruct) -> tuple:
+    tup = (
+        c_data_to_py_int(cis.source_index_),
+        c_data_to_py_int(cis.target_index_),
+        c_data_to_py_float(cis.connection_weight_),
+        c_data_to_py_float(cis.connection_delay_),
+    )
+    return tup
+
+
+def list_to_connection_info_partition(
+    l: typing.List[typing.Tuple[int, int, float, float]],
+) -> ctypes.Structure:  # ConnectionInfoPartition
+    cip = ConnectionInfoPartition()
+    cip.resize(len(l))
+    for i, tup in enumerate(l):
+        cip.array_[i] = tuple_to_connection_info_struct(tup)
+    return cip
+
+
+def connection_info_partition_to_list(
+    cip: ctypes.Structure,  # ConnectionInfoPartition
+) -> typing.List[typing.Tuple[int, int, float, float]]:
+    if cip.size_ < 1:
+        return []
+    else:
+        res = []
+        check_ptr(cip.array_)
+        for i in range(cip.size_):
+            res.append(connection_info_struct_to_tuple(cip.array_[i]))
+        return res
+
+
+def dict_to_connection_info_pair_array(
+    d: typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]],
 ) -> ctypes.Structure:  # ConnectionInfoArray
-    cnnpa = ConnectionInfoArray()
+    cnnpa = ConnectionInfoPairArray()
     cnnpa.resize(len(d))
     for r, (rank, conn_collection) in enumerate(d.items()):
         rank_conn_parr = cnnpa.array_[r]
         rank_conn_parr.first_ = safe_convert_to_c(vp_t, rank)
         rank_conn_parr.second_.resize(len(conn_collection))
-        for conn_idx, conn_tuple in enumerate(conn_collection):
-            rank_conn_parr.second_.array_[conn_idx] = tuple_to_cistruct(conn_tuple)
+        for conn_idx, conn_partition in enumerate(conn_collection):
+            rank_conn_parr.second_.array_[conn_idx] = list_to_connection_info_partition(
+                conn_partition
+            )
 
     return cnnpa
 
 
-def connection_pair_array_to_dict(
+def connection_info_pair_to_dict(
     cnnpa: ctypes.Structure,  # ConnectionInfoArray
-) -> typing.Dict[int, typing.List[typing.Tuple[int, int, float, float]]]:
+) -> typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]]:
     if cnnpa.size_ < 1:
         return dict()
     else:
@@ -403,9 +447,11 @@ def connection_pair_array_to_dict(
             conn_list = res[rank] = list()
             if rank_conn_parr.second_.size_ > 0:
                 check_ptr(rank_conn_parr.second_.array_)
-                for conn_index in range(rank_conn_parr.second_.size_):
+                for partition_index in range(rank_conn_parr.second_.size_):
                     conn_list.append(
-                        cistruct_to_tuple(rank_conn_parr.second_.array_[conn_index])
+                        connection_info_partition_to_list(
+                            rank_conn_parr.second_.array_[partition_index]
+                        )
                     )
                 if len(conn_list) != rank_conn_parr.second_.size_:
                     raise ValueError("Corrupted connection pair array")
@@ -591,34 +637,66 @@ def grid_tile_vertices_pair_array_to_dict(
         return res
 
 
-def dict_to_timer_data_pair_array(
+def dict_to_rank_timer_data_pair_array(
     d: typing.Dict[str, float],  # Timer name : Time
-) -> ctypes.Structure:  # TimerDataPairArray
-    tdpa = TimerDataPairArray()
-    tdpa.resize(len(d))
+) -> ctypes.Structure:  # RankTimerDataPairArray
+    rtdpa = RankTimerDataPairArray()
+    rtdpa.resize(len(d))
     for i, (timer_name, time) in enumerate(d.items()):
-        td = tdpa.array_[i]
+        td = rtdpa.array_[i]
         td.first_ = str_to_carr(timer_name)
         td.second_ = safe_convert_to_c(ctypes.c_double, time)
-    return tdpa
+    return rtdpa
 
 
-def timer_data_pair_array_to_dict(
-    tdpa: ctypes.Structure,  # TimerDataPairArray
+def rank_timer_data_pair_array_to_dict(
+    rtdpa: ctypes.Structure,  # RankTimerDataPairArray
 ) -> typing.Dict[str, float]:  # Timer name : Time
-    if tdpa.size_ < 1:
+    if rtdpa.size_ < 1:
         return dict()
     else:
         res = dict()
-        check_ptr(tdpa.array_)
-        for i in range(tdpa.size_):
-            td = tdpa.array_[i]
+        check_ptr(rtdpa.array_)
+        for i in range(rtdpa.size_):
+            td = rtdpa.array_[i]
             timer_name = carr_to_str(td.first_)
             timer_time = c_data_to_py_float(td.second_)
             res[timer_name] = timer_time
 
-        if len(res) != tdpa.size_:
-            raise ValueError("Corrupted timer data pair array")
+        if len(res) != rtdpa.size_:
+            raise ValueError("Corrupted rank timer data pair array")
+
+        return res
+
+
+def dict_to_thread_timer_data_pair_array(
+    d: typing.Dict[str, typing.List[float]],  # Timer name : Time
+) -> ctypes.Structure:  # TimerDataPairArray
+    ttdpa = ThreadTimerDataPairArray()
+    ttdpa.resize(len(d))
+    for i, (timer_name, times) in enumerate(d.items()):
+        td = ttdpa.array_[i]
+        td.first_ = str_to_carr(timer_name)
+        td.second_ = float_col_to_da(times)
+    return ttdpa
+
+
+def thread_timer_data_pair_array_to_dict(
+    rtdpa: ctypes.Structure,  # TimerDataPairArray
+) -> typing.Dict[str, float]:  # Timer name : Time
+    if rtdpa.size_ < 1:
+        return dict()
+    else:
+        res = dict()
+        check_ptr(rtdpa.array_)
+        for i in range(rtdpa.size_):
+            td = rtdpa.array_[i]
+            timer_name = carr_to_str(td.first_)
+            timer_time = da_to_float_col(td.second_)
+            res[timer_name] = timer_time
+
+        if len(res) != rtdpa.size_:
+            raise ValueError("Corrupted rank timer data pair array")
 
         return res
 
@@ -630,33 +708,21 @@ _CONVERTERS = {
         lambda val: safe_convert_to_c(c_type=ctypes.c_bool, p_val=val),
     ),
     CharArray: (carr_to_str, str_to_carr),
-    TileIdxArray: (tia_to_int_col, int_col_to_tia),
-    SpaceTArray: (sta_to_float_col, float_col_to_sta),
     NestedCharArray: (nested_carr_to_str_col, str_col_to_nested_carr),
-    NestedTileIdxArray: (nested_tia_to_nested_int_col, nested_int_col_to_nested_tia),
+    SpaceTArray: (sta_to_float_col, float_col_to_sta),
     NestedSpaceTArray: (nested_sta_to_nested_float_col, nested_float_col_to_nested_sta),
-    TiledNodeSequencePairArray: (
-        tiled_node_sequence_pair_array_to_dict,
-        dict_to_tiled_node_sequence_pair_array,
-    ),
-    ConnectionInfoArray: (connection_pair_array_to_dict, dict_to_connection_pair_array),
-    NodeCoordPairArray: (node_coord_pair_array_to_dict, dict_to_node_coord_pair_array),
-    TimerDataPairArray: (timer_data_pair_array_to_dict, dict_to_timer_data_pair_array),
 }
-
-_RCIS_FIELDS = (
-    ("incoming_connections", ConnectionInfoArray, lambda: dict()),
-    ("outgoing_connections", ConnectionInfoArray, lambda: dict()),
-)
 
 _MPS_FIELDS = (
     ("mask_blueprint_name", CharArray, lambda: ""),
     ("mask_blueprint_params", SpaceTArray, lambda: tuple()),
     ("mask_blueprint_offset", SpaceTArray, lambda: tuple()),
     ("source_mask_name", CharArray, lambda: ""),
+    ("source_mask_origin", SpaceTArray, lambda: tuple()),
     ("source_mask_params", SpaceTArray, lambda: tuple()),
     ("source_mask_offset", SpaceTArray, lambda: tuple()),
     ("target_mask_name", CharArray, lambda: ""),
+    ("target_mask_origin", SpaceTArray, lambda: tuple()),
     ("target_mask_params", SpaceTArray, lambda: tuple()),
     ("target_mask_offset", SpaceTArray, lambda: tuple()),
 )
@@ -667,7 +733,8 @@ _CPS_FIELDS = (
     ("inverted_conn_rule", ctypes.c_bool, lambda: False),
     ("allow_multiplicity", ctypes.c_bool, lambda: False),
     ("allow_self_connections", ctypes.c_bool, lambda: False),
-    ("total_number_connections", mult_t, lambda: 0),
+    ("partition_connections_by_source", ctypes.c_bool, lambda: False),
+    ("connection_counts", mult_t, lambda: 0),
     ("conn_gen_name", CharArray, lambda: ""),
     ("weight_df_name", CharArray, lambda: ""),
     ("weight_df_params", SpaceTArray, lambda: tuple()),
@@ -716,7 +783,6 @@ def io_struct_template(
     return IOStruct
 
 
-RCIStruct = io_struct_template(_RCIS_FIELDS)
 MPStruct = io_struct_template(_MPS_FIELDS)
 CPStruct = io_struct_template(_CPS_FIELDS)
 

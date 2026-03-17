@@ -2285,7 +2285,8 @@ extern "C"
     const sapi::SpaceTArray& grid_origin,
     const sapi::TileIdxArray& grid_dimensions,
     const sapi::CharArray& tile_type,
-    const sapi::SpaceTArray& tile_params,
+    const sapi::SpaceTArray& tile_side_lengths,
+    const sapi::AngleTArray& tile_angular_offsets,
     const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
     sapi::split_t num_splits
   )
@@ -2296,7 +2297,8 @@ extern "C"
         grid_origin,
         grid_dimensions,
         tile_type,
-        tile_params,
+        tile_side_lengths,
+        tile_angular_offsets,
         rank_tiles_ownership_map,
         num_splits
       );
@@ -2651,7 +2653,7 @@ extern "C"
       return nullptr;
   }
 
-  sapi::RCIStruct* get_spatial_connections(
+  sapi::RemoteConnectionInfoPair* get_spatial_connections(
     std::size_t conn_idx
   )
   {
@@ -2675,7 +2677,7 @@ extern "C"
       return nullptr;
   }
 
-  sapi::TimerDataPairArray* get_timer_data()
+  sapi::RecordedTimesArrayPair* get_timer_data()
   {
     BEGIN_ERR_PROP
     {
