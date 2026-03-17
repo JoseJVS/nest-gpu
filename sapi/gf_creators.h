@@ -23,17 +23,17 @@
 #ifndef GF_CREATORS_H
 #define GF_CREATORS_H
 
-#include "grid_functors2d.h"
+#include "grid_functors.h"
 #include "creator_registry.h"
 
 
 namespace sapi
 {
-struct SquareGSCreator : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
+struct RectangleGSCreator final : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
 {
-    std::unique_ptr< GridTargetPositionShifts< Coord2D > > create() const override
+        GridTargetPositionShifts< Coord2D > create() const override
     {
-        return std::make_unique< GridTargetPositionShifts< Coord2D > >(
+        return GridTargetPositionShifts< Coord2D >(
             GridShiftVector< Coord2D >{
                 { -1, 1 }, { 0, 1 }, { 1, 1 },
                 { -1, 0 }, { 0, 0 }, { 1, 0 },
@@ -45,11 +45,11 @@ struct SquareGSCreator : public StateLessCreator< GridTargetPositionShifts< Coor
 };
 
 
-struct TriangleGSCreator : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
+struct TriangleGSCreator final : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
 {
-    std::unique_ptr< GridTargetPositionShifts< Coord2D > > create() const override
+    GridTargetPositionShifts< Coord2D > create() const override
     {
-        return std::make_unique< GridTargetPositionShifts< Coord2D > >(
+        return GridTargetPositionShifts< Coord2D >(
             GridShiftVector< Coord2D >{
                 // down, up, left, right
                 { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 },
@@ -76,11 +76,11 @@ struct TriangleGSCreator : public StateLessCreator< GridTargetPositionShifts< Co
 };
 
 
-struct HexagonGSCreator : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
+struct HexagonGSCreator final : public StateLessCreator< GridTargetPositionShifts< Coord2D > >
 {
-    std::unique_ptr< GridTargetPositionShifts< Coord2D > > create() const override
+    GridTargetPositionShifts< Coord2D > create() const override
     {
-        return std::make_unique< GridTargetPositionShifts< Coord2D > >(
+        return GridTargetPositionShifts< Coord2D >(
             GridShiftVector< Coord2D >{
             // down, up, left, right, self
                 { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 }, { 0, 0 }
@@ -103,23 +103,22 @@ struct HexagonGSCreator : public StateLessCreator< GridTargetPositionShifts< Coo
 };
 
 
-template < typename Base, typename Spec >
-struct BaseGF2DCreator : public StateLessCreator< Base >
+template < typename Spec, TILE_SHAPE shape >
+struct BaseGFCreator final : public StateLessCreator< Spec >
 {
-    std::unique_ptr< Base > create(
-        const std::vector< space_t >& params
+    Spec create(
+        const std::vector< space_t >& side_lengths,
+        const std::vector< angle_t >& angular_offsets
     ) const override
     {
-        if ( params.size() != 2 || almost_zero( params[ 0 ] ) )
-            throw std::invalid_argument( "Incorrect grid functor 2D params" );
-        return std::make_unique< Spec >( params[ 0 ], params[ 1 ] );
+        return Spec( shape, side_lengths, angular_offsets );
     }
 };
 
 
 inline void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< Coord2D > >& gscr )
 {
-    gscr.register_creator< SquareGSCreator >( "Square" );
+    gscr.register_creator< RectangleGSCreator >( "Rectangle" );
     gscr.register_creator< TriangleGSCreator >( "Triangle" );
     gscr.register_creator< HexagonGSCreator >( "Hexagon" );
 }
@@ -131,29 +130,29 @@ inline void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< 
 }
 
 
-inline void initialize_soc_registry( CreatorRegistry< BaseShiftedOriginCreator< Coord2D > >& socr )
+inline void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord2D > >& socr )
 {
-    socr.register_creator< BaseGF2DCreator< BaseShiftedOriginCreator< Coord2D >, SquareSOC > >( "Square" );
-    socr.register_creator< BaseGF2DCreator< BaseShiftedOriginCreator< Coord2D >, TriangleSOC > >( "Triangle" );
-    socr.register_creator< BaseGF2DCreator< BaseShiftedOriginCreator< Coord2D >, HexagonSOC > >( "Hexagon" );
+    socr.register_creator< BaseGFCreator< ShiftedOriginCreator< Coord2D >, TILE_SHAPE::RECTANGLE > >( "Rectangle" );
+    socr.register_creator< BaseGFCreator< ShiftedOriginCreator< Coord2D >, TILE_SHAPE::TRIANGLE > >( "Triangle" );
+    socr.register_creator< BaseGFCreator< ShiftedOriginCreator< Coord2D >, TILE_SHAPE::HEXAGON > >( "Hexagon" );
 }
 
 
-inline void initialize_soc_registry( CreatorRegistry< BaseShiftedOriginCreator< Coord3D > >& socr )
+inline void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord3D > >& socr )
 {
     throw std::runtime_error( "3D GridGenerator not yet implemented" );
 }
 
 
-inline void initialize_ctc_registry( CreatorRegistry< BaseCachedTileCreator< Coord2D > >& ctcr )
+inline void initialize_ctc_registry( CreatorRegistry< CachedTileCreator< Coord2D > >& ctcr )
 {
-    ctcr.register_creator< BaseGF2DCreator< BaseCachedTileCreator< Coord2D >, SquareCTC > >( "Square" );
-    ctcr.register_creator< BaseGF2DCreator< BaseCachedTileCreator< Coord2D >, TriangleCTC > >( "Triangle" );
-    ctcr.register_creator< BaseGF2DCreator< BaseCachedTileCreator< Coord2D >, HexagonCTC > >( "Hexagon" );
+    ctcr.register_creator< BaseGFCreator< CachedTileCreator< Coord2D >, TILE_SHAPE::RECTANGLE > >( "Rectangle" );
+    ctcr.register_creator< BaseGFCreator< CachedTileCreator< Coord2D >, TILE_SHAPE::TRIANGLE > >( "Triangle" );
+    ctcr.register_creator< BaseGFCreator< CachedTileCreator< Coord2D >, TILE_SHAPE::HEXAGON > >( "Hexagon" );
 }
 
 
-inline void initialize_ctc_registry( CreatorRegistry< BaseCachedTileCreator< Coord3D > >& ctcr )
+inline void initialize_ctc_registry( CreatorRegistry< CachedTileCreator< Coord3D > >& ctcr )
 {
     throw std::runtime_error( "3D GridGenerator not yet implemented" );
 }

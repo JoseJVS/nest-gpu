@@ -26,7 +26,7 @@
 #include <list>
 #include <vector>
 #include <utility>
-#include <algorithm> // Min/Max
+#include <algorithm>
 #include <forward_list>
 #include <unordered_map>
 #include <cassert>

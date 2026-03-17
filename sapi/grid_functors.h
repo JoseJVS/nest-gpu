@@ -23,98 +23,230 @@
 #ifndef GRID_FUNCTORS_H
 #define GRID_FUNCTORS_H
 
-#include "tile.h"
-#include "grid_containers.h"
-#include "type_erasure_helpers.h"
+#include "gf_geometry.h"
 
 
 namespace sapi
 {
 template < typename CoordT >
-struct GridTargetPositionShifts : public Clonable< GridTargetPositionShifts< CoordT > >
+struct GridTargetPositionShifts
 {
     // Position independent GridShiftVector and dimension position dependent GridShiftVector
     // for complete displacement definition of position relative grid targets
-    const GridShiftVector< CoordT > position_independent_shifts_;
-    const GridDimensionalShifts< CoordT > position_dependent_shifts_;
+    GridShiftVector< CoordT > position_independent_shifts_;
+    GridDimensionalShifts< CoordT > position_dependent_shifts_;
 
-    GridTargetPositionShifts() = delete;
-    GridTargetPositionShifts( const GridTargetPositionShifts& ) = delete;
+    GridTargetPositionShifts() = default;
+    GridTargetPositionShifts( const GridTargetPositionShifts& ) = default;
     GridTargetPositionShifts( GridTargetPositionShifts&& ) = default;
+    ~GridTargetPositionShifts() = default;
 
     GridTargetPositionShifts(
-        const GridShiftVector< CoordT >& pis,
-        const GridDimensionalShifts< CoordT >& pds
-    )
-        : position_independent_shifts_( pis )
-        , position_dependent_shifts_( pds )
-    {
-    }
+        const GridShiftVector< CoordT >&,
+        const GridDimensionalShifts< CoordT >&
+    );
 
     GridTargetPositionShifts(
-        GridShiftVector< CoordT >&& pis,
-        GridDimensionalShifts< CoordT >&& pds
-    )
-        : position_independent_shifts_( std::move( pis ) )
-        , position_dependent_shifts_( std::move( pds ) )
-    {
-    }
+        GridShiftVector< CoordT >&&,
+        GridDimensionalShifts< CoordT >&&
+    );
 
-    std::unique_ptr< GridTargetPositionShifts >
-        clone() const
-    {
-        return std::make_unique< GridTargetPositionShifts >(
-            position_independent_shifts_,
-            position_dependent_shifts_
-        );
-    }
+    GridTargetPositionShifts& operator=( GridTargetPositionShifts&& );
 };
 
 
 template < typename CoordT >
-struct BaseShiftedOriginCreator : public Clonable< BaseShiftedOriginCreator< CoordT > >
+GridTargetPositionShifts< CoordT >::GridTargetPositionShifts(
+    const GridShiftVector< CoordT >& pis,
+    const GridDimensionalShifts< CoordT >& pds
+)
+    : position_independent_shifts_( pis )
+    , position_dependent_shifts_( pds )
 {
-    BaseShiftedOriginCreator() = delete;
-    BaseShiftedOriginCreator( const BaseShiftedOriginCreator& ) = default;
-    BaseShiftedOriginCreator( BaseShiftedOriginCreator&& ) = default;
+}
 
-    BaseShiftedOriginCreator( const space_t& radius )
-    {
-        assert( !almost_zero( radius ) );
-    }
 
-    virtual CoordT create_shifted_origin(
-        const CoordT& grid_origin,
-        const GridPosition< CoordT >& grid_position,
-        const GridPositionParity< CoordT >& grid_position_parity
-    ) const = 0;
+template < typename CoordT >
+GridTargetPositionShifts< CoordT >::GridTargetPositionShifts(
+    GridShiftVector< CoordT >&& pis,
+    GridDimensionalShifts< CoordT >&& pds
+)
+    : position_independent_shifts_( std::move( pis ) )
+    , position_dependent_shifts_( std::move( pds ) )
+{
+}
+
+
+template < typename CoordT >
+inline GridTargetPositionShifts< CoordT >&
+GridTargetPositionShifts< CoordT >::operator=( GridTargetPositionShifts&& g )
+{
+    position_independent_shifts_ = std::move( g.position_independent_shifts_ );
+    position_dependent_shifts_ = std::move( g.position_dependent_shifts_ );
+
+    return *this;
+}
+
+
+template < typename CoordT >
+struct ShiftedOriginCreator
+{
+    TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
+    std::vector< CoordT > helper_vectors_;
+    std::vector< space_t > helper_scalars_;
+
+    ShiftedOriginCreator() = default;
+    ShiftedOriginCreator( const ShiftedOriginCreator& ) = default;
+    ShiftedOriginCreator( ShiftedOriginCreator&& ) = default;
+    ~ShiftedOriginCreator() = default;
+
+    ShiftedOriginCreator(
+        const TILE_SHAPE&,
+        const std::vector< space_t >&,
+        const std::vector< angle_t >&
+    );
+
+    ShiftedOriginCreator& operator=( ShiftedOriginCreator&& );
+
+    CoordT create_shifted_origin(
+        const CoordT&,
+        const GridPosition< CoordT >&,
+        const GridPositionParity< CoordT >&
+    ) const;
 };
 
 
 template < typename CoordT >
-struct BaseCachedTileCreator : public Clonable< BaseCachedTileCreator< CoordT > >
+ShiftedOriginCreator< CoordT >::ShiftedOriginCreator(
+    const TILE_SHAPE& shape,
+    const std::vector< space_t >& side_lengths,
+    const std::vector< angle_t >& angular_offsets
+)
+    : shape_( shape )
 {
-    const space_t radius_;
+    sapi::initialize_soc(
+        helper_vectors_,
+        helper_scalars_,
+        side_lengths,
+        angular_offsets,
+        shape_
+    );
+}
 
-    BaseCachedTileCreator() = delete;
-    BaseCachedTileCreator( const BaseCachedTileCreator& ) = default;
-    BaseCachedTileCreator( BaseCachedTileCreator&& ) = default;
 
-    BaseCachedTileCreator( const space_t& radius )
-        : radius_( radius )
-    {
-        assert( !almost_zero( radius ) );
-    }
+template < typename CoordT >
+inline ShiftedOriginCreator< CoordT >&
+ShiftedOriginCreator< CoordT >::operator=( ShiftedOriginCreator&& soc )
+{
+    shape_ = soc.shape_;
+    helper_vectors_ = std::move( soc.helper_vectors_ );
+    helper_scalars_ = std::move( soc.helper_scalars_ );
 
-    virtual bool check_dimensions(
-        const GridPosition< CoordT >& grid_dimensions
-    ) const = 0;
+    soc.shape_ = TILE_SHAPE::NULL_TS;
 
-    virtual std::unique_ptr< Tile< CoordT > > create_tile(
-        const CoordT& tile_origin,
-        const GridPositionParity< CoordT >& tile_position_parity
-    ) const = 0;
+    return *this;
+}
+
+
+template < typename CoordT >
+inline CoordT
+ShiftedOriginCreator< CoordT >::create_shifted_origin(
+    const CoordT& grid_origin,
+    const GridPosition< CoordT >& gp,
+    const GridPositionParity< CoordT >& gpp
+) const
+{
+    return sapi::create_shifted_origin(
+        *this,
+        grid_origin,
+        gp,
+        gpp
+    );
+}
+
+
+template < typename CoordT >
+struct CachedTileCreator
+{
+    TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
+    std::vector< space_t > side_lengths_;
+    std::vector< angle_t > angular_offsets_;
+
+    CachedTileCreator() = default;
+    CachedTileCreator( const CachedTileCreator& ) = default;
+    CachedTileCreator( CachedTileCreator&& ) = default;
+    ~CachedTileCreator() = default;
+
+    CachedTileCreator(
+        const TILE_SHAPE&,
+        const std::vector< space_t >&,
+        const std::vector< angle_t >&
+    );
+
+    CachedTileCreator& operator=( CachedTileCreator&& );
+
+    bool check_dimensions(
+        const GridPosition< CoordT >&
+    ) const;
+
+    Tile< CoordT > create_tile(
+        const CoordT&,
+        const GridPositionParity< CoordT >&
+    ) const;
 };
+
+
+template < typename CoordT >
+CachedTileCreator< CoordT >::CachedTileCreator(
+    const TILE_SHAPE& shape,
+    const std::vector< space_t >& side_lengths,
+    const std::vector< angle_t >& angular_offsets
+)
+    : shape_( shape )
+{
+    sapi::initialize_ctc(
+        side_lengths_,
+        angular_offsets_,
+        side_lengths,
+        angular_offsets,
+        shape_
+    );
+}
+
+
+template < typename CoordT >
+inline CachedTileCreator< CoordT >&
+CachedTileCreator< CoordT >::operator=( CachedTileCreator&& ctc )
+{
+    shape_ = ctc.shape_;
+    side_lengths_ = std::move( ctc.side_lengths_ );
+    angular_offsets_ = std::move( ctc.angular_offsets_ );
+
+    ctc.shape_ = TILE_SHAPE::NULL_TS;
+
+    return *this;
+}
+
+
+template < typename CoordT >
+inline bool
+CachedTileCreator< CoordT >::check_dimensions(
+    const GridPosition< CoordT >& grid_dimensions
+) const
+{
+    return sapi::check_dimensions( *this, grid_dimensions );
+}
+
+
+template < typename CoordT >
+inline Tile< CoordT >
+CachedTileCreator< CoordT >::create_tile(
+    const CoordT& tile_origin,
+    const GridPositionParity< CoordT >& gpp
+) const
+{
+    return sapi::create_tile( *this, tile_origin, gpp );
+}
 }
 
 

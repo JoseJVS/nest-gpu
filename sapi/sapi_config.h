@@ -40,13 +40,21 @@ typedef uint8_t dim_t; // For static coordinate dimension count
 typedef int8_t shift_t; // Needs to be signed and smaller than tileidx_t
 typedef int32_t count_t; // Needs to be signed
 typedef uint16_t mult_t; // For connection multiplicity
+typedef int16_t angle_t; // Integer angular values are needed for grid coherence
 typedef double space_t; // For spatial data
 typedef uint32_t conn_index_t; // For connection indexes
 typedef float conn_param_t; // For connection parameters
+typedef uint64_t rng_bits_t; // Determines random engine result type should be same size as space_t and largenodeidx_t
 
 constexpr static const uint8_t BATCHING_THRESHOLD = 100;
 constexpr static const uint8_t TOLERANCE = 2;
 constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
+
+constexpr static const char* const DEFAULT_RNG_TYPE_ = "PCG";
+constexpr static const uint32_t DEFAULT_BASE_SEED_ = 143202461;
+constexpr static const uint32_t RANK_SEEDER_ = 0xc229212d;
+constexpr static const uint32_t THREAD_SEEDER_ = 0x37722d5e;
+constexpr static const uint32_t PARITY_SEEDER_ = 0xb84c9bae;
 }
 
 

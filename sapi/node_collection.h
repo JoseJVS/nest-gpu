@@ -57,7 +57,7 @@ void TileNodeCollection< CoordT >::initialize_maps(
         sub_tiles_vector_.empty() &&
         sub_tiles_node_coord_map_.empty()
     );
-    sub_tiles_vector_ = tile_position.get_tile()->get_leaf_sub_tiles( splits );
+    sub_tiles_vector_ = tile_position.tile_.get_leaf_sub_tiles( splits );
     for ( const auto& st_ptr : sub_tiles_vector_ )
     {
         assert( st_ptr != nullptr );
@@ -83,6 +83,7 @@ struct GridNodeCollection
     GridNodeCollection() = default;
     GridNodeCollection( const GridNodeCollection& ) = delete;
     GridNodeCollection( GridNodeCollection&& ) = default;
+    ~GridNodeCollection() = default;
 
     void initialize_map(
         const std::set< tileidx_t >& locally_owned_tiles,
@@ -97,11 +98,10 @@ void GridNodeCollection< CoordT >::initialize_map(
     const TileGrid< CoordT >& tile_grid
 )
 {
-    assert(
-        tiles_node_coord_map_.empty() &&
-        tile_grid.has_split_ &&
-        !locally_owned_tiles.empty()
-    );
+    assert( tiles_node_coord_map_.empty() && tile_grid.has_split_ );
+
+    if ( locally_owned_tiles.empty() )
+        return;
 
     for ( const auto& tile_position : locally_owned_tiles )
         tiles_node_coord_map_.emplace(

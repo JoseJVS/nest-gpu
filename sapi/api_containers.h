@@ -74,6 +74,7 @@ extern "C"
     typedef ArrayT< char > CharArray;
     typedef ArrayT< space_t > SpaceTArray;
     typedef ArrayT< tileidx_t > TileIdxArray;
+    typedef ArrayT< angle_t > AngleTArray;
 
     typedef ArrayT< CharArray > NestedCharArray;
     typedef ArrayT< SpaceTArray > NestedSpaceTArray;
@@ -91,9 +92,12 @@ extern "C"
     typedef PairArrayT < tileidx_t,
         PairT< NestedSpaceTArray,
         PairArrayT< tileidx_t, NestedSpaceTArray > > > GridTileVerticesPairArray;
-    typedef PairArrayT< CharArray, double > TimerDataPairArray;
 
-    struct CIStruct
+    typedef PairArrayT< CharArray, double > RankTimerDataPairArray;
+    typedef PairArrayT< CharArray, ArrayT< double > > ThreadTimerDataPairArray;
+    typedef PairT< RankTimerDataPairArray, ThreadTimerDataPairArray > RecordedTimesArrayPair;
+
+    struct ConnectionInfoStruct
     {
         conn_index_t source_index_;
         conn_index_t target_index_;
@@ -101,14 +105,9 @@ extern "C"
         conn_param_t connection_delay_;
     };
 
-    typedef PairArrayT< vp_t,
-        ArrayT< CIStruct > > ConnectionInfoArray;
-
-    struct RCIStruct
-    {
-        ConnectionInfoArray incoming_connections_;
-        ConnectionInfoArray outgoing_connections_;
-    };
+    typedef ArrayT< ConnectionInfoStruct > ConnectionInfoPartition;
+    typedef PairArrayT< vp_t, ArrayT< ConnectionInfoPartition > > ConnectionInfoPairArray;
+    typedef PairT< ConnectionInfoPairArray, ConnectionInfoPairArray > RemoteConnectionInfoPair;
 
     struct MPStruct
     {
@@ -117,9 +116,11 @@ extern "C"
         SpaceTArray mask_blueprint_params_;
         SpaceTArray mask_blueprint_offset_;
         CharArray source_mask_name_;
+        SpaceTArray source_mask_origin_;
         SpaceTArray source_mask_params_;
         SpaceTArray source_mask_offset_;
         CharArray target_mask_name_;
+        SpaceTArray target_mask_origin_;
         SpaceTArray target_mask_params_;
         SpaceTArray target_mask_offset_;
     };
@@ -132,7 +133,8 @@ extern "C"
         bool inverted_conn_rule_ = false;
         bool allow_multiplicity_ = false;
         bool allow_self_connections_ = false;
-        mult_t total_number_connections_ = 0;
+        bool partition_connections_by_source_ = false;
+        mult_t connection_counts_ = 0;
 
         // Connection generation
         CharArray conn_gen_name_;

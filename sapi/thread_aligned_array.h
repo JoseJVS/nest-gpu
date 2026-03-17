@@ -23,12 +23,8 @@
 #ifndef THREAD_ALIGNED_ARRAY_H
 #define THREAD_ALIGNED_ARRAY_H
 
-#include <vector>
-#include <memory>
-#include <type_traits>
 #include <cassert>
 
-#include "sapi_config.h"
 #include "type_erasure_helpers.h"
 
 
@@ -41,8 +37,9 @@ vp_t get_max_omp_threads();
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> = true >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > = true
+>
 class TAArray
 {
 public:
@@ -58,8 +55,8 @@ public:
     void clone( const T& );
     void clone( const std::unique_ptr< T >& );
 
-    const std::unique_ptr< T >& get_thread_item( const vp_t& ) const;
-    const std::unique_ptr< T >& get_local_thread_item() const;
+    T* get_thread_item( const vp_t& ) const;
+    const T* get_local_thread_item() const;
 
 protected:
     bool cloned_ = false;
@@ -71,8 +68,9 @@ protected:
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
 inline void TAArray< T, b >::clear()
 {
     item_vec_.clear();
@@ -81,8 +79,9 @@ inline void TAArray< T, b >::clear()
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
 inline bool TAArray< T, b >::is_initialized() const
 {
     assert( cloned_ <= prepared_ );;
@@ -92,8 +91,9 @@ inline bool TAArray< T, b >::is_initialized() const
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
 inline void TAArray< T, b >::prepare()
 {
     if ( !prepared_ || cloned_ || num_threads_ != get_max_omp_threads() )
@@ -109,8 +109,9 @@ inline void TAArray< T, b >::prepare()
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
 inline void TAArray< T, b >::clone(
     const T& item
 )
@@ -131,8 +132,9 @@ shared( item_vec_, item )
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
 inline void TAArray< T, b >::clone(
     const std::unique_ptr< T >& item
 )
@@ -153,26 +155,28 @@ shared( item_vec_, item )
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
-inline const std::unique_ptr< T >&
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
+inline T*
 TAArray< T, b >::get_thread_item( const vp_t& tid ) const
 {
     assert( 0 <= tid && tid < num_threads_ );
-    return item_vec_[ tid ];
+    return item_vec_[ tid ].get();
 }
 
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Clonable< T >, T >, bool
-> b >
-inline const std::unique_ptr< T >&
+    std::is_base_of_v< Cloneable< T >, T >,
+    bool > b
+>
+inline const T*
 TAArray< T, b >::get_local_thread_item() const
 {
     const auto tid = get_thread_num();
     assert( 0 <= tid && tid < num_threads_ );
-    return item_vec_[ tid ];
+    return item_vec_[ tid ].get();
 }
 }
 

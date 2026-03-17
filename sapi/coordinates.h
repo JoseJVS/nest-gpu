@@ -49,31 +49,31 @@ struct Coord2D
     }
 
     Coord2D( space_t&& x, space_t&& y )
-        : x_( std::move( x ) ), y_( std::move( y ) )
+        : x_( x ), y_( y )
     {
     }
 
-    Coord2D& operator=( const Coord2D& coord );
+    Coord2D& operator=( const Coord2D& );
 
-    Coord2D& operator=( Coord2D&& coord );
+    Coord2D& operator=( Coord2D&& );
 
-    Coord2D operator+( const Coord2D& coord ) const;
+    Coord2D operator+( const Coord2D& ) const;
 
-    Coord2D operator+( const space_t& scalar ) const;
+    Coord2D operator+( const space_t& ) const;
 
-    Coord2D operator-( const Coord2D& coord ) const;
+    Coord2D operator-( const Coord2D& ) const;
 
-    Coord2D operator-( const space_t& scalar ) const;
+    Coord2D operator-( const space_t& ) const;
 
-    Coord2D operator*( const space_t& scalar ) const;
+    Coord2D operator*( const space_t& ) const;
 
-    Coord2D operator*( const Coord2D& coord ) const;
+    Coord2D operator*( const Coord2D& ) const;
 
-    Coord2D operator/( const space_t& scalar ) const;
+    Coord2D operator/( const space_t& ) const;
 
-    Coord2D operator/( const Coord2D& coord ) const;
+    Coord2D operator/( const Coord2D& ) const;
 
-    bool operator==( const Coord2D& coord ) const;
+    bool operator==( const Coord2D& ) const;
 
     bool is_null() const;
 
@@ -83,17 +83,17 @@ struct Coord2D
 
     Coord2D& sanitize();
 
-    template < typename IT >
-    void copy_to_vec( IT&& writing_pos ) const;
+    template < typename ForwardIteratorT >
+    void copy_to_vec( ForwardIteratorT&& ) const;
 
-    template < typename IT >
-    static Coord2D copy_from_vec( IT&& reading_pos );
+    template < typename ForwardIteratorT >
+    static Coord2D copy_from_vec( ForwardIteratorT&& );
 
-    template < typename IT >
-    void bit_copy_to_vec( IT&& writing_pos ) const;
+    template < typename ForwardIteratorT >
+    void bit_copy_to_vec( ForwardIteratorT&& ) const;
 
-    template < typename IT >
-    static Coord2D bit_copy_from_vec( IT&& reading_pos );
+    template < typename ForwardIteratorT >
+    static Coord2D bit_copy_from_vec( ForwardIteratorT&& );
 };
 
 
@@ -107,8 +107,8 @@ inline Coord2D& Coord2D::operator=( const Coord2D& coord )
 
 inline Coord2D& Coord2D::operator=( Coord2D&& coord )
 {
-    x_ = std::move( coord.x_ );
-    y_ = std::move( coord.y_ );
+    x_ = coord.x_;
+    y_ = coord.y_;
     return *this;
 }
 
@@ -218,34 +218,34 @@ inline Coord2D& Coord2D::sanitize()
 }
 
 
-template < typename IT >
-inline void Coord2D::copy_to_vec( IT&& writing_pos ) const
+template < typename ForwardIteratorT >
+inline void Coord2D::copy_to_vec( ForwardIteratorT&& writing_pos ) const
 {
     *writing_pos++ = x_;
     *writing_pos++ = y_;
 }
 
 
-template < typename IT >
-inline Coord2D Coord2D::copy_from_vec( IT&& reading_pos )
+template < typename ForwardIteratorT >
+inline Coord2D Coord2D::copy_from_vec( ForwardIteratorT&& reading_pos )
 {
-    return Coord2D(
-        space_t( *reading_pos++ ),
-        space_t( *reading_pos++ )
-    );
+    Coord2D coord;
+    coord.x_ = *reading_pos++;
+    coord.y_ = *reading_pos++;
+    return coord;
 }
 
 
-template < typename IT >
-inline void Coord2D::bit_copy_to_vec( IT&& writing_pos ) const
+template < typename ForwardIteratorT >
+inline void Coord2D::bit_copy_to_vec( ForwardIteratorT&& writing_pos ) const
 {
     std::memcpy( &( *writing_pos++ ), &x_, sizeof( space_t ) );
     std::memcpy( &( *writing_pos++ ), &y_, sizeof( space_t ) );
 }
 
 
-template < typename IT >
-inline Coord2D Coord2D::bit_copy_from_vec( IT&& reading_pos )
+template < typename ForwardIteratorT >
+inline Coord2D Coord2D::bit_copy_from_vec( ForwardIteratorT&& reading_pos )
 {
     Coord2D coord;
     std::memcpy( &coord.x_, &( *reading_pos++ ), sizeof( space_t ) );
@@ -262,8 +262,8 @@ struct Coord3D
     space_t z_ = 0.;
 
     Coord3D() = default;
-    Coord3D( const Coord3D& coord ) = default;
-    Coord3D( Coord3D&& coord ) = default;
+    Coord3D( const Coord3D& ) = default;
+    Coord3D( Coord3D&& ) = default;
     ~Coord3D() = default;
 
     Coord3D( const space_t& x, const space_t& y, const space_t& z )
@@ -272,31 +272,31 @@ struct Coord3D
     }
 
     Coord3D( space_t&& x, space_t&& y, space_t&& z )
-        : x_( std::move( x ) ), y_( std::move( y ) ), z_( std::move( z ) )
+        : x_( x ), y_( y ), z_( z )
     {
     }
 
-    Coord3D& operator=( const Coord3D& coord );
+    Coord3D& operator=( const Coord3D& );
 
-    Coord3D& operator=( Coord3D&& coord );
+    Coord3D& operator=( Coord3D&& );
 
-    Coord3D operator+( const space_t& scalar ) const;
+    Coord3D operator+( const space_t& ) const;
 
-    Coord3D operator+( const Coord3D& coord ) const;
+    Coord3D operator+( const Coord3D& ) const;
 
-    Coord3D operator-( const space_t& scalar ) const;
+    Coord3D operator-( const space_t& ) const;
 
-    Coord3D operator-( const Coord3D& coord ) const;
+    Coord3D operator-( const Coord3D& ) const;
 
-    Coord3D operator*( const space_t& scalar ) const;
+    Coord3D operator*( const space_t& ) const;
 
-    Coord3D operator*( const Coord3D& coord ) const;
+    Coord3D operator*( const Coord3D& ) const;
 
-    Coord3D operator/( const space_t& scalar ) const;
+    Coord3D operator/( const space_t& ) const;
 
-    Coord3D operator/( const Coord3D& coord ) const;
+    Coord3D operator/( const Coord3D& ) const;
 
-    bool operator==( const Coord3D& coord ) const;
+    bool operator==( const Coord3D& ) const;
 
     bool is_null() const;
 
@@ -306,17 +306,17 @@ struct Coord3D
 
     Coord3D& sanitize();
 
-    template < typename IT >
-    void copy_to_vec( IT&& writing_pos ) const;
+    template < typename ForwardIteratorT >
+    void copy_to_vec( ForwardIteratorT&& ) const;
 
-    template < typename IT >
-    static Coord3D copy_from_vec( IT&& reading_pos );
+    template < typename ForwardIteratorT >
+    static Coord3D copy_from_vec( ForwardIteratorT&& );
 
-    template < typename IT >
-    void bit_copy_to_vec( IT&& writing_pos ) const;
+    template < typename ForwardIteratorT >
+    void bit_copy_to_vec( ForwardIteratorT&& ) const;
 
-    template < typename IT >
-    static Coord3D bit_copy_from_vec( IT&& reading_pos );
+    template < typename ForwardIteratorT >
+    static Coord3D bit_copy_from_vec( ForwardIteratorT&& );
 };
 
 
@@ -331,9 +331,9 @@ inline Coord3D& Coord3D::operator=( const Coord3D& coord )
 
 inline Coord3D& Coord3D::operator=( Coord3D&& coord )
 {
-    x_ = std::move( coord.x_ );
-    y_ = std::move( coord.y_ );
-    z_ = std::move( coord.z_ );
+    x_ = coord.x_;
+    y_ = coord.y_;
+    z_ = coord.z_;
     return *this;
 }
 
@@ -453,8 +453,8 @@ inline Coord3D& Coord3D::sanitize()
 }
 
 
-template < typename IT >
-inline void Coord3D::copy_to_vec( IT&& writing_pos ) const
+template < typename ForwardIteratorT >
+inline void Coord3D::copy_to_vec( ForwardIteratorT&& writing_pos ) const
 {
     *writing_pos++ = x_;
     *writing_pos++ = y_;
@@ -462,19 +462,19 @@ inline void Coord3D::copy_to_vec( IT&& writing_pos ) const
 }
 
 
-template < typename IT >
-inline Coord3D Coord3D::copy_from_vec( IT&& reading_pos )
+template < typename ForwardIteratorT >
+inline Coord3D Coord3D::copy_from_vec( ForwardIteratorT&& reading_pos )
 {
-    return Coord3D(
-        space_t( *reading_pos++ ),
-        space_t( *reading_pos++ ),
-        space_t( *reading_pos++ )
-    );
+    Coord3D coord;
+    coord.x_ = *reading_pos++;
+    coord.y_ = *reading_pos++;
+    coord.z_ = *reading_pos++;
+    return coord;
 }
 
 
-template < typename IT >
-inline void Coord3D::bit_copy_to_vec( IT&& writing_pos ) const
+template < typename ForwardIteratorT >
+inline void Coord3D::bit_copy_to_vec( ForwardIteratorT&& writing_pos ) const
 {
     std::memcpy( &( *writing_pos++ ), &x_, sizeof( space_t ) );
     std::memcpy( &( *writing_pos++ ), &y_, sizeof( space_t ) );
@@ -482,8 +482,8 @@ inline void Coord3D::bit_copy_to_vec( IT&& writing_pos ) const
 }
 
 
-template < typename IT >
-inline Coord3D Coord3D::bit_copy_from_vec( IT&& reading_pos )
+template < typename ForwardIteratorT >
+inline Coord3D Coord3D::bit_copy_from_vec( ForwardIteratorT&& reading_pos )
 {
     Coord3D coord;
     std::memcpy( &coord.x_, &( *reading_pos++ ), sizeof( space_t ) );
@@ -500,8 +500,8 @@ struct Displacement
     space_t distance2_ = 0.;
 
     Displacement() = default;
-    Displacement( const Displacement& dc ) = default;
-    Displacement( Displacement&& dc ) = default;
+    Displacement( const Displacement& ) = default;
+    Displacement( Displacement&& ) = default;
     ~Displacement() = default;
 
     Displacement( CoordT&& );
@@ -546,7 +546,7 @@ inline Displacement< CoordT >& Displacement< CoordT >::operator=(
     )
 {
     displacement_ = std::move( dc.displacement_ );
-    distance2_ = std::move( dc.distance2_ );
+    distance2_ = dc.distance2_;
     return *this;
 }
 
@@ -594,7 +594,7 @@ struct CircumscribedRadius
         space_t&& radius2
     )
         : origin_( std::move( origin ) )
-        , radius2_( std::move( radius2 ) )
+        , radius2_( radius2 )
     {
     }
 
@@ -607,19 +607,19 @@ struct CircumscribedRadius
         );
 
     bool disp_in_radius(
-        const Displacement< CoordT >& disp,
-        const space_t& radius_offset = 0
+        const Displacement< CoordT >&,
+        const space_t& = 0
     ) const;
 
     std::optional< Displacement< CoordT > >
         coord_in_radius(
-            const CoordT& coord,
-            const space_t& radius_offset = 0
+            const CoordT&,
+            const space_t& = 0
         ) const;
 
     std::optional< Displacement< CoordT > >
         overlapping_radi(
-            const CircumscribedRadius& radius
+            const CircumscribedRadius&
         ) const;
 
     std::string to_string() const;
@@ -649,7 +649,7 @@ CircumscribedRadius< CoordT >::operator=(
     )
 {
     origin_ = std::move( cr.origin_ );
-    radius2_ = std::move( cr.radius2_ );
+    radius2_ = cr.radius2_;
     return *this;
 }
 
@@ -692,12 +692,12 @@ CircumscribedRadius< CoordT >::coord_in_radius(
 
 template < typename CoordT >
 inline std::optional< Displacement< CoordT > > CircumscribedRadius< CoordT >::overlapping_radi(
-    const CircumscribedRadius& radius
+    const CircumscribedRadius& cr
 ) const
 {
     return coord_in_radius(
-        radius.origin_,
-        std::sqrt( radius.radius2_ )
+        cr.origin_,
+        std::sqrt( cr.radius2_ )
     );
 }
 

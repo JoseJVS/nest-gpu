@@ -35,16 +35,14 @@
 namespace sapi
 {
 template < typename CoordT >
-bool tile_overlap(
-    const Tile< CoordT >* const& driver,
-    const Tile< CoordT >* const& pool,
+inline bool tile_overlap(
+    const Tile< CoordT >& driver,
+    const Tile< CoordT >& pool,
     const MaskCollection< CoordT >* const& mask_collection,
     const bool& pool_is_shifted,
     const bool& inverted_source_target
 )
 {
-    assert( driver != nullptr && pool != nullptr );
-
     if ( no_overlap( driver, mask_collection, inverted_source_target ) )
         return false;
     if ( !pool_is_shifted && no_overlap( pool, mask_collection, !inverted_source_target ) )
@@ -57,10 +55,10 @@ bool tile_overlap(
 template < typename CoordT >
 void insert_leaf_tiles_within_range(
     std::forward_list< LeafPairInfo< CoordT > >& lpi_list,
-    tileidx_t& used_image_indexes,
-    const Tile< CoordT >* const& driver,
-    const Tile< CoordT >* const& pool,
-    const tileidx_t& image_index,
+    uint64_t& used_image_indexes,
+    const Tile< CoordT >& driver,
+    const Tile< CoordT >& pool,
+    const uint8_t& image_index,
     const std::optional< CoordT >& image_displacement,
     const TAArray< MaskCollection< CoordT > >& mc_array,
     const bool& inverted_connection_rule,
@@ -69,20 +67,20 @@ void insert_leaf_tiles_within_range(
 )
 {
     assert(
-        driver->is_split() == pool->is_split() &&
+        driver.sub_tiles_.empty() == pool.sub_tiles_.empty() &&
         0 <= splits
     );
 
-    if ( !driver->is_split() )
+    if ( driver.sub_tiles_.empty() )
     {
         // Aggregation is performed on local first
         LeafPairInfo< CoordT > lpi(
             inverted_connection_rule
-            ? pool->index_
-            : driver->index_,
+            ? pool.index_
+            : driver.index_,
             inverted_connection_rule
-            ? driver->index_
-            : pool->index_,
+            ? driver.index_
+            : pool.index_,
             image_index,
             image_displacement
         );
@@ -95,38 +93,33 @@ void insert_leaf_tiles_within_range(
     }
     else
     {
-        assert(
-            driver->get_sub_tiles().size() < std::numeric_limits< vertidx_t >::max() &&
-            pool->get_sub_tiles().size() < std::numeric_limits< vertidx_t >::max()
-        );
-
-        const auto d_st_count = static_cast< vertidx_t >( driver->get_sub_tiles().size() );
-        const auto d_sub_tiles = driver->get_sub_tiles().data();
-        const auto p_st_count = static_cast< vertidx_t >( pool->get_sub_tiles().size() );
-        const auto p_sub_tiles = pool->get_sub_tiles().data();
+        const auto d_st_count = driver.sub_tiles_.size();
+        const auto d_sub_tiles = driver.sub_tiles_.data();
+        const auto p_st_count = pool.sub_tiles_.size();
+        const auto p_sub_tiles = pool.sub_tiles_.data();
         const auto rem_splits = 0 < splits ? splits - 1 : 0;
 
 #pragma omp taskloop collapse( 2 ) grainsize( 1 ) default( none )\
-    shared( lpi_list, used_image_indexes, mc_array )\
+    shared( lpi_list, used_image_indexes, image_displacement, mc_array )\
     firstprivate( d_st_count, d_sub_tiles, p_st_count, p_sub_tiles,\
-        image_index, image_displacement,\
-        inverted_connection_rule, inverted_source_target, rem_splits )\
+        image_index, inverted_connection_rule, inverted_source_target, rem_splits )\
     mergeable final( rem_splits < 2 )
-        for ( vertidx_t d_st = 0; d_st < d_st_count; ++d_st )
+        for ( std::size_t d_st = 0; d_st < d_st_count; ++d_st )
         {
-            for ( vertidx_t p_st = 0; p_st < p_st_count; ++p_st )
+            for ( std::size_t p_st = 0; p_st < p_st_count; ++p_st )
             {
-                const auto st_driver = d_sub_tiles[ d_st ].get();
-                const auto st_pool = p_sub_tiles[ p_st ].get();
                 if ( tile_overlap(
-                    st_driver, st_pool, mc_array.get_local_thread_item().get(),
-                    image_displacement.has_value(), inverted_source_target ) )
+                    d_sub_tiles[ d_st ], p_sub_tiles[ p_st ],
+                    mc_array.get_local_thread_item(),
+                    image_displacement.has_value(),
+                    inverted_source_target )
+                    )
                 {
                     insert_leaf_tiles_within_range(
                         lpi_list,
                         used_image_indexes,
-                        st_driver,
-                        st_pool,
+                        d_sub_tiles[ d_st ],
+                        p_sub_tiles[ p_st ],
                         image_index,
                         image_displacement,
                         mc_array,
@@ -144,21 +137,19 @@ void insert_leaf_tiles_within_range(
 template < typename CoordT >
 void aggregate_leaf_pairs(
     TilePairInfo< CoordT >& tpi,
-    const tileidx_t& used_image_indexes,
-    const tileidx_t& total_image_indexes
+    const uint64_t& used_image_indexes,
+    const uint8_t& total_image_indexes
 )
 {
     if ( tpi.flattened_leaf_pairs_.empty() )
         return;
 
-    std::vector< tileidx_t > index_shifts( total_image_indexes, -1 );
+    std::vector< uint8_t > index_shifts( total_image_indexes, -1 );
 
-    tileidx_t valid_images = 0;
-    for ( tileidx_t index = 0; index < total_image_indexes; ++index )
-    {
+    uint8_t valid_images = 0;
+    for ( uint8_t index = 0; index < total_image_indexes; ++index )
         if ( 0 < ( used_image_indexes & 1 << index ) )
             index_shifts[ index ] = valid_images++;
-    }
 
     assert( 0 < valid_images );
 
@@ -223,6 +214,41 @@ void aggregate_leaf_pairs(
 
 
 template < typename CoordT >
+inline void dispatch_image_overlap(
+    std::forward_list< LeafPairInfo< CoordT > >& lpi_list,
+    uint64_t& used_image_indexes,
+    const Tile< CoordT >& driver_tile,
+    const Tile< CoordT >& pool_tile,
+    const uint8_t& image_index,
+    const std::optional< CoordT >& image_displacement,
+    const TAArray< MaskCollection< CoordT > >& mc_array,
+    const bool& inverted_connection_rule,
+    const bool& inverted_source_target,
+    const split_t& splits
+)
+{
+#pragma omp taskgroup
+    pool_tile.split_tile( splits );
+
+#pragma omp task default( none )\
+    shared( lpi_list, used_image_indexes, driver_tile, pool_tile, image_displacement,  mc_array )\
+    firstprivate( image_index, inverted_connection_rule, inverted_source_target, splits )
+    insert_leaf_tiles_within_range(
+        lpi_list,
+        used_image_indexes,
+        driver_tile,
+        pool_tile,
+        image_index,
+        image_displacement,
+        mc_array,
+        inverted_connection_rule,
+        inverted_source_target,
+        0 < splits ? splits - 1 : 0
+    );
+}
+
+
+template < typename CoordT >
 void tile_pair_overlap(
     TilePairInfo< CoordT >& tpi,
     const TilePosition< CoordT >& driver_tile_pos,
@@ -236,14 +262,12 @@ void tile_pair_overlap(
 {
     assert( tpi.aggregated_leaf_pairs_.empty() );
 
-    tileidx_t image_index = 0;
-    tileidx_t used_image_indexes = 0;
-    const auto driver_tile = driver_tile_pos.tile_.get(); // using unique_ptr::get
-    const auto pool_tile = pool_tile_pos.tile_.get();
-    const auto mask_collection = mc_array.get_local_thread_item().get();
+    uint8_t image_index = 0;
+    uint64_t used_image_indexes = 0;
+    const auto mask_collection = mc_array.get_local_thread_item();
 
 #pragma omp taskgroup
-    driver_tile->initialize_sub_tiles( splits );
+    driver_tile_pos.tile_.split_tile( splits );
 
     if ( edge_wrap )
     {
@@ -252,59 +276,49 @@ void tile_pair_overlap(
 #pragma omp taskgroup
         for ( const auto& pool_image : pool_tile_pos.grid_images_ )
         {
-            const auto tile_image = pool_image.shifted_tile_
-                ? pool_image.shifted_tile_.get()
-                : pool_tile;
-
             if ( !mask_collection->blueprint_overlap(
-                driver_tile, tile_image )
+                driver_tile_pos.tile_,
+                pool_image.shifted_tile_.has_value()
+                ? pool_image.shifted_tile_.value()
+                : pool_tile_pos.tile_ )
                 )
                 continue;
 
-#pragma omp taskgroup
-            tile_image->initialize_sub_tiles( splits );
-
-#pragma omp task default( none ) shared( pool_image, tpi, used_image_indexes, mc_array )\
-            firstprivate( image_index, driver_tile, tile_image,\
-                inverted_connection_rule, inverted_source_target, splits )
-            insert_leaf_tiles_within_range(
+            dispatch_image_overlap(
                 tpi.flattened_leaf_pairs_,
                 used_image_indexes,
-                driver_tile,
-                tile_image,
-                image_index,
+                driver_tile_pos.tile_,
+                pool_image.shifted_tile_.has_value()
+                ? pool_image.shifted_tile_.value()
+                : pool_tile_pos.tile_,
+                image_index++,
                 pool_image.shift_displacement_,
                 mc_array,
                 inverted_connection_rule,
                 inverted_source_target,
-                0 < splits ? splits - 1 : 0
+                splits
             );
-
-            ++image_index;
         }
     }
     else
     {
         if ( !mask_collection->blueprint_overlap(
-            driver_tile, pool_tile )
+            driver_tile_pos.tile_, pool_tile_pos.tile_ )
             )
             return;
 
 #pragma omp taskgroup
-        pool_tile->initialize_sub_tiles( splits );
-
-#pragma omp taskgroup
-        insert_leaf_tiles_within_range(
+        dispatch_image_overlap(
             tpi.flattened_leaf_pairs_,
             used_image_indexes,
-            driver_tile,
-            pool_tile,
+            driver_tile_pos.tile_,
+            pool_tile_pos.tile_,
             image_index++,
             std::optional< CoordT >(),
             mc_array,
             inverted_connection_rule,
             inverted_source_target,
-            0 < splits ? splits - 1 : 0
+            splits
         );
     }
 
@@ -343,7 +357,10 @@ void filter_insert_jointures(
                 *coord_vec_it,
                 mask_collection,
                 inverted_source_target ) )
+            {
+                ++coord_vec_it;
                 continue;
+            }
 
             ++node_count;
             ncp_fl.emplace_front(
@@ -436,7 +453,7 @@ firstprivate( leaf_it, node_sequence, ncm_it, inverted_source_target )
             leaf_it->second,
             node_sequence,
             ncm_it->second,
-            mc_array.get_local_thread_item().get(),
+            mc_array.get_local_thread_item(),
             inverted_source_target
         );
     }
@@ -511,7 +528,7 @@ void rank_pair_overlap(
         !tns_target.empty()
     );
 
-    const auto mask_collection = mc_array.get_local_thread_item().get();
+    const auto mask_collection = mc_array.get_local_thread_item();
 
 #pragma omp taskgroup
     for ( const auto& [source_tile_index, source_node_sequence] : tns_source )
@@ -519,7 +536,7 @@ void rank_pair_overlap(
         const auto source_tile_pos = tile_grid.positions_.cbegin() + source_tile_index;
 
         if ( no_overlap(
-            source_tile_pos->get_tile(),
+            source_tile_pos->tile_,
             mask_collection,
             inverted_source_target
         ) ) continue;
@@ -541,7 +558,7 @@ void rank_pair_overlap(
             const auto target_tile_pos = tile_grid.positions_.cbegin() + target_tile_index;
 
             if ( no_overlap(
-                target_tile_pos->get_tile(),
+                target_tile_pos->tile_,
                 mask_collection,
                 !inverted_source_target
             ) ) continue;
@@ -623,7 +640,11 @@ void distributed_overlap(
     const bool& force_prepare_payload
 )
 {
-    assert( rpi_map.empty() && !tns_source.empty() );
+    assert(
+        rpi_map.empty() &&
+        !tns_source.empty() &&
+        !grid_node_col.tiles_node_coord_map_.empty()
+    );
 
     for ( const auto& [rank, tns_target] : dist_tns_target )
     {
@@ -677,7 +698,6 @@ compute_distributed_tile_overlap(
         !dist_tns_target.empty() &&
         tile_grid.has_split_ &&
         grid_neighborhood.has_owners_ &&
-        !grid_node_col.tiles_node_coord_map_.empty() &&
         mc_array.is_initialized() &&
         mc_array.get_local_thread_item()->has_blueprint()
     );

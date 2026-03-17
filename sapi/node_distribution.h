@@ -23,17 +23,27 @@
 #ifndef NODE_DISTRIBUTION
 #define NODE_DISTRIBUTION
 
-#include "numerics.h"
+#include <array>
+#include <random>
+
 #include "random_manager.h"
 #include "node_containers.h"
-#include "grid_neighborhood.h"
 
 
 namespace sapi
 {
-// Forward definition to link with vp_interface
+// Forward definition to link with vp_interface.h
 vp_t get_thread_num();
 vp_t get_max_omp_threads();
+
+// Forward definition to link with grid_neighborhood.h
+struct GridNeighborhood;
+
+
+template < typename T >
+using rcvref = typename std::remove_cv_t<
+    typename std::remove_reference_t< T >
+>;
 
 
 template < typename I,
@@ -168,8 +178,8 @@ template < typename I,
 void batched_draw(
     std::vector< I >& buffer,
     I& batches,
-    nest::RngPtr const& rng,
-    nest::uniform_int_distribution& distribution,
+    AnyRNG& rng,
+    std::uniform_int_distribution< tileidx_t >& distribution,
     const tileidx_t& num_bins,
     const bool& balanced
 )
@@ -177,9 +187,9 @@ void batched_draw(
     if ( balanced )
     {
         assert( batches < num_bins && 1 < num_bins );
-        std::vector< I > indexes( num_bins );
+        std::vector< tileidx_t > indexes( num_bins );
         std::iota( indexes.begin(), indexes.end(), 0 );
-        rng->shuffle( indexes );
+        std::shuffle( indexes.begin(), indexes.end(), rng );
 
         while ( 0 < batches )
         {
@@ -245,7 +255,7 @@ template <
 void batched_draw(
     std::vector< I >& buffer,
     I& batches,
-    nest::RngPtr const& rng,
+    AnyRNG& rng,
     const ForwardDistIT& distributions_first,
     const DimensionBoundsT& dimensions
 )
@@ -300,11 +310,8 @@ uniform_distribute_node_counts(
     auto [full_batches, partial_batches] =
         batch_node_counts_by_thread_count( num_nodes, num_threads );
 
-    nest::uniform_int_distribution tile_idx_dist;
-    tile_idx_dist.param(
-        nest::uniform_int_distribution::param_type(
-            0, static_cast< nest::uniform_int_distribution::result_type >( num_bins - 1 )
-        )
+    std::uniform_int_distribution< tileidx_t > tile_idx_dist(
+        0, num_bins - 1
     );
 
     if ( 0 < full_batches )
@@ -323,8 +330,8 @@ uniform_distribute_node_counts(
                 *curr_buff,
                 full_batches,
                 global
-                ? rng_manager.get_tid_synced_rng( curr_idx )
-                : rng_manager.get_tid_specific_rng( curr_idx ),
+                ? *rng_manager.get_tid_synced_rng( curr_idx )
+                : *rng_manager.get_tid_specific_rng( curr_idx ),
                 tile_idx_dist,
                 num_bins,
                 balanced
@@ -345,8 +352,8 @@ uniform_distribute_node_counts(
             count_vec,
             partial_batches,
             global
-            ? rng_manager.get_rank_synced_rng()
-            : rng_manager.get_rank_specific_rng(),
+            ? *rng_manager.get_rank_synced_rng()
+            : *rng_manager.get_rank_specific_rng(),
             tile_idx_dist,
             num_bins,
             balanced
@@ -384,20 +391,12 @@ uniform_distribute_node_counts(
     auto [full_batches, partial_batches] =
         batch_node_counts_by_thread_count( num_nodes, num_threads );
 
-    std::vector< nest::uniform_int_distribution > distributions( dimensions.size() );
-    auto dim_it = dimensions.begin();
-    std::for_each(
-        distributions.begin(),
-        distributions.end(),
-        [ & ]( auto& dist )
-        {
-            dist.param(
-                nest::uniform_int_distribution::param_type(
-                    0, static_cast< nest::uniform_int_distribution::result_type >( *dim_it++ - 1 )
-                )
-            );
-        }
-    );
+    std::vector< std::uniform_int_distribution< tileidx_t > > distributions;
+    distributions.reserve( dimensions.size() );
+    for ( const auto& dim : dimensions )
+        distributions.emplace_back(
+            std::uniform_int_distribution< tileidx_t >( 0, static_cast< tileidx_t >( dim - 1 ) )
+        );
 
     if ( 0 < full_batches )
     {
@@ -415,8 +414,8 @@ uniform_distribute_node_counts(
                 *curr_buff,
                 full_batches,
                 global
-                ? rng_manager.get_tid_synced_rng( curr_idx )
-                : rng_manager.get_tid_specific_rng( curr_idx ),
+                ? *rng_manager.get_tid_synced_rng( curr_idx )
+                : *rng_manager.get_tid_specific_rng( curr_idx ),
                 distributions.begin(),
                 dimensions
             );
@@ -432,8 +431,8 @@ uniform_distribute_node_counts(
             count_vec,
             partial_batches,
             global
-            ? rng_manager.get_rank_synced_rng()
-            : rng_manager.get_rank_specific_rng(),
+            ? *rng_manager.get_rank_synced_rng()
+            : *rng_manager.get_rank_specific_rng(),
             distributions.begin(),
             dimensions
         );
@@ -442,7 +441,7 @@ uniform_distribute_node_counts(
 }
 
 
-inline void aggregate_tiled_node_count_by_rank(
+void aggregate_tiled_node_count_by_rank(
     NodeCountVector& node_counts_per_rank,
     TileIdxNodeCountPairListVector& tiled_node_counts_per_rank,
     const tileidx_t& tile_index,
@@ -450,93 +449,18 @@ inline void aggregate_tiled_node_count_by_rank(
     const GridNeighborhood& grid_neighborhood,
     const RandomManager& rng_manager,
     const bool& balanced
-)
-{
-    assert( 0 <= node_count_in_tile );
-
-    if ( node_count_in_tile == 0 )
-        return;
-
-    const auto tile_owners = grid_neighborhood.tile_ranks_ownership_map_.cbegin() + tile_index;
-    assert( tile_owners != grid_neighborhood.tile_ranks_ownership_map_.end() );
-    if ( tile_owners->empty() )
-        throw std::runtime_error( "Tile with allocated nodes has no owning rank" );
-
-    assert( tile_owners->size() < std::numeric_limits< tileidx_t >::max() );
-
-    const auto node_counts_per_owning_rank = uniform_distribute_node_counts(
-        node_count_in_tile,
-        static_cast< tileidx_t >( tile_owners->size() ),
-        rng_manager,
-        balanced,
-        true // global
-    );
-
-    auto nc_it = node_counts_per_owning_rank.cbegin();
-    for ( const auto& owner_rank : *tile_owners )
-    {
-        const auto count = *nc_it++;
-        if ( count == 0 ) continue;
-        node_counts_per_rank[ owner_rank ] += count;
-        tiled_node_counts_per_rank[ owner_rank ].emplace_front(
-            std::make_pair( tile_index, count )
-        );
-    }
-}
+);
 
 
 // Here it is assumed that node sequences in each rank are generated externally
 // i.e. this library generates a number of nodes per tiles then aggregates by rank
 // then another library instantiates the nodes in the rank and returns the sequence
 // of nodes generated in the rank
-inline DistributedTiledNodeSequenceMap
+DistributedTiledNodeSequenceMap
 consolidate_node_sequences_per_tile_per_rank(
     const RankNodeSequenceMap& node_seq_per_rank,
     const TileIdxNodeCountPairListVector& node_counts_per_tile_per_rank
-)
-{
-    nodeidx_t first_node_idx;
-    DistributedTiledNodeSequenceMap dist_tns;
-    for ( const auto& [rank, node_sequence] : node_seq_per_rank )
-    {
-        if ( node_sequence.first < 0 ||
-            node_sequence.second < 1 )
-            throw std::invalid_argument( "Invalid node sequence" );
-
-        first_node_idx = node_sequence.first;
-        TileIdxNodeSequenceMap tile_idx_node_sequence_map;
-        for ( const auto& [tile_index, node_count]
-            : node_counts_per_tile_per_rank.at( rank ) )
-        {
-            if ( node_count < 1 )
-                continue;
-
-            const auto emplace_res = tile_idx_node_sequence_map.emplace(
-                std::make_pair(
-                    tileidx_t( tile_index ),
-                    NodeSequence(
-                        first_node_idx,
-                        node_count
-                    )
-                )
-            );
-            assert( emplace_res.second );
-
-            first_node_idx += node_count;
-        }
-        assert( ( first_node_idx - node_sequence.first ) == node_sequence.second );
-
-        if ( !tile_idx_node_sequence_map.empty() )
-            dist_tns.emplace(
-                std::make_pair(
-                    vp_t( rank ),
-                    std::move( tile_idx_node_sequence_map )
-                )
-            );
-    }
-
-    return dist_tns;
-}
+);
 }
 
 

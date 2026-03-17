@@ -23,115 +23,257 @@
 #ifndef MASK_GEOMETRY_H
 #define MASK_GEOMETRY_H
 
-#include "coordinate_geometry.h"
+#include <vector>
+#include <optional>
+#include <stdexcept>
+#include <type_traits>
+
+#include "enum_store.h"
+#include "sapi_config.h"
 
 
 namespace sapi
 {
-inline std::optional< Displacement< Coord2D > >
-coord_in_circular_mask(
-    const Coord2D& mask_origin,
-    const space_t& circular_radius2,
-    const Coord2D& coord
+// Forward definition to coordinates.h
+struct Coord2D;
+struct Coord3D;
+template < typename CoordT >
+struct Displacement;
+
+// Forward definition to mask.h
+template < typename CoordT >
+struct Mask;
+
+
+void initialize_circular_mask_helpers(
+    space_t& radius2,
+    const std::vector< space_t >& mask_params
+);
+
+
+void initialize_elliptical_mask_helpers(
+    space_t& radius2,
+    std::vector< Coord2D >& helper_vectors,
+    std::vector< space_t >& helper_scalars,
+    const std::vector< space_t >& mask_params
+);
+
+
+void initialize_parallelogram_mask_helpers(
+    space_t& radius2,
+    std::vector< Coord2D >& helper_vectors,
+    std::vector< space_t >& helper_scalars,
+    const Coord2D& origin,
+    const std::vector< space_t >& mask_params
+);
+
+
+void initialize_triangular_mask_helpers(
+    space_t& radius2,
+    std::vector< Coord2D >& helper_vectors,
+    std::vector< space_t >& helper_scalars,
+    const std::vector< space_t >& mask_params
+);
+
+
+template < typename CoordT >
+inline void initialize_mask_helpers(
+    space_t& radius2,
+    std::vector< CoordT >& helper_vectors,
+    std::vector< space_t >& helper_scalars,
+    const CoordT& origin,
+    const std::vector< space_t >& mask_params,
+    const MASK_SHAPE& shape
 )
 {
-    Displacement< Coord2D > disp( coord - mask_origin );
-    return leq_test( disp.distance2_, circular_radius2 )
-        ? std::make_optional( disp )
-        : std::optional< Displacement< Coord2D > >();
+    if constexpr ( std::is_same_v< CoordT, Coord2D > )
+    {
+        const auto params_length = mask_params.size();
+        switch ( shape )
+        {
+        case MASK_SHAPE::CIRCULAR:
+        {
+            if ( params_length != 1 )
+                throw std::invalid_argument( "Invalid circular mask params vector" );
+
+            initialize_circular_mask_helpers( radius2, mask_params );
+
+            break;
+        }
+
+        case MASK_SHAPE::ELLIPTICAL:
+        {
+            if ( params_length < 2 || 3 < params_length )
+                throw std::invalid_argument( "Invalid elliptical mask params vector" );
+
+            initialize_elliptical_mask_helpers(
+                radius2, helper_vectors, helper_scalars, mask_params
+            );
+
+            break;
+        }
+
+        case MASK_SHAPE::PARALLELOGRAM:
+        {
+            if ( params_length != 4 )
+                throw std::invalid_argument( "Invalid parallelogram mask params vector" );
+
+            initialize_parallelogram_mask_helpers(
+                radius2, helper_vectors, helper_scalars, origin, mask_params
+            );
+
+            break;
+        }
+
+        case MASK_SHAPE::TRIANGULAR:
+        {
+            if ( params_length != 4 )
+                throw std::invalid_argument( "Invalid triangular mask params vector" );
+
+            initialize_triangular_mask_helpers(
+                radius2, helper_vectors, helper_scalars, mask_params
+            );
+
+            break;
+        }
+
+        default:
+            throw std::invalid_argument( "Invalid mask shape" );
+        }
+    }
+    else
+    {
+        throw std::runtime_error( "3D implementation not available yet" );
+    }
 }
 
 
-inline std::optional< Displacement< Coord2D > >
-coord_in_algebraic_mask(
-    const Coord2D& mask_origin,
-    const space_t& circular_radius2,
-    const Coord2D& basis_vertex,
-    const Coord2D& basis_vector0,
-    const Coord2D& basis_vector1,
-    const space_t& det_01,
-    const Coord2D& coord,
-    const bool& triangular_comparison
-)
-{
-    // Get displacement from mask origin
-    Displacement< Coord2D > disp( coord - mask_origin );
-
-    // Fast rejection method
-    if ( !leq_test( disp.distance2_, circular_radius2 ) )
-        return {};
-
-    // Get projection coefficients of coord onto parallelogram basis vectors
-    return algebraic_projection_comparison(
-        coord - basis_vertex,
-        basis_vector0,
-        basis_vector1,
-        det_01,
-        triangular_comparison
-    )
-        ? std::make_optional( std::move( disp ) )
-        : std::optional< Displacement< Coord2D > >();
-}
-
-
-inline bool rotated_coord_in_elliptical_mask(
-    const Coord2D& displacement,
-    const space_t& semi_major_axe2,
-    const space_t& semi_minor_axe2
-)
-{
-    const bool dx_az = almost_zero( displacement.x_ );
-    const bool dy_az = almost_zero( displacement.y_ );
-
-    if ( dx_az && dy_az )
-        return true;
-
-    if ( dx_az )
-        return leq_test( squared( displacement.y_ ), semi_minor_axe2 );
-
-    if ( dy_az )
-        return leq_test( squared( displacement.x_ ), semi_major_axe2 );
-
-    return leq_test(
-        compensated_sum(
-            squared( displacement.x_ ) / semi_major_axe2,
-            squared( displacement.y_ ) / semi_minor_axe2
-        ),
-        1
+std::optional< Displacement< Coord2D > >
+    coord_in_circular_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&
     );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_elliptical_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&
+    );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_parallelogram_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&
+    );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_triangular_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&
+    );
+
+
+template < typename CoordT >
+inline std::optional< Displacement< CoordT > >
+    coord_in_mask(
+        const Mask< CoordT >& mask,
+        const CoordT& coord
+    )
+{
+    if constexpr ( std::is_same_v< CoordT, Coord2D > )
+    {
+        switch ( mask.shape_ )
+        {
+        case MASK_SHAPE::CIRCULAR:
+            return coord_in_circular_mask( mask, coord );
+
+        case MASK_SHAPE::ELLIPTICAL:
+            return coord_in_elliptical_mask( mask, coord );
+
+        case MASK_SHAPE::PARALLELOGRAM:
+            return coord_in_parallelogram_mask( mask, coord );
+
+        case MASK_SHAPE::TRIANGULAR:
+            return coord_in_triangular_mask( mask, coord );
+
+        default:
+            throw std::invalid_argument( "Invalid mask shape" );
+        }
+    }
+    else
+    {
+        throw std::runtime_error( "3D implementation not available yet" );
+    }
 }
 
 
-inline std::optional< Displacement< Coord2D > >
-coord_in_elliptical_mask(
-    const Coord2D& mask_origin,
-    const space_t& semi_major_axe2,
-    const space_t& semi_minor_axe2,
-    const std::optional< Coord2D >& angular_offset,
-    const Coord2D& coord
+std::optional< Displacement< Coord2D > >
+    coord_in_circular_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&,
+        const Coord2D&
+    );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_elliptical_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&,
+        const Coord2D&
+    );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_parallelogram_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&,
+        const Coord2D&
+    );
+
+
+std::optional< Displacement< Coord2D > >
+    coord_in_triangular_mask(
+        const Mask< Coord2D >&,
+        const Coord2D&,
+        const Coord2D&
+    );
+
+
+template < typename CoordT >
+inline std::optional< Displacement< CoordT > >
+    coord_in_mask(
+        const Mask< CoordT >& mask,
+        const CoordT& a,
+        const CoordT& b
 )
 {
-    // Get displacement from mask origin
-    Displacement< Coord2D > disp( coord - mask_origin );
+    if constexpr ( std::is_same_v< CoordT, Coord2D > )
+    {
+        switch ( mask.shape_ )
+        {
+        case MASK_SHAPE::CIRCULAR:
+            return coord_in_circular_mask( mask, a, b );
 
-    // Fast rejection method
-    if ( !leq_test( disp.distance2_, semi_major_axe2 ) )
-        return {};
+        case MASK_SHAPE::ELLIPTICAL:
+            return coord_in_elliptical_mask( mask, a, b );
 
-    // Given ellipse with h, k center, a semi major, b semi minor, @ rotation
-    // If x, y point is in ellipse then 
-    // X^2 / a^2 + Y^2 / b^2 <= 1
-    // With X = ( x - h ) * cos @ + ( y - k ) * sin @
-    // and  Y = - ( x - h ) * sin @ + ( y - k ) * cos @ 
-    return rotated_coord_in_elliptical_mask(
-        angular_offset.has_value()
-        ? rotate_displacement( disp.displacement_, angular_offset.value() )
-        : disp.displacement_,
-        semi_major_axe2,
-        semi_minor_axe2
-    )
-        ? std::make_optional( std::move( disp ) )
-        : std::optional< Displacement< Coord2D > >();
+        case MASK_SHAPE::PARALLELOGRAM:
+            return coord_in_parallelogram_mask( mask, a, b );
+
+        case MASK_SHAPE::TRIANGULAR:
+            return coord_in_triangular_mask( mask, a, b );
+
+        default:
+            throw std::invalid_argument( "Invalid mask shape" );
+        }
+    }
+    else
+    {
+        throw std::runtime_error( "3D implementation not available yet" );
+    }
 }
 }
 

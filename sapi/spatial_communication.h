@@ -23,11 +23,11 @@
 #ifndef SPATIAL_COMMUNICATION_H
 #define SPATIAL_COMMUNICATION_H
 
-#include "timer_register.h"
+#include "vp_interface.h"
+#include "timer_manager.h"
 #include "mask_tile_processing.h"
 #include "mask_node_processing.h"
 #include "connection_generation.h"
-#include "vp_interface.h"
 
 
 namespace sapi
@@ -37,34 +37,51 @@ void communicate_connect_distributed_pair_data(
     RankConnectionInfo& rank_connection_map,
     DistributedPairInfo< CoordT >& distributed_pair_data,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const TAArray< ConnectionGenerator< CoordT > >& cg_array,
+    const TAArray< ConnectionGenerator >& cg_array,
     const RandomManager& random_manager,
-    TimerRegister& timer_register,
+    const TimerManager& timer_manager,
     const vp_t& local_rank,
     const bool& inverted_connection_rule,
     const bool& allow_multiplicity,
+    const bool& partition_connections_by_source,
     const bool& has_local_targets
 );
 
 
 template < typename CoordT >
-void compute_target_connections(
+inline void compute_target_connections(
     RankPairInfo< CoordT >& rpi,
     TileConnectionInfo& tci,
     const vp_t& target_rank,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const TAArray< ConnectionGenerator< CoordT > >& cg_array,
+    const TAArray< ConnectionGenerator >& cg_array,
     const RandomManager& random_manager,
+    const TimerManager& timer_manager,
     const bool& inverted_pool_driver,
     const bool& allow_multiplicity,
-    const bool& allow_self_connections
+    const bool& allow_self_connections,
+    const bool& partition_connections_by_source
 )
 {
+    const auto thread_timer_registry = timer_manager.get_thread_registry();
+
+    const auto node_disp_timer = thread_timer_registry->get_register_timer(
+        "compute_node_displacements_time"
+    );
+    node_disp_timer->start();
+
     compute_displacement_checks_across_tile_pairs(
         rpi,
         mc_array,
         inverted_pool_driver
     );
+
+    node_disp_timer->stop();
+
+    const auto conn_gen_timer = thread_timer_registry->get_register_timer(
+        "connection_generation_time"
+    );
+    conn_gen_timer->start();
 
     compute_connections_across_tiles(
         tci,
@@ -74,8 +91,11 @@ void compute_target_connections(
         random_manager,
         inverted_pool_driver,
         allow_multiplicity,
-        allow_self_connections
+        allow_self_connections,
+        partition_connections_by_source
     );
+
+    conn_gen_timer->stop();
 }
 
 
@@ -88,20 +108,27 @@ compute_distributed_spatial_connections(
     const GridNeighborhood& grid_neighborhood,
     const GridNodeCollection< CoordT >& grid_node_col,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const TAArray< ConnectionGenerator< CoordT > >& cg_array,
+    const TAArray< ConnectionGenerator >& cg_array,
     const RandomManager& random_manager,
-    TimerRegister& timer_register,
+    const TimerManager& timer_manager,
     const bool& edge_wrap,
     const bool& only_neighborhood,
     const bool& inverted_connection_rule,
     const bool& allow_multiplicity,
-    const bool& allow_self_connections
+    const bool& allow_self_connections,
+    const bool& partition_connections_by_source
 )
 {
+    assert( timer_manager.is_initialized() );
+
     if ( !mc_array.get_local_thread_item()->has_blueprint() )
         throw std::invalid_argument( "Spatial connections require mask blueprints" );
 
-    const auto connect_timer = timer_register.get_register_timer( "compute_distributed_spatial_connections_time" );
+    const auto rank_timer_registry = timer_manager.get_rank_registry();
+
+    const auto connect_timer = rank_timer_registry->get_register_timer(
+        "compute_distributed_spatial_connections_time"
+    );
     connect_timer->start();
 
     DistributedPairInfo< CoordT > dpi;
@@ -110,13 +137,13 @@ compute_distributed_spatial_connections(
 #pragma omp parallel default( none )\
     shared( dpi, rci, dist_tns_source, dist_tns_target,\
         tile_grid, grid_neighborhood, grid_node_col,\
-        mc_array, cg_array, random_manager, timer_register )\
-    firstprivate( edge_wrap, only_neighborhood, inverted_connection_rule,\
-        allow_multiplicity, allow_self_connections )
+        mc_array, cg_array, random_manager, timer_manager )\
+    firstprivate( rank_timer_registry, edge_wrap, only_neighborhood, inverted_connection_rule,\
+        allow_multiplicity, allow_self_connections, partition_connections_by_source )
 #pragma omp master
 #pragma omp taskgroup
     {
-        const auto tile_overlap_timer = timer_register.get_register_timer(
+        const auto tile_overlap_timer = rank_timer_registry->get_register_timer(
             "compute_distributed_tile_overlap_time"
         );
         tile_overlap_timer->start();
@@ -137,7 +164,7 @@ compute_distributed_spatial_connections(
 
         tile_overlap_timer->stop();
 
-        const auto node_overlap_timer = timer_register.get_register_timer(
+        const auto node_overlap_timer = rank_timer_registry->get_register_timer(
             "compute_distributed_node_overlap_time"
         );
         node_overlap_timer->start();
@@ -166,25 +193,28 @@ compute_distributed_spatial_connections(
                 ).first;
 
 #pragma omp task default( none )\
-                shared( mc_array, cg_array, random_manager, grid_neighborhood )\
+                shared( mc_array, cg_array, random_manager, timer_manager )\
                 firstprivate( ssi_it, emplace_it,\
-                    inverted_connection_rule, allow_multiplicity, allow_self_connections )
+                    inverted_connection_rule, allow_multiplicity,\
+                    allow_self_connections, partition_connections_by_source )
                 compute_target_connections(
                     ssi_it->second,
                     emplace_it->second,
-                    grid_neighborhood.local_rank_,
+                    ssi_it->first,
                     mc_array,
                     cg_array,
                     random_manager,
+                    timer_manager,
                     inverted_connection_rule,
                     allow_multiplicity,
-                    allow_self_connections
+                    allow_self_connections,
+                    partition_connections_by_source
                 );
             }
 
             if ( grid_neighborhood.num_processes_ > 1 )
             {
-                const auto communicate_timer = timer_register.get_register_timer(
+                const auto communicate_timer = rank_timer_registry->get_register_timer(
                     "communicate_node_positions_time"
                 );
                 communicate_timer->start();
@@ -192,10 +222,11 @@ compute_distributed_spatial_connections(
 #pragma omp taskgroup
                 communicate_connect_distributed_pair_data(
                     rci, dpi, mc_array, cg_array,
-                    random_manager, timer_register,
+                    random_manager, timer_manager,
                     grid_neighborhood.local_rank_,
                     inverted_connection_rule,
                     allow_multiplicity,
+                    partition_connections_by_source,
                     has_local_targets
                 );
 
@@ -259,7 +290,7 @@ void communicate_payload_async(
 
 
 template< typename CoordT >
-bool probe_payload_recv(
+void probe_payload_recv(
     QueuedRequests& request_queue,
     MPI_Status& status,
     std::unordered_map< vp_t, RankPairInfo< CoordT > >& rank_info_map,
@@ -267,10 +298,9 @@ bool probe_payload_recv(
 )
 {
     if ( request_queue.pending_ranks_.empty() )
-        return false;
+        return;
 
     vp_t flag;
-    bool some_done = false;
     auto ranks_it = request_queue.pending_ranks_.cbegin();
     const auto ranks_end = request_queue.pending_ranks_.cend();
     while ( ranks_it != ranks_end )
@@ -298,7 +328,6 @@ bool probe_payload_recv(
                 MPI_STATUS_IGNORE
             );
 
-            some_done = true;
             assert( request_queue.done_ranks_.find( *ranks_it ) == request_queue.done_ranks_.end() );
             request_queue.done_ranks_.insert( *ranks_it );
             ranks_it = request_queue.pending_ranks_.erase( ranks_it );
@@ -306,8 +335,6 @@ bool probe_payload_recv(
         else
             ++ranks_it;
     }
-
-    return some_done;
 }
 
 
@@ -317,10 +344,12 @@ void dispatch_connection_procedures(
     std::unordered_map< vp_t, RankPairInfo< CoordT > >& rank_info_map,
     std::unordered_map< vp_t, TileConnectionInfo >& connection_info_map,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const TAArray< ConnectionGenerator< CoordT > >& cg_array,
+    const TAArray< ConnectionGenerator >& cg_array,
     const RandomManager& random_manager,
+    const TimerManager& timer_manager,
     const bool& inverted_pool_driver,
-    const bool& allow_multiplicity
+    const bool& allow_multiplicity,
+    const bool& partition_connections_by_source
 )
 {
     if ( request_queue.done_ranks_.empty() )
@@ -342,9 +371,10 @@ void dispatch_connection_procedures(
         ).first;
 
 #pragma omp task default( none )\
-    shared( mc_array, random_manager, cg_array )\
+    shared( mc_array, cg_array, random_manager, timer_manager )\
     firstprivate( rank_info_it, emplace_it,\
-    inverted_pool_driver, allow_multiplicity )
+    inverted_pool_driver, allow_multiplicity,\
+    partition_connections_by_source )
         {
             reconstruct_received_info( rank_info_it->second.receiver_info_ );
             compute_target_connections(
@@ -354,9 +384,11 @@ void dispatch_connection_procedures(
                 mc_array,
                 cg_array,
                 random_manager,
+                timer_manager,
                 inverted_pool_driver,
                 allow_multiplicity,
-                true // Using distributed indexes no need to check for self connections
+                true, // Using distributed indexes no need to check for self connections
+                partition_connections_by_source
             );
         }
     }
@@ -369,12 +401,13 @@ void communicate_connect_distributed_pair_data(
     RankConnectionInfo& rank_connection_map,
     DistributedPairInfo< CoordT >& distributed_pair_data,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const TAArray< ConnectionGenerator< CoordT > >& cg_array,
+    const TAArray< ConnectionGenerator >& cg_array,
     const RandomManager& random_manager,
-    TimerRegister& timer_register,
+    const TimerManager& timer_manager,
     const vp_t& local_rank,
     const bool& inverted_connection_rule,
     const bool& allow_multiplicity,
+    const bool& partition_connections_by_source,
     const bool& has_local_targets
 )
 {
@@ -399,7 +432,9 @@ void communicate_connect_distributed_pair_data(
     QueuedRequests source_side_queue;
     QueuedRequests target_side_queue;
 
-    const auto send_async_timer = timer_register.get_register_timer(
+    const auto rank_timer_registry = timer_manager.get_rank_registry();
+
+    const auto send_async_timer = rank_timer_registry->get_register_timer(
         "send_async_positions_time"
     );
     send_async_timer->start();
@@ -426,7 +461,7 @@ void communicate_connect_distributed_pair_data(
 
     send_async_timer->stop();
 
-    const auto trigger_send_timer = timer_register.get_register_timer(
+    const auto trigger_send_timer = rank_timer_registry->get_register_timer(
         "trigger_send_timer"
     );
     trigger_send_timer->start();
@@ -441,14 +476,14 @@ void communicate_connect_distributed_pair_data(
 
     trigger_send_timer->stop();
 
-    const auto last_compute_dispatch_timer = timer_register.get_register_timer(
+    const auto last_compute_dispatch_timer = rank_timer_registry->get_register_timer(
         "last_compute_dispatch_timer"
     );
-    last_compute_dispatch_timer->start();
-
-    const auto first_compute_dispatch_timer = timer_register.get_register_timer(
+    const auto first_compute_dispatch_timer = rank_timer_registry->get_register_timer(
         "first_compute_dispatch_timer"
     );
+
+    last_compute_dispatch_timer->start();
     first_compute_dispatch_timer->start();
 
     MPI_Status status;
@@ -458,12 +493,14 @@ void communicate_connect_distributed_pair_data(
         !( target_side_queue.done_ranks_.empty() && target_side_queue.pending_ranks_.empty() )
         )
     {
-        if ( probe_payload_recv(
+        probe_payload_recv(
             source_side_queue,
             status,
             distributed_pair_data.source_side_info_,
             1 // mirrored tag for receiving
-        ) )
+        );
+
+        if ( !source_side_queue.done_ranks_.empty() )
         {
             dispatch_connection_procedures(
                 source_side_queue,
@@ -474,8 +511,10 @@ void communicate_connect_distributed_pair_data(
                 mc_array,
                 cg_array,
                 random_manager,
+                timer_manager,
                 inverted_connection_rule,
-                allow_multiplicity
+                allow_multiplicity,
+                partition_connections_by_source
             );
 
             if ( first_compute_dispatch )
@@ -485,12 +524,14 @@ void communicate_connect_distributed_pair_data(
             }
         }
 
-        if ( probe_payload_recv(
+        probe_payload_recv(
             target_side_queue,
             status,
             distributed_pair_data.target_side_info_,
             0 // mirrored tag for receiving
-        ) )
+        );
+
+        if ( !target_side_queue.done_ranks_.empty() )
         {
             dispatch_connection_procedures(
                 target_side_queue,
@@ -501,8 +542,10 @@ void communicate_connect_distributed_pair_data(
                 mc_array,
                 cg_array,
                 random_manager,
+                timer_manager,
                 !inverted_connection_rule,
-                allow_multiplicity
+                allow_multiplicity,
+                partition_connections_by_source
             );
 
             if ( first_compute_dispatch )
@@ -515,7 +558,7 @@ void communicate_connect_distributed_pair_data(
 
     last_compute_dispatch_timer->stop();
 
-    const auto wait_send_timer = timer_register.get_register_timer(
+    const auto wait_send_timer = rank_timer_registry->get_register_timer(
         "wait_send_timer"
     );
     wait_send_timer->start();

@@ -28,15 +28,19 @@
 #include <vector>
 #include <forward_list>
 #include <unordered_map>
-#include <cassert>
 
 #include "sapi_config.h"
 
 
 namespace sapi
 {
-// Connection source, target, weight, connection delay, connection multiplicity
-typedef std::tuple< conn_index_t, conn_index_t, conn_param_t, conn_param_t, mult_t > ConnectionInfo;
+typedef std::tuple<
+    conn_index_t, // source
+    conn_index_t, // target
+    conn_param_t, // weight
+    conn_param_t, // delay
+    mult_t        // multiplicity
+> ConnectionInfo;
 
 
 struct ConnectionVectors
@@ -51,27 +55,9 @@ struct ConnectionVectors
     ConnectionVectors() = default;
     ConnectionVectors( const ConnectionVectors& ) = delete;
     ConnectionVectors( ConnectionVectors&& ) = default;
+    ~ConnectionVectors() = default;
 
-    void prepare_vectors( const count_t& size )
-    {
-        assert(
-            0 <= size &&
-            connection_sources_.empty() &&
-            connection_targets_.empty() &&
-            connection_weights_.empty() &&
-            connection_delays_.empty()
-        );
-
-        if ( size == 0 )
-            return;
-
-        connection_sources_.reserve( size );
-        connection_targets_.reserve( size );
-        connection_weights_.reserve( size );
-        connection_delays_.reserve( size );
-
-        sizes_ = size;
-    }
+    void prepare_vectors( const count_t& size );
 };
 
 
@@ -97,50 +83,7 @@ struct TileConnectionInfo
     std::map< conn_index_t,
         std::map< conn_index_t,
         std::tuple< conn_param_t, conn_param_t, mult_t > > >
-        build_connection_map() const
-    {
-        std::map< conn_index_t,
-            std::map< conn_index_t,
-            std::tuple< conn_param_t, conn_param_t, mult_t > > > conn_map;
-
-        for ( const auto& conn_vec : partitioned_connection_vectors_ )
-        {
-            for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
-            {
-                const auto source = conn_vec.connection_sources_[ conn_idx ];
-                const auto target = conn_vec.connection_targets_[ conn_idx ];
-                const auto weight = conn_vec.connection_weights_[ conn_idx ];
-                const auto delay = conn_vec.connection_delays_[ conn_idx ];
-
-                auto source_search = conn_map.find( source );
-                if ( source_search == conn_map.end() )
-                    source_search = conn_map.emplace(
-                        std::make_pair(
-                            source,
-                            std::map< conn_index_t,
-                            std::tuple< conn_param_t, conn_param_t, mult_t > >()
-                        )
-                    ).first;
-
-                auto target_search = source_search->second.find( target );
-                if ( target_search == source_search->second.end() )
-                    target_search = source_search->second.emplace(
-                        std::make_pair(
-                            target,
-                            std::make_tuple(
-                                weight,
-                                delay,
-                                1
-                            )
-                        )
-                    ).first;
-                else
-                    std::get< 2 >( target_search->second ) += 1;
-            }
-        }
-
-        return conn_map;
-    }
+        build_connection_map() const;
 };
 
 

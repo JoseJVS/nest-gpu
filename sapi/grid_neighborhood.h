@@ -67,6 +67,7 @@ struct GridNeighborhood
 
     GridNeighborhood( const GridNeighborhood& ) = delete;
     GridNeighborhood( GridNeighborhood&& ) = default;
+    ~GridNeighborhood() = default;
 
     GridNeighborhood(
         const vp_t& local_rank,
@@ -85,54 +86,32 @@ struct GridNeighborhood
     );
 
     const std::set< vp_t >&
-        get_rank_neighborhood( const bool& edge_wrap ) const
-    {
-        return edge_wrap ? local_rank_neighbors_->second : local_rank_neighbors_->first;
-    }
+        get_rank_neighborhood( const bool& edge_wrap ) const;
 
     bool in_neighborhood(
         const vp_t& rank, const bool& edge_wrap
-    ) const
-    {
-        if ( edge_wrap )
-            return local_rank_neighbors_->second.find( rank ) != local_rank_neighbors_->second.end();
-        else
-            return local_rank_neighbors_->first.find( rank ) != local_rank_neighbors_->first.end();
-    }
+    ) const;
 
-    std::string to_string() const
-    {
-        assert( has_owners_ );
-        std::string res = "Tile ranks ownership:\n";
-        for ( std::size_t tix = 0; tix < tile_ranks_ownership_map_.size(); ++tix )
-        {
-            res += "{ " + std::to_string( tix ) + " : (";
-            for ( const auto& rix : tile_ranks_ownership_map_[ tix ] )
-                res += " " + std::to_string( rix ) + ",";
-            res += ") }, ";
-        }
-
-        res += "\nRank tiles ownership:\n";
-        for ( vp_t rix = 0; rix < num_processes_; ++rix )
-        {
-            res += "{ " + std::to_string( rix ) + " : (";
-            for ( const auto& tix : rank_tiles_ownership_map_[ rix ] )
-                res += " " + std::to_string( tix ) + ",";
-            res += ") }, ";
-        }
-
-        res += "\nRank neighborhood:\n";
-        for ( vp_t rix = 0; rix < num_processes_; ++rix )
-        {
-            res += "{ " + std::to_string( rix ) + " : (";
-            for ( const auto& nix : rank_neighbors_map_[ rix ].second )
-                res += " " + std::to_string( nix ) + ",";
-            res += ") }, ";
-        }
-
-        return res;
-    }
+    std::string to_string() const;
 };
+
+
+inline const std::set< vp_t >&
+GridNeighborhood::get_rank_neighborhood( const bool& edge_wrap ) const
+{
+    return edge_wrap ? local_rank_neighbors_->second : local_rank_neighbors_->first;
+}
+
+
+inline bool GridNeighborhood::in_neighborhood(
+    const vp_t& rank, const bool& edge_wrap
+) const
+{
+    if ( edge_wrap )
+        return local_rank_neighbors_->second.find( rank ) != local_rank_neighbors_->second.end();
+    else
+        return local_rank_neighbors_->first.find( rank ) != local_rank_neighbors_->first.end();
+}
 
 
 template < typename CoordT >
@@ -142,10 +121,8 @@ void GridNeighborhood::set_tile_ownership(
     const TileGrid< CoordT >& tile_grid
 )
 {
-    if ( has_owners_ )
-        throw std::runtime_error( "Tile ownership already defined" );
-    if ( tile_grid.positions_.empty() )
-        throw std::invalid_argument( "Tile ownership can only be defined with an initialized grid" );
+    assert( !has_owners_ && !tile_grid.positions_.empty() );
+
     if ( rank_tiles_ownership_map.size() != static_cast< std::size_t >( num_processes_ ) )
         throw std::invalid_argument( "Ownership has to be defined for all ranks" );
 

@@ -23,108 +23,89 @@
 #ifndef TILE_H
 #define TILE_H
 
-#include <memory>
-#include <string>
-#include <vector>
 #include <forward_list>
 #include <cassert>
 
 #include "coordinates.h"
-
-
-// Forward definition to link with random_generators.h
-namespace nest
-{
-    class BaseRandomGenerator;
-    using RngPtr = BaseRandomGenerator*;
-}
+#include "tile_geometry.h"
 
 
 namespace sapi
 {
 template < typename CoordT >
-class Tile
+struct Tile
 {
-public:
-    const tileidx_t index_;
-    const CircumscribedRadius< CoordT > c_radius_;
+    TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
+    tileidx_t index_ = 0;
+    CircumscribedRadius< CoordT > c_radius_;
+    std::vector< CoordT > vertices_;
+    std::vector< CoordT > helper_vectors_;
+    std::vector< space_t > helper_scalars_;
+    mutable std::vector< Tile > sub_tiles_;
 
-    Tile() = delete;
-    Tile( const Tile& tile ) = delete;
-    Tile( Tile&& tile ) = default;
-    virtual ~Tile() = default;
+    Tile() = default;
+    Tile( const Tile& ) = delete;
+    Tile( Tile&& ) = default;
+    ~Tile() = default;
 
     Tile(
-        const tileidx_t& index,
-        const CoordT& origin,
-        const space_t& radius
+        const TILE_SHAPE&,
+        const CoordT&,
+        const std::vector< space_t >&,
+        const std::vector< angle_t >&
     );
 
     Tile(
-        tileidx_t&& index,
-        CircumscribedRadius< CoordT >&& c_radius,
-        std::vector< CoordT >&& vertices
+        TILE_SHAPE&&,
+        tileidx_t&&,
+        CircumscribedRadius< CoordT >&&,
+        std::vector< CoordT >&&
     );
 
-    virtual void initialize_sub_tiles(
-        const split_t& splits
-    ) = 0;
+    Tile& operator=( Tile&& );
 
-    virtual bool coord_in_tile(
-        const CoordT& coord
-    ) const = 0;
+    void split_tile(
+        const split_t&
+    ) const;
 
-    virtual tileidx_t compute_sub_tile_count(
-        const split_t& splits
-    ) const = 0;
+    bool coord_in_tile(
+        const CoordT&
+    ) const;
 
-    virtual CoordT project_point_to_surface(
-        const CoordT& coord
-    ) const = 0;
+    void generate_coords_in_tile(
+        std::vector< CoordT >&,
+        AnyRNG&
+    ) const;
 
-    virtual std::vector< split_t >
+    CoordT project_point_to_surface(
+        const CoordT&
+    ) const;
+
+    tileidx_t compute_sub_tile_count(
+        const split_t&
+    ) const;
+
+    std::vector< split_t >
         get_possible_sub_tile_branches(
-            const split_t& known_split_order
-        ) const = 0;
-
-    virtual tileidx_t
-        compute_leaf_index(
-            const std::vector< split_t >& branch_sequence
-        ) const = 0;
-
-    virtual void generate_coords_in_tile(
-        std::vector< CoordT >& coord_vec,
-        nest::RngPtr const& rng
-    ) const = 0;
-
-    virtual std::string get_name() const = 0;
-
-    bool is_split() const;
-
-    const std::vector< CoordT >&
-        get_vertices() const;
-
-    const std::vector< std::unique_ptr< Tile > >&
-        get_sub_tiles() const;
+            const split_t&
+        ) const;
 
     void insert_leaf_sub_tiles(
-        std::forward_list< const Tile* >& lst_container
+        std::forward_list< const Tile* >&
     ) const;
 
     std::vector< const Tile* > get_leaf_sub_tiles(
-        const split_t& known_split_order
+        const split_t&
     ) const;
 
     std::vector< std::vector< space_t > >
         export_vertices_to_nested_vec() const;
 
-    std::string to_string( const uint8_t& tabs = 0 ) const;
-
     bool operator==( const Tile& ) const;
 
-protected:
-    std::vector< CoordT > vertices_;
-    std::vector< std::unique_ptr< Tile > > sub_tiles_;
+    std::string get_name() const;
+
+    std::string to_string( const uint8_t& = 0 ) const;
 
     template < typename IT >
     friend void iterate_sub_tiles_depth_first(
@@ -134,7 +115,7 @@ protected:
     {
         if ( !sub_tile->sub_tiles_.empty() )
             for ( const auto& st : sub_tile->sub_tiles_ )
-                iterate_sub_tiles_depth_first( it, st.get() );
+                iterate_sub_tiles_depth_first( it, &st );
         else
             *it++ = sub_tile;
     }
@@ -143,30 +124,42 @@ protected:
 
 template < typename CoordT >
 Tile< CoordT >::Tile(
-    const tileidx_t& index,
+    const TILE_SHAPE& shape,
     const CoordT& origin,
-    const space_t& radius
+    const std::vector< space_t >& side_lengths,
+    const std::vector< angle_t >& angular_offsets
 )
-    : index_( index )
-    , c_radius_(
-        CircumscribedRadius< CoordT >( origin, squared( radius ) )
-    )
+    : shape_( shape )
 {
-    assert(
-        0 <= index &&
-        !almost_zero( c_radius_.radius2_ ) &&
-        !std::signbit( radius )
+    if ( side_lengths.empty() )
+        throw std::invalid_argument( "Invalid tile side lengths vector" );
+
+    c_radius_.origin_ = origin;
+    initialize_tile_vertices(
+        vertices_,
+        c_radius_,
+        side_lengths,
+        angular_offsets,
+        shape_
+    );
+    initialize_tile_helpers(
+        helper_vectors_,
+        helper_scalars_,
+        vertices_,
+        shape_
     );
 }
 
 
 template < typename CoordT >
 Tile< CoordT >::Tile(
+    TILE_SHAPE&& shape,
     tileidx_t&& index,
     CircumscribedRadius< CoordT >&& c_radius,
     std::vector< CoordT >&& vertices
 )
-    : index_( std::move( index ) )
+    : shape_( shape )
+    , index_( index )
     , c_radius_( std::move( c_radius ) )
     , vertices_( std::move( vertices ) )
 {
@@ -178,25 +171,93 @@ Tile< CoordT >::Tile(
 
 
 template < typename CoordT >
-inline bool Tile< CoordT >::is_split() const
+inline Tile< CoordT >&
+Tile< CoordT >::operator=( Tile&& t )
 {
-    return !sub_tiles_.empty();
+    shape_ = t.shape_;
+    index_ = t.index_;
+    c_radius_ = std::move( t.c_radius_ );
+    vertices_ = std::move( t.vertices_ );
+    helper_vectors_ = std::move( t.helper_vectors_ );
+    helper_scalars_ = std::move( t.helper_scalars_ );
+    sub_tiles_ = std::move( t.sub_tiles_ );
+
+    t.shape_ = TILE_SHAPE::NULL_TS;
+
+    return *this;
 }
 
 
 template < typename CoordT >
-inline const std::vector< CoordT >&
-Tile< CoordT >::get_vertices() const
+inline void Tile< CoordT >::split_tile( const split_t& splits ) const
 {
-    return vertices_;
+    sapi::split_tile(
+        sub_tiles_,
+        vertices_,
+        c_radius_,
+        index_,
+        splits,
+        shape_
+    );
 }
 
 
 template < typename CoordT >
-inline const std::vector< std::unique_ptr< Tile< CoordT > > >&
-Tile< CoordT >::get_sub_tiles() const
+inline bool Tile< CoordT >::coord_in_tile( const CoordT& coord ) const
 {
-    return sub_tiles_;
+    return sapi::coord_in_tile(
+        coord,
+        c_radius_,
+        vertices_,
+        helper_vectors_,
+        helper_scalars_,
+        shape_
+    );
+}
+
+
+template < typename CoordT >
+inline void Tile< CoordT >::generate_coords_in_tile(
+    std::vector< CoordT >& coord_vec,
+    AnyRNG& rng
+) const
+{
+    sapi::generate_coords_in_tile(
+        coord_vec,
+        rng,
+        vertices_,
+        helper_vectors_,
+        c_radius_,
+        shape_
+    );
+}
+
+
+template < typename CoordT >
+inline CoordT Tile< CoordT >::project_point_to_surface(
+    const CoordT& coord
+) const
+{
+    return sapi::project_point_to_surface( coord, vertices_ );
+}
+
+
+template < typename CoordT >
+inline tileidx_t Tile< CoordT >::compute_sub_tile_count(
+    const split_t& splits
+) const
+{
+    return sapi::compute_sub_tile_count( splits, shape_ );
+}
+
+
+template < typename CoordT >
+inline std::vector< split_t >
+Tile< CoordT >::get_possible_sub_tile_branches(
+    const split_t& splits
+) const
+{
+    return sapi::get_possible_sub_tile_branches( splits, shape_ );
 }
 
 
@@ -211,9 +272,9 @@ void Tile< CoordT >::insert_leaf_sub_tiles(
         auto tile = tree.front();
         tree.pop_front();
 
-        if ( tile->is_split() )
+        if ( !tile->sub_tiles_.empty() )
             for ( const auto& st : tile->sub_tiles_ )
-                tree.emplace_front( st.get() );
+                tree.emplace_front( &st );
         else
             lst_container.emplace_front( std::move( tile ) );
 
@@ -268,6 +329,13 @@ Tile< CoordT >::export_vertices_to_nested_vec() const
 
 
 template < typename CoordT >
+inline std::string Tile< CoordT >::get_name() const
+{
+    return sapi::get_name( shape_ );
+}
+
+
+template < typename CoordT >
 std::string Tile< CoordT >::to_string( const uint8_t& tabs ) const
 {
     std::string str = "";
@@ -285,7 +353,7 @@ std::string Tile< CoordT >::to_string( const uint8_t& tabs ) const
         str += vt.to_string();
 
     for ( const auto& st : sub_tiles_ )
-        str += "\n" + st->to_string( tabs + 1 );
+        str += "\n" + st.to_string( tabs + 1 );
 
     return str;
 }
@@ -297,7 +365,7 @@ inline bool  Tile< CoordT >::operator==( const Tile& t ) const
     // The circumscribed radius and the vertex vectors
     // are enough to uniquely identify a tile
     // sub tiles are generated from the given properties of a tile
-    return c_radius_ == t.c_radius_ && vertices_ == t.vertices_;
+    return shape_ == t.shape_ && c_radius_ == t.c_radius_ && vertices_ == t.vertices_;
 }
 }
 

@@ -62,9 +62,11 @@ struct MaskParameters
     std::vector< space_t > mask_blueprint_params_;
     std::vector< space_t > mask_blueprint_offset_;
     std::string source_mask_name_;
+    std::vector< space_t > source_mask_origin_;
     std::vector< space_t > source_mask_params_;
     std::vector< space_t > source_mask_offset_;
     std::string target_mask_name_;
+    std::vector< space_t > target_mask_origin_;
     std::vector< space_t > target_mask_params_;
     std::vector< space_t > target_mask_offset_;
 };
@@ -78,7 +80,8 @@ struct ConnectionParameters
     bool inverted_conn_rule_ = false;
     bool allow_multiplicity_ = false;
     bool allow_self_connections_ = false;
-    mult_t total_number_connections_ = 0;
+    bool partition_connections_by_source_ = false;
+    mult_t connection_counts_ = 0;
 
     // Connection generation
     std::string conn_gen_name_;

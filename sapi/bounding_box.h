@@ -25,28 +25,21 @@
 
 #include <vector>
 
-#include "coordinate_geometry.h"
+#include "numerics.h"
 
 
 namespace sapi
 {
-constexpr bool coord_interval_test(
-    const Coord2D& value, const std::pair< Coord2D, Coord2D >& minmax
-)
-{
-    return interval_test( minmax.first.x_, value.x_, minmax.second.x_ ) &&
-        interval_test( minmax.first.y_, value.y_, minmax.second.y_ );
-}
+// Forward definition to link with coordinates.h
+struct Coord3D;
 
-
-constexpr bool coord_interval_test(
-    const Coord3D& value, const std::pair< Coord3D, Coord3D >& minmax
-)
-{
-    return interval_test( minmax.first.x_, value.x_, minmax.second.x_ ) &&
-        interval_test( minmax.first.y_, value.y_, minmax.second.y_ ) &&
-        interval_test( minmax.first.z_, value.z_, minmax.second.z_ );
-}
+// Forward definition to link with coordinate_geometry.h
+template < typename CoordT >
+std::pair< CoordT, CoordT > minmax_coords();
+template < typename CoordT >
+void update_min( CoordT&, const CoordT& );
+template < typename CoordT >
+void update_max( CoordT&, const CoordT& );
 
 
 template < typename CoordT >
@@ -74,39 +67,68 @@ struct BoundingBox
     ~BoundingBox() = default;
 
     BoundingBox(
-        std::pair< CoordT, CoordT >&& minmax_bounds,
-        const tileidx_t& tile_index
-    )
-        : tile_index_( tile_index )
-        , minmax_bounds_( std::move( minmax_bounds ) )
-    {
-    }
+        std::pair< CoordT, CoordT >&&,
+        const tileidx_t&
+    );
 
     BoundingBox(
-        std::pair< CoordT, CoordT >&& minmax_bounds,
-        std::vector< BoundingBox< CoordT > >&& inner_boxes
-    )
-        : minmax_bounds_( std::move( minmax_bounds ) )
-        , inner_boxes_( std::move( inner_boxes ) )
-    {
-    }
+        std::pair< CoordT, CoordT >&&,
+        std::vector< BoundingBox< CoordT > >&&
+    );
 
-    bool coord_in_box( const CoordT& coord ) const
-    {
-        return coord_interval_test( coord, minmax_bounds_ );
-    }
+    BoundingBox& operator=( BoundingBox&& bb );
 
-    BoundingBox& operator=( BoundingBox&& bb )
-    {
-        tile_index_ = bb.tile_index_;
-        bb.tile_index_ = -1;
-
-        minmax_bounds_ = std::move( bb.minmax_bounds_ );
-        inner_boxes_ = std::move( bb.inner_boxes_ );
-
-        return *this;
-    }
+    bool coord_in_box( const CoordT& coord ) const;
 };
+
+
+template < typename CoordT >
+BoundingBox< CoordT >::BoundingBox(
+    std::pair< CoordT, CoordT >&& minmax_bounds,
+    const tileidx_t& tile_index
+)
+    : tile_index_( tile_index )
+    , minmax_bounds_( std::move( minmax_bounds ) )
+{
+}
+
+
+template < typename CoordT >
+BoundingBox< CoordT >::BoundingBox(
+    std::pair< CoordT, CoordT >&& minmax_bounds,
+    std::vector< BoundingBox< CoordT > >&& inner_boxes
+)
+    : minmax_bounds_( std::move( minmax_bounds ) )
+    , inner_boxes_( std::move( inner_boxes ) )
+{
+}
+
+
+template < typename CoordT >
+inline BoundingBox< CoordT >&
+BoundingBox< CoordT >::operator=( BoundingBox&& bb )
+{
+    tile_index_ = bb.tile_index_;
+    bb.tile_index_ = -1;
+
+    minmax_bounds_ = std::move( bb.minmax_bounds_ );
+    inner_boxes_ = std::move( bb.inner_boxes_ );
+
+    return *this;
+}
+
+
+template < typename CoordT >
+inline bool BoundingBox< CoordT >::coord_in_box( const CoordT& coord ) const
+{
+    bool res = interval_test( minmax_bounds_.first.x_, coord.x_, minmax_bounds_.second.x_ ) &&
+        interval_test( minmax_bounds_.first.y_, coord.y_, minmax_bounds_.second.y_ );
+
+    if constexpr ( std::is_same_v< CoordT, Coord3D > )
+        res &= interval_test( minmax_bounds_.first.z_, coord.z_, minmax_bounds_.second.z_ );
+
+    return res;
+}
 
 
 template < typename CoordT >

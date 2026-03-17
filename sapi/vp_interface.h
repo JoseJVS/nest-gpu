@@ -23,9 +23,7 @@
 #ifndef VP_INTERFACE_HPP
 #define VP_INTERFACE_HPP
 
-#include <vector>
 #include <stdexcept>
-#include <cassert>
 
 #include "sapi_config.h"
 

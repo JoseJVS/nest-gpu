@@ -23,33 +23,25 @@
 #ifndef C_API_H
 #define C_API_H
 
+#include <string>
+
 #include "api_containers.h"
-#include "spatial_manager.h"
+#include "node_containers.h"
+#include "connection_containers.h"
 
 
 namespace sapi
 {
-static bool INIT_OMP_ONCE = true;
+// Forward definition to link with spatial_manager.h
+class BaseSpatialManager;
+
 class CAPI
 {
 public:
+    CAPI();
     CAPI( const CAPI& ) = delete;
     CAPI( CAPI&& ) = default;
     ~CAPI() = default;
-
-    CAPI()
-    {
-        if ( INIT_OMP_ONCE )
-        {
-            init_omp( 1 );
-            INIT_OMP_ONCE = false;
-        }
-    }
-
-    bool manager_initialized() const
-    {
-        return spatial_manager_ != nullptr;
-    }
 
     void reset();
     void free_gc();
@@ -73,7 +65,8 @@ public:
         const SpaceTArray& grid_origin,
         const TileIdxArray& grid_dimensions,
         const CharArray& tile_type,
-        const SpaceTArray& tile_params,
+        const SpaceTArray& tile_side_lengths,
+        const AngleTArray& tile_angular_offsets,
         const NestedTileIdxArray& rank_tiles_ownership_map,
         const split_t& num_splits
     );
@@ -117,13 +110,14 @@ public:
         const std::size_t& dist_tns_index
     );
 
-    RCIStruct* get_spatial_connections(
+    RemoteConnectionInfoPair*
+        get_spatial_connections(
         const std::size_t& conn_map_idx
     );
 
     GridTileVerticesPairArray* get_grid_vertices();
 
-    TimerDataPairArray* get_timer_data();
+    RecordedTimesArrayPair* get_timer_data();
 
 private:
     vp_t local_rank_ = 0;
@@ -132,7 +126,8 @@ private:
     std::string rng_type_ = DEFAULT_RNG_TYPE_;
 
     GC gc_;
-    std::unique_ptr< BaseSpatialManager > spatial_manager_;
+    GC spatial_storage_;
+    BaseSpatialManager* spatial_manager_ = nullptr;
 };
 }
 

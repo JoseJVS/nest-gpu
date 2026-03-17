@@ -37,6 +37,14 @@ std::pair< CoordT, CoordT > minmax_coords(
 );
 
 
+// Forward definition to link with bounding_box.h
+template < typename CoordT >
+BoundingBox< CoordT >
+stack_boxes(
+    std::vector< BoundingBox< CoordT > >&& bbs
+);
+
+
 template < typename CoordT >
 class DimensionalNavigator
 {
@@ -129,7 +137,6 @@ void generate_grid_images(
     tile_position.grid_images_.resize( possible_shifts );
     auto shifted_image_it = tile_position.grid_images_.begin();
 
-    const auto tile = tile_position.get_tile();
     DimensionalNavigator< CoordT > navigator( shifts_dimensions );
 
     for ( auto position_next_pair = navigator.get_pos_and_advance();
@@ -161,13 +168,15 @@ void generate_grid_images(
                 shifted_position_parity
             );
 
-            shifted_image_it->shifted_tile_ = gf_collection->create_tile(
-                shifted_origin,
-                shifted_position_parity
+            shifted_image_it->shifted_tile_.emplace(
+                gf_collection->create_tile(
+                    shifted_origin,
+                    shifted_position_parity
+                )
             );
 
-            shifted_image_it->shift_displacement_ = std::make_optional< CoordT >(
-                shifted_origin - tile->c_radius_.origin_
+            shifted_image_it->shift_displacement_.emplace(
+                shifted_origin - tile_position.tile_.c_radius_.origin_
             );
         }
 
@@ -243,7 +252,7 @@ void generate_tile_position(
     generate_grid_images( tile_pos, gf_collection );
 
     for ( const auto& shift :
-        gf_collection->get_grid_shifts()->position_independent_shifts_ )
+        gf_collection->get_grid_shifts().position_independent_shifts_ )
         insert_neighbor(
             tile_pos,
             shift,
@@ -252,7 +261,7 @@ void generate_tile_position(
 
     auto parity_it = position_parity.cbegin();
     for ( const auto& dim_shifts :
-        gf_collection->get_grid_shifts()->position_dependent_shifts_ )
+        gf_collection->get_grid_shifts().position_dependent_shifts_ )
         for ( const auto& shift : *parity_it++ ?
             dim_shifts.first : dim_shifts.second )
             insert_neighbor(
@@ -414,7 +423,7 @@ generate_bounding_box_tree(
                 minmax_vertices(
                     tile_grid.positions_[
                         grid_index
-                    ].get_tile()->get_vertices()
+                    ].tile_.vertices_
                             ),
                 grid_index
             );
@@ -449,7 +458,7 @@ firstprivate( position_next_pair )
         generate_tile_position(
             grid.positions_,
             position_next_pair.first,
-            gc_array.get_local_thread_item().get()
+            gc_array.get_local_thread_item()
         );
 
     GridPosition< CoordT > origin;

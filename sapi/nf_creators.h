@@ -29,201 +29,236 @@
 
 namespace sapi
 {
-// Forward definitions to link with coordinates.h
-struct Coord2D;
-struct Coord3D;
-
-
-template < typename CoordT >
-struct DistanceDFCreator : public StateLessCreator< DisplacementFunctor< CoordT > >
+struct IdentityUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< DisplacementFunctor< CoordT > > create(
-        const std::vector< space_t >& params
-    ) const override
-    {
-        if ( !params.empty() )
-            throw std::invalid_argument( "Incorrect DistanceDF params" );
-        return std::make_unique< DistanceDF< CoordT > >();
-    }
-};
-
-
-template < typename CoordT >
-struct ConstantDFCreator : public StateLessCreator< DisplacementFunctor< CoordT > >
-{
-    std::unique_ptr< DisplacementFunctor< CoordT > > create(
-        const std::vector< space_t >& params
-    ) const override
-    {
-        if ( 1 < params.size() )
-            throw std::invalid_argument( "Incorrect ConstantDF params" );
-        if ( params.empty() )
-            return std::make_unique< ConstantDF< CoordT > >();
-        else
-            return std::make_unique< ConstantDF< CoordT > >( params[ 0 ] );
-    }
-};
-
-
-struct IdentityUFCreator : public StateLessCreator< UnaryFunctor >
-{
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
         if ( !params.empty() )
             throw std::invalid_argument( "Incorrect IdentityUF params" );
-        return std::make_unique< IdentityUF >();
+        return UnaryFunctor( UNARY_FUNCTION::IDENTITY );
     }
 };
 
 
-struct MinUFCreator : public StateLessCreator< UnaryFunctor >
+struct MinUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( 1 < params.size() )
-            throw std::invalid_argument( "Incorrect MinUF params" );
-        if ( params.empty() )
-            return std::make_unique< MinUF >();
-        else
-            return std::make_unique< MinUF >( params[ 0 ] );
+            if ( params.size() != 1 )
+                throw std::invalid_argument( "Incorrect MinUF params" );
+            return UnaryFunctor( UNARY_FUNCTION::MIN, params[ 0 ] );
     }
 };
 
 
-struct MaxUFCreator : public StateLessCreator< UnaryFunctor >
+struct MaxUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( 1 < params.size() )
+        if ( params.size() != 1 )
             throw std::invalid_argument( "Incorrect MaxUF params" );
-        if ( params.empty() )
-            return std::make_unique< MaxUF >();
-        else
-            return std::make_unique< MaxUF >( params[ 0 ] );
+        return UnaryFunctor( UNARY_FUNCTION::MAX, params[ 0 ] );
     }
 };
 
 
-struct InverseUFCreator : public StateLessCreator< UnaryFunctor >
+struct LowerBoundUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( params.size() != 2 )
+            throw std::invalid_argument( "Incorrect LowerBoundUF params" );
+        return UnaryFunctor( UNARY_FUNCTION::LOWER_BOUND, params[ 0 ], params[ 1 ] );
+    }
+};
+
+
+struct UpperBoundUFCreator final : public StateLessCreator< UnaryFunctor >
+{
+    UnaryFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( params.size() != 2 )
+            throw std::invalid_argument( "Incorrect UpperBoundUF params" );
+        return UnaryFunctor( UNARY_FUNCTION::UPPER_BOUND, params[ 0 ], params[ 1 ] );
+    }
+};
+
+
+struct InverseUFCreator final : public StateLessCreator< UnaryFunctor >
+{
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
         if ( !params.empty() )
             throw std::invalid_argument( "Incorrect InverseUF params" );
-        return std::make_unique< InverseUF >();
+        return UnaryFunctor( UNARY_FUNCTION::INVERSE );
     }
 };
 
 
-struct ProportionalUFCreator : public StateLessCreator< UnaryFunctor >
+struct FactorUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( 1 < params.size() )
-            throw std::invalid_argument( "Incorrect ProportionalUF params" );
-        if ( params.empty() )
-            return std::make_unique< ProportionalUF >();
-        else
-            return std::make_unique< ProportionalUF >( params[ 0 ] );
+        if ( params.size() != 1 )
+            throw std::invalid_argument( "Incorrect FactorUF params" );
+        return UnaryFunctor( UNARY_FUNCTION::FACTOR, params[ 0 ] );
     }
 };
 
 
-struct UpperBoundUFCreator : public StateLessCreator< UnaryFunctor >
+struct OffsetUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( !( params.empty() || 2 == params.size() ) )
-            throw std::invalid_argument( "Incorrect UpperBoundUF params" );
-        if ( params.empty() )
-            return std::make_unique< UpperBoundUF >();
-        else
-            return std::make_unique< UpperBoundUF >( params[ 0 ], params[ 1 ] );
-    }
-};
-
-
-struct LowerBoundUFCreator : public StateLessCreator< UnaryFunctor >
-{
-    std::unique_ptr< UnaryFunctor > create(
-        const std::vector< space_t >& params
-    ) const override
-    {
-        if ( !( params.empty() || 2 == params.size() ) )
-            throw std::invalid_argument( "Incorrect LowerBoundUF params" );
-        if ( params.empty() )
-            return std::make_unique< LowerBoundUF >();
-        else
-            return std::make_unique< LowerBoundUF >( params[ 0 ], params[ 1 ] );
-    }
-};
-
-
-struct OffsetUFCreator : public StateLessCreator< UnaryFunctor >
-{
-    std::unique_ptr< UnaryFunctor > create(
-        const std::vector< space_t >& params
-    ) const override
-    {
-        if ( 1 < params.size() )
+        if ( params.size() != 1 )
             throw std::invalid_argument( "Incorrect OffsetUF params" );
-        if ( params.empty() )
-            return std::make_unique< OffsetUF >();
-        else
-            return std::make_unique< OffsetUF >( params[ 0 ] );
+        return UnaryFunctor( UNARY_FUNCTION::OFFSET, params[ 0 ] );
     }
 };
 
 
-struct ExponentialUFCreator : public StateLessCreator< UnaryFunctor >
+struct ExponentialUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( 1 < params.size() )
+        if ( params.size() != 1 || almost_zero( params.at( 0 ) ) )
             throw std::invalid_argument( "Incorrect ExponentialUF params" );
-        if ( params.empty() )
-            return std::make_unique< ExponentialUF >();
-        else
-        {
-            if ( almost_zero( params[ 0 ] ) )
-                throw std::invalid_argument( "Incorrect ExponentialUF params" );
-            return std::make_unique< ExponentialUF >( params[ 0 ] );
-        }
+        return UnaryFunctor( UNARY_FUNCTION::EXPONENTIAL, -1. / params[ 0 ] );
     }
 };
 
 
-struct GaussianUFCreator : public StateLessCreator< UnaryFunctor >
+struct GaussianUFCreator final : public StateLessCreator< UnaryFunctor >
 {
-    std::unique_ptr< UnaryFunctor > create(
+    UnaryFunctor create(
         const std::vector< space_t >& params
     ) const override
     {
-        if ( !( params.empty() || 2 == params.size() ) )
+        if ( params.size() != 2 || almost_zero( squared( params.at( 1 ) ) ) )
             throw std::invalid_argument( "Incorrect GaussianUF params" );
-        if ( params.empty() )
-            return std::make_unique< GaussianUF >();
-        else
-        {
-            const auto std2 = squared( params[ 1 ] );
-            if ( almost_zero( std2 ) )
-                throw std::invalid_argument( "Incorrect GaussianUF params" );
-            return std::make_unique< GaussianUF >( params[ 0 ], std2 );
-        }
+        return UnaryFunctor( UNARY_FUNCTION::GAUSSIAN, -params[ 0 ], -1. / ( 2. * squared( params[ 1 ] ) ) );
+    }
+};
+
+
+struct ConstantDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( params.size() != 1 )
+            throw std::invalid_argument( "Incorrect ConstantDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::CONSTANT, params[ 0 ] );
+    }
+};
+
+
+struct DistanceDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DistanceDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISTANCE );
+    }
+};
+
+
+struct DisplacementXDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DisplacementXDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISPLACEMENT_X );
+    }
+};
+
+
+struct DisplacementYDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DisplacementYDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISPLACEMENT_Y );
+    }
+};
+
+
+struct DisplacementZDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DisplacementZDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISPLACEMENT_Z );
+    }
+};
+
+
+struct DistanceXDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DistanceXDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISTANCE_X );
+    }
+};
+
+
+struct DistanceYDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DistanceYDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISTANCE_Y );
+    }
+};
+
+
+struct DistanceZDFCreator final : public StateLessCreator< DisplacementFunctor >
+{
+    DisplacementFunctor create(
+        const std::vector< space_t >& params
+    ) const override
+    {
+        if ( !params.empty() )
+            throw std::invalid_argument( "Incorrect DistanceZDF params" );
+        return DisplacementFunctor( DISPLACEMENT_FUNCTION::DISTANCE_Z );
     }
 };
 
@@ -233,27 +268,26 @@ inline void initialize_uf_registry( CreatorRegistry< UnaryFunctor >& ufr )
     ufr.register_creator< IdentityUFCreator >( "Identity" );
     ufr.register_creator< MinUFCreator >( "Min" );
     ufr.register_creator< MaxUFCreator >( "Max" );
-    ufr.register_creator< InverseUFCreator >( "Inverse" );
-    ufr.register_creator< ProportionalUFCreator >( "Proportional" );
-    ufr.register_creator< UpperBoundUFCreator >( "UpperBound" );
     ufr.register_creator< LowerBoundUFCreator >( "LowerBound" );
+    ufr.register_creator< UpperBoundUFCreator >( "UpperBound" );
+    ufr.register_creator< InverseUFCreator >( "Inverse" );
+    ufr.register_creator< FactorUFCreator >( "Factor" );
     ufr.register_creator< OffsetUFCreator >( "Offset" );
     ufr.register_creator< ExponentialUFCreator >( "Exponential" );
     ufr.register_creator< GaussianUFCreator >( "Gaussian" );
 }
 
 
-inline void initialize_df_registry( CreatorRegistry< DisplacementFunctor< Coord2D > >& dfr )
+inline void initialize_df_registry( CreatorRegistry< DisplacementFunctor >& dfr )
 {
-    dfr.register_creator< DistanceDFCreator< Coord2D > >( "Distance" );
-    dfr.register_creator< ConstantDFCreator< Coord2D > >( "Constant" );
-}
-
-
-inline void initialize_df_registry( CreatorRegistry< DisplacementFunctor< Coord3D > >& dfr )
-{
-    dfr.register_creator< DistanceDFCreator< Coord3D > >( "Distance" );
-    dfr.register_creator< ConstantDFCreator< Coord3D > >( "Constant" );
+    dfr.register_creator< ConstantDFCreator >( "Constant" );
+    dfr.register_creator< DistanceDFCreator >( "Distance" );
+    dfr.register_creator< DisplacementXDFCreator >( "DisplacementX" );
+    dfr.register_creator< DisplacementYDFCreator >( "DisplacementY" );
+    dfr.register_creator< DisplacementZDFCreator >( "DisplacementZ" );
+    dfr.register_creator< DistanceXDFCreator >( "DistanceX" );
+    dfr.register_creator< DistanceYDFCreator >( "DistanceY" );
+    dfr.register_creator< DistanceZDFCreator >( "DistanceZ" );
 }
 }
 

@@ -23,296 +23,291 @@
 #ifndef NUMERIC_FUNCTORS_H
 #define NUMERIC_FUNCTORS_H
 
+#include <vector>
+#include <stdexcept>
 #include <cassert>
 
 #include "numerics.h"
-#include "type_erasure_helpers.h"
+#include "enum_store.h"
 
 
 namespace sapi
 {
 // Forward definition to link with coordinates.h
+struct Coord2D;
+struct Coord3D;
 template < typename CoordT >
 struct Displacement;
 
+// Forward definition to link with creator_registry.h
+template < typename T >
+class CreatorRegistry;
 
-struct UnaryFunctor : public Clonable< UnaryFunctor >
+
+struct UnaryFunctor
 {
-    virtual space_t operator()(
-        const space_t& x
-        ) const = 0;
+    UNARY_FUNCTION func_ = UNARY_FUNCTION::NULL_UF;
+    space_t var_[ 2 ] = { 0. };
+
+    UnaryFunctor() = default;
+    UnaryFunctor( const UnaryFunctor& );
+    UnaryFunctor( UnaryFunctor&& ) = default;
+    ~UnaryFunctor() = default;
+
+    UnaryFunctor(
+        const UNARY_FUNCTION&,
+        const space_t & = 0,
+        const space_t & = 0
+    );
+
+    UnaryFunctor& operator=( const UnaryFunctor& );
+
+    inline space_t operator()( const space_t& ) const;
 };
 
 
-template < typename UF >
-struct CloningUFBase : public UnaryFunctor
+inline UnaryFunctor&
+UnaryFunctor::operator=( const UnaryFunctor& uf )
 {
-    std::unique_ptr< UnaryFunctor > clone() const override
-    {
-        return std::make_unique< UF >( *dynamic_cast< const UF* >( this ) );
-    }
-};
+    func_ = uf.func_;
+    var_[ 0 ] = uf.var_[ 0 ];
+    var_[ 1 ] = uf.var_[ 1 ];
+    return *this;
+}
 
 
-struct IdentityUF : public CloningUFBase< IdentityUF >
+inline space_t
+UnaryFunctor::operator()( const space_t& x ) const
 {
-    space_t operator()(
-        const space_t& x
-        ) const override
+    switch ( func_ )
     {
+    case UNARY_FUNCTION::IDENTITY:
         return x;
-    }
-};
 
+    case UNARY_FUNCTION::MIN:
+        return std::fmin( x, var_[ 0 ] );
 
-struct MinUF : public CloningUFBase< MinUF >
-{
-    space_t min_ = 0;
+    case UNARY_FUNCTION::MAX:
+        return std::fmax( x, var_[ 0 ] );
 
-    MinUF() = default;
-    MinUF( const MinUF& ) = default;
-    MinUF( MinUF&& ) = default;
+    case UNARY_FUNCTION::LOWER_BOUND:
+        return leq_test( x, var_[ 0 ] ) ? var_[ 1 ] : x;
 
-    MinUF( const space_t& m )
-        : min_( m )
-    {
-    }
+    case UNARY_FUNCTION::UPPER_BOUND:
+        return leq_test( var_[ 0 ], x ) ? var_[ 1 ] : x;
 
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return std::fmin( x, min_ );
-    }
-};
-
-
-struct MaxUF : public CloningUFBase< MaxUF >
-{
-    space_t max_ = 0;
-
-    MaxUF() = default;
-    MaxUF( const MaxUF& ) = default;
-    MaxUF( MaxUF&& ) = default;
-
-    MaxUF( const space_t& m )
-        : max_( m )
-    {
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return std::fmax( x, max_ );
-    }
-};
-
-
-struct InverseUF : public CloningUFBase< InverseUF >
-{
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
+    case UNARY_FUNCTION::INVERSE:
         return almost_zero( x )
             ? std::signbit( x )
             ? -std::numeric_limits< space_t >::infinity()
             : std::numeric_limits< space_t >::infinity()
             : 1. / x;
+
+    case UNARY_FUNCTION::FACTOR:
+        return x * var_[ 0 ];
+
+    case UNARY_FUNCTION::OFFSET:
+        return compensated_sum( x, var_[ 0 ] );
+
+    case UNARY_FUNCTION::EXPONENTIAL:
+        return std::exp( x * var_[ 0 ] );
+
+    case UNARY_FUNCTION::GAUSSIAN:
+        return std::exp( squared( compensated_sum( x, var_[ 0 ] ) ) * var_[ 1 ] );
+
+    default:
+        throw std::invalid_argument( "Invalid unary function name" );
     }
-};
+}
 
 
-struct ProportionalUF : public CloningUFBase< ProportionalUF >
+struct DisplacementFunctor
 {
-    space_t slope_ = 1;
+    DISPLACEMENT_FUNCTION func_ = DISPLACEMENT_FUNCTION::NULL_DF;
+    space_t var_ = 0;
 
-    ProportionalUF() = default;
-    ProportionalUF( const ProportionalUF& ) = default;
-    ProportionalUF( ProportionalUF&& ) = default;
+    DisplacementFunctor() = default;
+    DisplacementFunctor( const DisplacementFunctor& ) = default;
+    DisplacementFunctor( DisplacementFunctor&& ) = default;
+    ~DisplacementFunctor() = default;
 
-    ProportionalUF( const space_t& slope )
-        : slope_( slope )
-    {
-    }
+    DisplacementFunctor(
+        const DISPLACEMENT_FUNCTION&,
+        const space_t & = 0
+    );
 
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return slope_ * x;
-    }
+    DisplacementFunctor& operator=( const DisplacementFunctor& );
+
+    template < typename CoordT >
+    space_t operator()( const Displacement< CoordT >& ) const;
 };
 
 
-struct UpperBoundUF : public CloningUFBase< UpperBoundUF >
+inline DisplacementFunctor&
+DisplacementFunctor::operator=( const DisplacementFunctor& df )
 {
-    space_t threshold_ = 0.5;
-    space_t clamp_ = 0;
-
-    UpperBoundUF() = default;
-    UpperBoundUF( const UpperBoundUF& ) = default;
-    UpperBoundUF( UpperBoundUF&& ) = default;
-
-    UpperBoundUF( const space_t& threshold, const space_t& clamp )
-        : threshold_( threshold ), clamp_( clamp )
-    {
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return ( leq_test( threshold_, x ) ) ? clamp_ : x;
-    }
-};
-
-
-struct LowerBoundUF : public CloningUFBase< LowerBoundUF >
-{
-    space_t threshold_ = 0.5;
-    space_t clamp_ = 0;
-
-    LowerBoundUF() = default;
-    LowerBoundUF( const LowerBoundUF& ) = default;
-    LowerBoundUF( LowerBoundUF&& ) = default;
-
-    LowerBoundUF( const space_t& threshold, const space_t& clamp )
-        : threshold_( threshold ), clamp_( clamp )
-    {
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return ( leq_test( x, threshold_ ) ) ? clamp_ : x;
-    }
-};
-
-
-struct OffsetUF : public CloningUFBase< OffsetUF >
-{
-    space_t offset_ = 0;
-
-    OffsetUF() = default;
-    OffsetUF( const OffsetUF& ) = default;
-    OffsetUF( OffsetUF&& ) = default;
-
-    OffsetUF( const space_t& offset )
-        : offset_( offset )
-    {
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return compensated_sum( offset_, x );
-    }
-};
-
-
-struct ExponentialUF : public CloningUFBase< ExponentialUF >
-{
-    space_t neg_1_beta_ = -1;
-
-    ExponentialUF() = default;
-    ExponentialUF( const ExponentialUF& ) = default;
-    ExponentialUF( ExponentialUF&& ) = default;
-
-    ExponentialUF( const space_t& beta )
-    {
-        assert( !almost_zero( beta ) );
-        neg_1_beta_ = -1. / beta;
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return std::exp( x * neg_1_beta_ );
-    }
-};
-
-
-struct GaussianUF : public CloningUFBase< GaussianUF >
-{
-    space_t neg_mean_ = 0;
-    space_t neg_denominator_ = -1;
-
-    GaussianUF() = default;
-    GaussianUF( const GaussianUF& ) = default;
-    GaussianUF( GaussianUF&& ) = default;
-
-    GaussianUF( const space_t& mean, const space_t& std2 )
-    {
-        assert( !almost_zero( std2 ) );
-        neg_mean_ = -mean;
-        neg_denominator_ = -1. / ( 2. * std2 );
-    }
-
-    space_t operator()(
-        const space_t& x
-        ) const override
-    {
-        return std::exp( squared( compensated_sum( x, neg_mean_ ) ) * neg_denominator_ );
-    }
-};
+    func_ = df.func_;
+    var_ = df.var_;
+    return *this;
+}
 
 
 template < typename CoordT >
-struct DisplacementFunctor : public Clonable< DisplacementFunctor< CoordT > >
+inline space_t
+DisplacementFunctor::operator()( const Displacement< CoordT >& d ) const
 {
-    virtual space_t operator()(
-        const Displacement< CoordT >& dc
-        ) const = 0;
-};
-
-
-template < typename CoordT, typename DFT >
-struct CloningDFBase : public DisplacementFunctor< CoordT >
-{
-    std::unique_ptr< DisplacementFunctor< CoordT > > clone() const override
+    switch ( func_ )
     {
-        return std::make_unique< DFT >( *dynamic_cast< const DFT* >( this ) );
-    }
-};
+    case DISPLACEMENT_FUNCTION::CONSTANT:
+        return var_;
 
+    case DISPLACEMENT_FUNCTION::DISTANCE:
+        return d.get_distance();
 
-template < typename CoordT >
-struct DistanceDF : public CloningDFBase< CoordT, DistanceDF< CoordT > >
-{
-    space_t operator()(
-        const Displacement< CoordT >& dc
-        ) const override
-    {
-        return dc.get_distance();
-    }
-};
+    case DISPLACEMENT_FUNCTION::DISPLACEMENT_X:
+        return d.displacement_.x_;
 
+    case DISPLACEMENT_FUNCTION::DISPLACEMENT_Y:
+        return d.displacement_.y_;
 
-template < typename CoordT >
-struct ConstantDF : public CloningDFBase< CoordT, ConstantDF< CoordT > >
-{
-    space_t c_ = 1;
+    case DISPLACEMENT_FUNCTION::DISTANCE_X:
+        return std::fabs( d.displacement_.x_ );
 
-    ConstantDF() = default;
-    ConstantDF( const ConstantDF& ) = default;
-    ConstantDF( ConstantDF&& ) = default;
+    case DISPLACEMENT_FUNCTION::DISTANCE_Y:
+        return std::fabs( d.displacement_.y_ );
 
-    ConstantDF( const space_t& c )
-        : c_( c )
-    {
+    default:
+        break;
     }
 
+    if constexpr ( std::is_same_v< CoordT, Coord3D > )
+    {
+        switch ( func_ )
+        {
+        case DISPLACEMENT_FUNCTION::DISPLACEMENT_Z:
+            return d.displacement_.z_;
+
+        case DISPLACEMENT_FUNCTION::DISTANCE_Z:
+            return std::fabs( d.displacement_.z_ );
+
+        default:
+            break;
+        }
+    }
+
+    throw std::invalid_argument( "Invalid displacement function name" );
+}
+
+
+class NumericFunctor
+{
+public:
+    NumericFunctor() = default;
+    NumericFunctor( const NumericFunctor& ) = default;
+    NumericFunctor( NumericFunctor&& ) = default;
+    ~NumericFunctor() = default;
+
+    NumericFunctor(
+        const DisplacementFunctor&,
+        const std::vector< UnaryFunctor >&
+    );
+
+    NumericFunctor(
+        const std::string&,
+        const std::vector< space_t >&,
+        const CreatorRegistry< DisplacementFunctor >&,
+        const std::vector< std::string >&,
+        const std::vector< std::vector< space_t > >&,
+        const CreatorRegistry< UnaryFunctor >&
+    );
+
+    NumericFunctor& operator=( const NumericFunctor& );
+    NumericFunctor& operator=( NumericFunctor&& );
+
+    bool is_initialized() const;
+
+    template < typename CoordT >
     space_t operator()(
         const Displacement< CoordT >&
-        ) const override
-    {
-        return c_;
-    }
+        ) const;
+
+protected:
+    void _clear();
+
+    bool initialized_ = false;
+    DisplacementFunctor df_;
+    std::vector< UnaryFunctor > ufs_;
+};
+
+
+inline void NumericFunctor::_clear()
+{
+    df_.func_ = DISPLACEMENT_FUNCTION::NULL_DF;
+    ufs_.clear();
+    initialized_ = false;
+}
+
+
+inline NumericFunctor&
+NumericFunctor::operator=( const NumericFunctor& cf )
+{
+    _clear();
+
+    if ( !cf.initialized_ )
+        return *this;
+
+    df_ = cf.df_;
+    ufs_ = cf.ufs_;
+
+    initialized_ = true;
+
+    return *this;
+}
+
+
+inline NumericFunctor&
+NumericFunctor::operator=( NumericFunctor&& cf )
+{
+    _clear();
+
+    if ( !cf.initialized_ )
+        return *this;
+
+    df_ = cf.df_;
+    ufs_ = std::move( cf.ufs_ );
+    initialized_ = true;
+
+    cf._clear();
+
+    return *this;
+}
+
+
+inline bool NumericFunctor::is_initialized() const
+{
+    return initialized_;
+}
+
+
+template < typename CoordT >
+inline space_t NumericFunctor::operator()(
+    const Displacement< CoordT >& dc
+    ) const
+{
+    assert( initialized_ );
+    auto val = df_( dc );
+    for ( const auto& uf : ufs_ )
+        val = uf( val );
+
+    return val;
+}
+
+
+struct NFCollection
+{
+    NumericFunctor weight_functor_;
+    NumericFunctor delay_functor_;
+    NumericFunctor probability_functor_;
 };
 }
 

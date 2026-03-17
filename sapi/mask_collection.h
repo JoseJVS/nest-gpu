@@ -30,35 +30,37 @@
 namespace sapi
 {
 template < typename CoordT >
-class MaskCollection : public Clonable< MaskCollection< CoordT > >
+class MaskCollection final : public Cloneable< MaskCollection< CoordT > >
 {
 public:
-    MaskCollection() = delete;
+    MaskCollection() = default;
     MaskCollection( const MaskCollection& ) = delete;
-    MaskCollection( MaskCollection&& );
+    MaskCollection( MaskCollection&& ) = default;
 
     MaskCollection(
-        const std::unique_ptr< Mask< CoordT > >& blueprint,
-        const std::unique_ptr< Mask< CoordT > >& source_mask,
-        const std::unique_ptr< Mask< CoordT > >& target_mask
+        std::optional< Mask< CoordT > >&&,
+        std::optional< Mask< CoordT > >&&,
+        std::optional< Mask< CoordT > >&&
     );
 
     MaskCollection(
-        const std::string& blueprint_name,
-        const std::vector< space_t >& blueprint_params,
-        const std::vector< space_t >& blueprint_offset,
-        const std::string& source_mask_name,
-        const std::vector< space_t >& source_mask_params,
-        const std::vector< space_t >& source_mask_offset,
-        const std::string& target_mask_name,
-        const std::vector< space_t >& target_mask_params,
-        const std::vector< space_t >& target_mask_offset,
-        const CreatorRegistry< Mask< CoordT > >& mc_registry
+        const std::string&,
+        const std::vector< space_t >&,
+        const std::vector< space_t >&,
+        const std::string&,
+        const std::vector< space_t >&,
+        const std::vector< space_t >&,
+        const std::vector< space_t >&,
+        const std::string&,
+        const std::vector< space_t >&,
+        const std::vector< space_t >&,
+        const std::vector< space_t >&,
+        const CreatorRegistry< Mask< CoordT > >&
     );
 
     MaskCollection& operator=( MaskCollection&& );
 
-    std::unique_ptr< MaskCollection > clone() const;
+    std::unique_ptr< MaskCollection > clone() const override;
 
     bool has_blueprint() const;
     bool has_source_mask() const;
@@ -70,60 +72,53 @@ public:
         ) const;
 
     bool blueprint_overlap(
-        const Tile< CoordT >* const& a,
-        const Tile< CoordT >* const& b
+        const Tile< CoordT >& a,
+        const Tile< CoordT >& b
     ) const;
 
     bool blueprint_overlap(
         const CoordT& a,
-        const Tile< CoordT >* const& b
+        const Tile< CoordT >& b
     ) const;
 
     std::optional< Displacement< CoordT > >
         source_overlap( const CoordT& c ) const;
 
-    bool source_overlap( const Tile< CoordT >* const& t ) const;
+    bool source_overlap( const Tile< CoordT >& t ) const;
 
     std::forward_list< const Tile< CoordT >* >
-        source_overlapping_leafs( const Tile< CoordT >* const& t ) const;
+        source_overlapping_leafs( const Tile< CoordT >& t ) const;
 
     std::optional< Displacement< CoordT > >
         target_overlap( const CoordT& c ) const;
 
-    bool target_overlap( const Tile< CoordT >* const& t ) const;
+    bool target_overlap( const Tile< CoordT >& t ) const;
 
     std::forward_list< const Tile< CoordT >* >
-        target_overlapping_leafs( const Tile< CoordT >* const& t ) const;
+        target_overlapping_leafs( const Tile< CoordT >& t ) const;
 
 protected:
-    std::unique_ptr< Mask< CoordT > >  blueprint_;
-    std::unique_ptr< Mask< CoordT > > source_mask_;
-    std::unique_ptr< Mask< CoordT > > target_mask_;
+    Mask< CoordT > blueprint_;
+    Mask< CoordT > source_mask_;
+    Mask< CoordT > target_mask_;
 };
 
 
 template < typename CoordT >
-MaskCollection< CoordT >::MaskCollection( MaskCollection< CoordT >&& mc )
-{
-    blueprint_ = std::move( mc.blueprint_ );
-    source_mask_ = std::move( mc.source_mask_ );
-    target_mask_ = std::move( mc.target_mask_ );
-}
-
-
-template < typename CoordT >
 MaskCollection< CoordT >::MaskCollection(
-    const std::unique_ptr< Mask< CoordT > >& blueprint,
-    const std::unique_ptr< Mask< CoordT > >& source_mask,
-    const std::unique_ptr< Mask< CoordT > >& target_mask
+    std::optional< Mask< CoordT > >&& blueprint,
+    std::optional< Mask< CoordT > >&& source_mask,
+    std::optional< Mask< CoordT > >&& target_mask
 )
 {
-    if ( blueprint )
-        blueprint_ = blueprint->clone();
-    if ( source_mask )
-        source_mask_ = source_mask->clone();
-    if ( target_mask )
-        target_mask_ = target_mask->clone();
+    if ( blueprint.has_value() )
+        blueprint_ = std::move( blueprint.value() );
+
+    if ( source_mask.has_value() )
+        source_mask_ = std::move( source_mask.value() );
+
+    if ( target_mask.has_value() )
+        target_mask_ = std::move( target_mask.value() );
 }
 
 
@@ -133,9 +128,11 @@ MaskCollection< CoordT >::MaskCollection(
     const std::vector< space_t >& blueprint_params,
     const std::vector< space_t >& blueprint_offset,
     const std::string& source_mask_name,
+    const std::vector< space_t >& source_mask_origin,
     const std::vector< space_t >& source_mask_params,
     const std::vector< space_t >& source_mask_offset,
     const std::string& target_mask_name,
+    const std::vector< space_t >& target_mask_origin,
     const std::vector< space_t >& target_mask_params,
     const std::vector< space_t >& target_mask_offset,
     const CreatorRegistry< Mask< CoordT > >& mc_registry
@@ -143,21 +140,22 @@ MaskCollection< CoordT >::MaskCollection(
 {
     if ( !blueprint_name.empty() )
         blueprint_ = mc_registry.get_creator( blueprint_name )->create(
-            blueprint_params, blueprint_offset
+            {}, blueprint_params, blueprint_offset
         );
     if ( !source_mask_name.empty() )
         source_mask_ = mc_registry.get_creator( source_mask_name )->create(
-            source_mask_params, source_mask_offset
+            source_mask_origin, source_mask_params, source_mask_offset
         );
     if ( !target_mask_name.empty() )
         target_mask_ = mc_registry.get_creator( target_mask_name )->create(
-            target_mask_params, target_mask_offset
+            target_mask_origin, target_mask_params, target_mask_offset
         );
 }
 
 
 template < typename CoordT >
-MaskCollection< CoordT >& MaskCollection< CoordT >::operator=( MaskCollection&& mc )
+inline MaskCollection< CoordT >&
+MaskCollection< CoordT >::operator=( MaskCollection&& mc )
 {
     blueprint_ = std::move( mc.blueprint_ );
     source_mask_ = std::move( mc.source_mask_ );
@@ -171,9 +169,15 @@ inline std::unique_ptr< MaskCollection< CoordT > >
 MaskCollection< CoordT >::clone() const
 {
     return std::make_unique< MaskCollection >(
-        blueprint_,
-        source_mask_,
-        target_mask_
+        has_blueprint()
+        ? std::make_optional< Mask< CoordT > >( blueprint_ )
+        : std::optional< Mask< CoordT > >(),
+        has_source_mask()
+        ? std::make_optional< Mask< CoordT > >( source_mask_ )
+        : std::optional< Mask< CoordT > >(),
+        has_target_mask()
+        ? std::make_optional< Mask< CoordT > >( target_mask_ )
+        : std::optional< Mask< CoordT > >()
     );
 }
 
@@ -181,21 +185,21 @@ MaskCollection< CoordT >::clone() const
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::has_blueprint() const
 {
-    return bool( blueprint_ ) && !blueprint_->has_origin_;
+    return blueprint_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::has_source_mask() const
 {
-    return bool( source_mask_ ) && source_mask_->has_origin_;
+    return source_mask_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::has_target_mask() const
 {
-    return bool( target_mask_ ) && target_mask_->has_origin_;
+    return target_mask_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
 
@@ -205,30 +209,27 @@ MaskCollection< CoordT >::blueprint_overlap(
     const CoordT& a, const CoordT& b
 ) const
 {
-    assert( blueprint_ );
-    return blueprint_->coord_in_mask( a, b );
+    return blueprint_.coord_in_mask( a, b );
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::blueprint_overlap(
-    const Tile< CoordT >* const& a,
-    const Tile< CoordT >* const& b
+    const Tile< CoordT >& a,
+    const Tile< CoordT >& b
 ) const
 {
-    assert( blueprint_ );
-    return blueprint_->tiles_within_mask_range( a, b );
+    return blueprint_.tiles_within_mask_range( a, b );
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::blueprint_overlap(
     const CoordT& a,
-    const Tile< CoordT >* const& b
+    const Tile< CoordT >& b
 ) const
 {
-    assert( blueprint_ );
-    return blueprint_->overlap_with_tile_edges( a, b );
+    return blueprint_.overlap_with_tile_surface( a, b );
 }
 
 
@@ -238,31 +239,28 @@ MaskCollection< CoordT >::source_overlap(
     const CoordT& c
 ) const
 {
-    assert( source_mask_ );
-    return source_mask_->coord_in_mask( c );
+    return source_mask_.coord_in_mask( c );
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::source_overlap(
-    const Tile< CoordT >* const& t
+    const Tile< CoordT >& t
 ) const
 {
-    assert( source_mask_ );
-    return source_mask_->tile_overlap(
+    return source_mask_.tile_overlap(
         t
-    ) != OverlapLevel::NONE;
+    ) != OVERLAP_LEVEL::NONE;
 }
 
 
 template < typename CoordT >
 inline std::forward_list< const Tile< CoordT >* >
 MaskCollection< CoordT >::source_overlapping_leafs(
-    const Tile< CoordT >* const& t
+    const Tile< CoordT >& t
 ) const
 {
-    assert( source_mask_ );
-    return source_mask_->get_overlapping_leaf_sub_tiles( t );
+    return source_mask_.get_overlapping_leaf_sub_tiles( t );
 }
 
 
@@ -272,37 +270,34 @@ MaskCollection< CoordT >::target_overlap(
     const CoordT& c
 ) const
 {
-    assert( target_mask_ );
-    return target_mask_->coord_in_mask( c );
+    return target_mask_.coord_in_mask( c );
 }
 
 
 template < typename CoordT >
 inline bool MaskCollection< CoordT >::target_overlap(
-    const Tile< CoordT >* const& t
+    const Tile< CoordT >& t
 ) const
 {
-    assert( target_mask_ );
-    return target_mask_->tile_overlap(
+    return target_mask_.tile_overlap(
         t
-    ) != OverlapLevel::NONE;
+    ) != OVERLAP_LEVEL::NONE;
 }
 
 
 template < typename CoordT >
 inline std::forward_list< const Tile< CoordT >* >
 MaskCollection< CoordT >::target_overlapping_leafs(
-    const Tile< CoordT >* const& t
+    const Tile< CoordT >& t
 ) const
 {
-    assert( target_mask_ );
-    return target_mask_->get_overlapping_leaf_sub_tiles( t );
+    return target_mask_.get_overlapping_leaf_sub_tiles( t );
 }
 
 
 template < typename CoordT >
 inline bool no_overlap(
-    const Tile< CoordT >* const& tile,
+    const Tile< CoordT >& tile,
     const MaskCollection< CoordT >* const& mask_collection,
     const bool& apply_on_target
 )
@@ -337,7 +332,7 @@ inline bool no_overlap(
 template < typename CoordT >
 inline bool no_overlap(
     const CoordT& coord,
-    const Tile< CoordT >* const& tile,
+    const Tile< CoordT >& tile,
     const MaskCollection< CoordT >* const& mask_collection,
     const bool& apply_on_target
 )

@@ -27,7 +27,6 @@
 #include <optional>
 #include <stdexcept>
 
-#include "numerics.h"
 #include "node_containers.h"
 
 

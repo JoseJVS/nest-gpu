@@ -23,20 +23,14 @@
 #ifndef NODE_CREATION_H
 #define NODE_CREATION_H
 
+#include "tile.h"
 #include "node_collection.h"
 #include "node_distribution.h"
+#include "grid_neighborhood.h"
 
 
 namespace sapi
 {
-enum DISTRIBUTION_MODE
-{
-    FREE,
-    SQUEEZED,
-    BALANCED
-};
-
-
 template < typename I,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true >
 constexpr DISTRIBUTION_MODE
@@ -73,16 +67,15 @@ distribute_node_counts_in_grid(
     const TileGrid< CoordT >& tile_grid,
     const GridNeighborhood& grid_neighborhood,
     const RandomManager& rng_manager,
-    const uint8_t& mode_int
+    const DISTRIBUTION_MODE& mode
 )
 {
     assert(
-        !tile_grid.positions_.empty() &&
+        tile_grid.has_split_ &&
         grid_neighborhood.has_owners_ &&
         rng_manager.is_initialized()
     );
 
-    const auto mode = get_distribution_mode( mode_int );
     const auto large_distribution = std::numeric_limits< nodeidx_t >::max() < num_nodes;
 
     if ( num_nodes < 0 )
@@ -213,19 +206,17 @@ void distribute_node_counts_in_tiles(
     const TileIdxNodeSequenceMap& node_seq_per_tile,
     const TileGrid< CoordT >& tile_grid,
     const RandomManager& rng_manager,
-    const uint8_t& mode_int
+    const DISTRIBUTION_MODE& mode
 )
 {
     assert(
-        !grid_node_col.tiles_node_coord_map_.empty() &&
         tile_grid.has_split_ &&
+        !grid_node_col.tiles_node_coord_map_.empty() &&
         rng_manager.is_initialized()
     );
 
     if ( node_seq_per_tile.empty() )
         throw std::invalid_argument( "Cannot generate nodes with empty node sequences" );
-
-    const auto mode = get_distribution_mode( mode_int );
 
 #pragma omp parallel default( none )\
 shared( node_seq_per_tile, grid_node_col, tile_grid, rng_manager, mode )
@@ -246,7 +237,7 @@ shared( node_seq_per_tile, grid_node_col, tile_grid, rng_manager, mode )
                 ? uniform_distribute_node_counts(
                     node_sequence.second,
                     static_cast< tileidx_t >( tile_nc_it->second.sub_tiles_vector_.size() ),
-                    tile_pos_it->get_tile()->get_possible_sub_tile_branches( tile_grid.splits_ ),
+                    tile_pos_it->tile_.get_possible_sub_tile_branches( tile_grid.splits_ ),
                     rng_manager,
                     false // global
                 )
@@ -290,7 +281,7 @@ firstprivate( sub_tile, st_node_index, node_count, coord_map_it, tile_index )
                             )
                         );
                     assert( coord_map_emplace_res.second );
-                    sub_tile->generate_coords_in_tile( coord_map_emplace_res.first->second, rng );
+                    sub_tile->generate_coords_in_tile( coord_map_emplace_res.first->second, *rng );
                 }
 
                 st_node_index += node_count;

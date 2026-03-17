@@ -54,13 +54,14 @@ constexpr TO safe_convert_f( const FROM& val )
     if constexpr ( std::is_same_v< rcvref< FROM >, rcvref< TO > > )
         return val;
 
-    if ( val < std::numeric_limits< TO >::lowest() )
+    if ( std::isless( val, std::numeric_limits< TO >::lowest() ) )
         return std::numeric_limits< TO >::lowest();
-    if ( std::numeric_limits< TO >::max() < val )
+    if ( std::isless( std::numeric_limits< TO >::max(), val ) )
         return std::numeric_limits< TO >::max();
-    if ( -std::numeric_limits< TO >::min() < val &&
-        val < std::numeric_limits< TO >::min() )
-        return std::signbit( val )
+    if ( std::isless( std::fabs( val ), std::numeric_limits< TO >::min() ) )
+        return almost_zero( val )
+        ? 0
+        : std::signbit( val )
         ? -std::numeric_limits< TO >::min()
         : std::numeric_limits< TO >::min();
 
@@ -209,6 +210,19 @@ constexpr space_t determinant3x3(
         c * d * h,
         -( c * e * g )
     );
+}
+
+
+constexpr tileidx_t compute_sub_tile_split_index(
+    const tileidx_t& base_index,
+    const split_t& tile_position,
+    const split_t& split_power,
+    const split_t& remaining_splits
+)
+{
+    return base_index + 1
+        + static_cast< tileidx_t >( tile_position )
+        * std::pow( split_power, remaining_splits );
 }
 }
 

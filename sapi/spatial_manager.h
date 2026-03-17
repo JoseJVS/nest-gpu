@@ -33,6 +33,9 @@
 #include "grid_generation.h"
 #include "spatial_containers.h"
 #include "spatial_communication.h"
+#include "coordinate_geometry.h"
+#include "mask2d_geometry.h"
+#include "gf2d_geometry.h"
 
 
 namespace sapi
@@ -42,65 +45,66 @@ class BaseSpatialManager
 public:
     BaseSpatialManager() = default;
     BaseSpatialManager( const BaseSpatialManager& ) = delete;
-    BaseSpatialManager( BaseSpatialManager&& ) = delete;
+    BaseSpatialManager( BaseSpatialManager&& ) = default;
     virtual ~BaseSpatialManager() = default;
 
     BaseSpatialManager( const vp_t& local_rank, const vp_t& num_processes )
         : grid_neighborhood_( local_rank, num_processes )
         , random_manager_( local_rank, num_processes )
     {
-    };
+    }
 
-    void set_rng_seed( const uint32_t& seed );
+    void set_rng_seed( const uint32_t& );
 
-    void set_rng_type( const std::string& name );
+    void set_rng_type( const std::string& );
 
     virtual void update_num_threads() = 0;
 
     virtual void initialize_tile_grid(
-        const std::vector< space_t >& grid_origin,
-        const std::vector< tileidx_t >& grid_dimensions,
-        const std::string& tile_type,
-        const std::vector< space_t >& tile_params,
-        std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
-        const split_t& num_splits
+        const std::vector< space_t >&,
+        const std::vector< tileidx_t >&,
+        const std::string&,
+        const std::vector< space_t >&,
+        const std::vector< angle_t >&,
+        std::vector< std::set< tileidx_t > >&&,
+        const split_t&
     ) = 0;
 
     virtual NodeCountVector
         distribute_nodes_in_grid(
-            const largenodeidx_t& num_nodes,
-            const std::optional< std::set< tileidx_t > >& tile_set,
-            const uint8_t& mode
+            const largenodeidx_t&,
+            const std::optional< std::set< tileidx_t > >&,
+            const DISTRIBUTION_MODE&
         ) = 0;
 
     virtual NodeCountVector
         insert_positions_in_grid(
-            std::vector< std::vector< space_t > >& anycoord_vec
+            std::vector< std::vector< space_t > >&
         ) = 0;
 
     virtual std::size_t
         generate_nodes_in_tiles(
-            const RankNodeSequenceMap& node_sequence_map,
-            const uint8_t& mode
+            const RankNodeSequenceMap&,
+            const DISTRIBUTION_MODE&
         ) = 0;
 
     virtual std::size_t
         insert_positions_in_tiles(
-            const RankNodeSequenceMap& node_sequence_map
+            const RankNodeSequenceMap&
         ) = 0;
 
     virtual std::pair< std::size_t, RankConnectionInfo* >
         compute_spatial_connections(
-            const std::size_t& dist_tns_source_index,
-            const std::size_t& dist_tns_target_index,
-            const MaskParameters& mask_params,
-            const ConnectionParameters& conn_params
+            const std::size_t&,
+            const std::size_t&,
+            const MaskParameters&,
+            const ConnectionParameters&
         ) = 0;
 
     virtual NestedTileIdxNodeIdxACM
         get_nodes(
-            const std::optional< std::size_t >& dist_tns_index,
-            const MaskParameters& mask_params
+            const std::optional< std::size_t >&,
+            const MaskParameters&
         ) = 0;
 
     virtual GridTileVertexMap
@@ -108,19 +112,19 @@ public:
 
     const DistributedTiledNodeSequenceMap&
         get_distributed_node_sequence(
-            const std::size_t& dist_tns_index
+            const std::size_t&
         ) const;
 
     const RankConnectionInfo&
         get_connection_map(
-            const std::size_t& connection_map_index
+            const std::size_t&
         ) const;
 
-    TimerData get_timer_data() const;
+    RecordedTimes get_timer_data() const;
 
 protected:
     GridNeighborhood grid_neighborhood_;
-    TimerRegister timer_register_;
+    TimerManager timer_manager_;
     RandomManager random_manager_;
     std::unordered_map< std::size_t,
         DistributedTiledNodeSequenceMap >
@@ -172,68 +176,69 @@ BaseSpatialManager::get_connection_map(
 }
 
 
-inline TimerData BaseSpatialManager::get_timer_data() const
+inline RecordedTimes BaseSpatialManager::get_timer_data() const
 {
-    return timer_register_.to_map();
+    return timer_manager_.get_times();
 }
 
 
 template < typename CoordT >
-class SpatialManager : public BaseSpatialManager
+class SpatialManager final : public BaseSpatialManager
 {
 public:
     SpatialManager();
     SpatialManager( const SpatialManager& ) = delete;
-    SpatialManager( SpatialManager&& ) = delete;
+    SpatialManager( SpatialManager&& ) = default;
 
-    SpatialManager( const vp_t& local_rank, const vp_t& num_processes );
+    SpatialManager( const vp_t&, const vp_t& );
 
     void update_num_threads() override;
 
     void initialize_tile_grid(
-        const std::vector< space_t >& grid_origin,
-        const std::vector< tileidx_t >& grid_dimensions,
-        const std::string& tile_type,
-        const std::vector< space_t >& tile_params,
-        std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
-        const split_t& num_splits
+        const std::vector< space_t >&,
+        const std::vector< tileidx_t >&,
+        const std::string&,
+        const std::vector< space_t >&,
+        const std::vector< angle_t >&,
+        std::vector< std::set< tileidx_t > >&&,
+        const split_t&
     ) override;
 
     NodeCountVector
         distribute_nodes_in_grid(
-            const largenodeidx_t& num_nodes,
-            const std::optional< std::set< tileidx_t > >& tile_set,
-            const uint8_t& mode
+            const largenodeidx_t&,
+            const std::optional< std::set< tileidx_t > >&,
+            const DISTRIBUTION_MODE&
         ) override;
 
     NodeCountVector
         insert_positions_in_grid(
-            std::vector< std::vector< space_t > >& anycoord_vec
+            std::vector< std::vector< space_t > >&
         ) override;
 
     std::size_t
         generate_nodes_in_tiles(
-            const RankNodeSequenceMap& node_sequence_map,
-            const uint8_t& mode
+            const RankNodeSequenceMap&,
+            const DISTRIBUTION_MODE&
         ) override;
 
     std::size_t
         insert_positions_in_tiles(
-            const RankNodeSequenceMap& node_sequence_map
+            const RankNodeSequenceMap&
         ) override;
 
     std::pair< std::size_t, RankConnectionInfo* >
         compute_spatial_connections(
-            const std::size_t& dist_tns_source_index,
-            const std::size_t& dist_tns_target_index,
-            const MaskParameters& mask_params,
-            const ConnectionParameters& conn_params
+            const std::size_t&,
+            const std::size_t&,
+            const MaskParameters&,
+            const ConnectionParameters&
         ) override;
 
     NestedTileIdxNodeIdxACM
         get_nodes(
-            const std::optional< std::size_t >& dist_tns_index,
-            const MaskParameters& mask_params
+            const std::optional< std::size_t >&,
+            const MaskParameters&
         ) override;
 
     GridTileVertexMap
@@ -245,14 +250,15 @@ protected:
     GridNodeCollection< CoordT > grid_node_col_;
     CreatorRegistry< UnaryFunctor >  uf_registry_;
     CreatorRegistry< Mask< CoordT > > mk_registry_;
-    CreatorRegistry< DisplacementFunctor< CoordT > >  df_registry_;
-    CreatorRegistry< ConnectionGenerator< CoordT > >  cg_registry_;
-    CreatorRegistry< BaseCachedTileCreator< CoordT > > ctc_registry_;
+    CreatorRegistry< DisplacementFunctor >  df_registry_;
+    CreatorRegistry< ConnectionGenerator >  cg_registry_;
+    CreatorRegistry< CachedTileCreator< CoordT > > ctc_registry_;
     CreatorRegistry< GridTargetPositionShifts< CoordT > > gsc_registry_;
-    CreatorRegistry< BaseShiftedOriginCreator< CoordT > > soc_registry_;
+    CreatorRegistry< ShiftedOriginCreator< CoordT > > soc_registry_;
     TAArray< GFCollection< CoordT > > gc_array_;
     TAArray< MaskCollection< CoordT > > mc_array_;
-    TAArray< ConnectionGenerator< CoordT > > cg_array_;
+    TAArray< ConnectionGenerator > cg_array_;
+    TimerRegister* rank_timer_registry_;
 
     // Temporaries for distribution/insertion of nodes in tiles
     // after getting rank node sequences
@@ -266,11 +272,11 @@ protected:
     void _initialize_registers();
 
     void _initialize_mask_parameters(
-        const MaskParameters& mask_params
+        const MaskParameters&
     );
 
     void _initialize_connection_parameters(
-        const ConnectionParameters& conn_params
+        const ConnectionParameters&
     );
 };
 
@@ -280,6 +286,7 @@ SpatialManager< CoordT >::SpatialManager()
     : BaseSpatialManager()
 {
     _initialize_registers();
+    rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
 
@@ -288,6 +295,7 @@ SpatialManager< CoordT >::SpatialManager( const vp_t& local_rank, const vp_t& nu
     : BaseSpatialManager( local_rank, num_processes )
 {
     _initialize_registers();
+    rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
 
@@ -310,7 +318,9 @@ inline void SpatialManager< CoordT >::update_num_threads()
     gc_array_.prepare();
     mc_array_.prepare();
     cg_array_.prepare();
+    timer_manager_.initialize();
     random_manager_.initialize();
+    rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
 
@@ -319,7 +329,8 @@ void SpatialManager< CoordT >::initialize_tile_grid(
     const std::vector< space_t >& grid_origin,
     const std::vector< tileidx_t >& grid_dimensions,
     const std::string& tile_type,
-    const std::vector< space_t >& tile_params,
+    const std::vector< space_t >& tile_side_lengths,
+    const std::vector< angle_t >& tile_angular_offsets,
     std::vector< std::set< tileidx_t > >&& rank_tiles_ownership_map,
     const split_t& num_splits
 )
@@ -327,23 +338,19 @@ void SpatialManager< CoordT >::initialize_tile_grid(
     if ( initialized_grid_ )
         throw std::runtime_error( "Cannot generate tile grid more than once" );
 
-    const auto ggt = timer_register_.get_register_timer( "grid_generation_time" );
+    const auto ggt = rank_timer_registry_->get_register_timer( "grid_generation_time" );
     ggt->start();
 
     const auto gc = GFCollection< CoordT >(
         grid_origin,
         grid_dimensions,
         tile_type,
-        tile_params,
+        tile_side_lengths,
+        tile_angular_offsets,
         gsc_registry_,
         soc_registry_,
         ctc_registry_
     );
-
-    if ( !gc.check_dimensions() )
-        throw std::invalid_argument(
-            "Grid cannot be instantiated with the dimension | rotation | edge wrapping combination"
-        );
 
     gc_array_.clone( gc );
 
@@ -354,7 +361,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
 
     ggt->stop();
 
-    const auto got = timer_register_.get_register_timer( "grid_ownership_time" );
+    const auto got = rank_timer_registry_->get_register_timer( "grid_ownership_time" );
     got->start();
 
     grid_neighborhood_.set_tile_ownership(
@@ -364,7 +371,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
 
     got->stop();
 
-    const auto gst = timer_register_.get_register_timer( "grid_splitting_time" );
+    const auto gst = rank_timer_registry_->get_register_timer( "grid_splitting_time" );
     gst->start();
 
     tile_grid_.split_owned_tiles(
@@ -374,7 +381,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
 
     gst->stop();
 
-    const auto gnt = timer_register_.get_register_timer( "grid_node_collections_time" );
+    const auto gnt = rank_timer_registry_->get_register_timer( "grid_node_collections_time" );
     gnt->start();
 
     grid_node_col_.initialize_map(
@@ -384,7 +391,7 @@ void SpatialManager< CoordT >::initialize_tile_grid(
 
     gnt->stop();
 
-    const auto ct = timer_register_.get_register_timer( "cleanup_time" );
+    const auto ct = rank_timer_registry_->get_register_timer( "cleanup_time" );
     ct->start();
 
     gc_array_.clear();
@@ -400,10 +407,10 @@ NodeCountVector
 SpatialManager< CoordT >::distribute_nodes_in_grid(
     const largenodeidx_t& num_nodes,
     const std::optional< std::set< tileidx_t > >& tile_set,
-    const uint8_t& mode
+    const DISTRIBUTION_MODE& mode
 )
 {
-    const auto ndt = timer_register_.get_register_timer( "node_distribution_time" );
+    const auto ndt = rank_timer_registry_->get_register_timer( "node_distribution_time" );
     ndt->start();
 
     if ( !initialized_grid_ )
@@ -437,7 +444,7 @@ SpatialManager< CoordT >::insert_positions_in_grid(
     std::vector< std::vector< space_t > >& anycoord_vec
 )
 {
-    const auto nit = timer_register_.get_register_timer( "node_insertion_time" );
+    const auto nit = rank_timer_registry_->get_register_timer( "node_insertion_time" );
     nit->start();
 
     if ( !initialized_grid_ )
@@ -497,10 +504,10 @@ template < typename CoordT >
 std::size_t
 SpatialManager< CoordT >::generate_nodes_in_tiles(
     const RankNodeSequenceMap& node_sequence_map,
-    const uint8_t& mode
+    const DISTRIBUTION_MODE& mode
 )
 {
-    const auto nct = timer_register_.get_register_timer( "node_consolidation_time" );
+    const auto nct = rank_timer_registry_->get_register_timer( "node_consolidation_time" );
     nct->start();
 
     if ( temp_node_generation_data_.empty() )
@@ -523,7 +530,7 @@ SpatialManager< CoordT >::generate_nodes_in_tiles(
 
     nct->stop();
 
-    const auto ngt = timer_register_.get_register_timer( "node_generation_time" );
+    const auto ngt = rank_timer_registry_->get_register_timer( "node_generation_time" );
     ngt->start();
 
     if (
@@ -557,7 +564,7 @@ SpatialManager< CoordT >::insert_positions_in_tiles(
     const RankNodeSequenceMap& node_sequence_map
 )
 {
-    const auto nct = timer_register_.get_register_timer( "node_consolidation_time" );
+    const auto nct = rank_timer_registry_->get_register_timer( "node_consolidation_time" );
     nct->start();
 
     if ( temp_node_insertion_data_.empty() )
@@ -580,7 +587,7 @@ SpatialManager< CoordT >::insert_positions_in_tiles(
 
     nct->stop();
 
-    const auto ngt = timer_register_.get_register_timer( "node_insertion_time" );
+    const auto ngt = rank_timer_registry_->get_register_timer( "node_insertion_time" );
     ngt->start();
 
     if (
@@ -611,7 +618,7 @@ void SpatialManager< CoordT >::_initialize_mask_parameters(
     const MaskParameters& mask_params
 )
 {
-    const auto mpt = timer_register_.get_register_timer( "mask_param_time" );
+    const auto mpt = rank_timer_registry_->get_register_timer( "mask_param_time" );
     mpt->start();
 
     const auto mask_collection = MaskCollection< CoordT >(
@@ -619,9 +626,11 @@ void SpatialManager< CoordT >::_initialize_mask_parameters(
         mask_params.mask_blueprint_params_,
         mask_params.mask_blueprint_offset_,
         mask_params.source_mask_name_,
+        mask_params.source_mask_origin_,
         mask_params.source_mask_params_,
         mask_params.source_mask_offset_,
         mask_params.target_mask_name_,
+        mask_params.target_mask_origin_,
         mask_params.target_mask_params_,
         mask_params.target_mask_offset_,
         mk_registry_
@@ -638,12 +647,13 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
     const ConnectionParameters& conn_params
 )
 {
-    const auto cpt = timer_register_.get_register_timer( "conn_param_time" );
+    const auto cpt = rank_timer_registry_->get_register_timer( "conn_param_time" );
     cpt->start();
 
-    CFCollection< CoordT > cfc;
+    auto cg = cg_registry_.get_creator( conn_params.conn_gen_name_ )->create();
+    cg.connection_counts_ = conn_params.connection_counts_;
 
-    cfc.weight_functor_ = ConnectionFunctor< CoordT >(
+    cg.cfc_.weight_functor_ = NumericFunctor(
         conn_params.weight_df_name_,
         conn_params.weight_df_params_,
         df_registry_,
@@ -652,7 +662,7 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
         uf_registry_
     );
 
-    cfc.delay_functor_ = ConnectionFunctor< CoordT >(
+    cg.cfc_.delay_functor_ = NumericFunctor(
         conn_params.delay_df_name_,
         conn_params.delay_df_params_,
         df_registry_,
@@ -661,7 +671,7 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
         uf_registry_
     );
 
-    cfc.probability_functor_ = ConnectionFunctor< CoordT >(
+    cg.cfc_.probability_functor_ = NumericFunctor(
         conn_params.prob_df_name_,
         conn_params.prob_df_params_,
         df_registry_,
@@ -669,10 +679,6 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
         conn_params.prob_ufs_params_,
         uf_registry_
     );
-
-    const auto cg = cg_registry_.get_creator( conn_params.conn_gen_name_ )->create();
-    cg->set_total_num_connections( conn_params.total_number_connections_ );
-    cg->set_cf_collection( std::move( cfc ) );
 
     cg_array_.clone( cg );
 
@@ -689,7 +695,7 @@ SpatialManager< CoordT >::compute_spatial_connections(
     const ConnectionParameters& conn_params
 )
 {
-    const auto sct = timer_register_.get_register_timer( "spatial_conn_time" );
+    const auto sct = rank_timer_registry_->get_register_timer( "spatial_conn_time" );
     sct->start();
 
     const auto dist_tns_source_it = cached_distributed_tiled_node_sequences_.find(
@@ -714,12 +720,13 @@ SpatialManager< CoordT >::compute_spatial_connections(
         mc_array_,
         cg_array_,
         random_manager_,
-        timer_register_,
+        timer_manager_,
         conn_params.edge_wrap_,
         conn_params.only_neighborhood_,
         conn_params.inverted_conn_rule_,
         conn_params.allow_multiplicity_,
-        conn_params.allow_self_connections_
+        conn_params.allow_self_connections_,
+        conn_params.partition_connections_by_source_
     );
 
     const auto index = cached_connection_maps_.size();
@@ -734,7 +741,7 @@ SpatialManager< CoordT >::compute_spatial_connections(
 
     sct->stop();
 
-    const auto ct = timer_register_.get_register_timer( "cleanup_time" );
+    const auto ct = rank_timer_registry_->get_register_timer( "cleanup_time" );
     ct->start();
 
     for ( const auto& rci_ptr : {
@@ -763,7 +770,7 @@ SpatialManager< CoordT >::get_nodes(
     const MaskParameters& mask_params
 )
 {
-    const auto sst = timer_register_.get_register_timer( "spatial_slicing_time" );
+    const auto sst = rank_timer_registry_->get_register_timer( "spatial_slicing_time" );
     sst->start();
 
     DistributedTiledNodeSequenceMap* dist_tns = nullptr;
@@ -792,7 +799,7 @@ SpatialManager< CoordT >::get_nodes(
 
     sst->stop();
 
-    const auto sct = timer_register_.get_register_timer( "slice_conversion_time" );
+    const auto sct = rank_timer_registry_->get_register_timer( "slice_conversion_time" );
     sct->start();
 
     bool correct = true;
@@ -848,7 +855,7 @@ SpatialManager< CoordT >::get_nodes(
 
     sct->stop();
 
-    const auto ct = timer_register_.get_register_timer( "cleanup_time" );
+    const auto ct = rank_timer_registry_->get_register_timer( "cleanup_time" );
     ct->start();
 
     mc_array_.clear();
@@ -863,7 +870,7 @@ template < typename CoordT >
 GridTileVertexMap
 SpatialManager< CoordT >::get_grid_vertices()
 {
-    const auto gvt = timer_register_.get_register_timer( "grid_vertex_time" );
+    const auto gvt = rank_timer_registry_->get_register_timer( "grid_vertex_time" );
     gvt->start();
 
     if ( !initialized_grid_ )
@@ -878,7 +885,7 @@ SpatialManager< CoordT >::get_grid_vertices()
             std::make_pair(
                 position++,
                 std::make_pair(
-                    tile_pos.get_tile()->
+                    tile_pos.tile_.
                     export_vertices_to_nested_vec(),
                     std::unordered_map< tileidx_t,
                     std::vector< std::vector< space_t > > >()

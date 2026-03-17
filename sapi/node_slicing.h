@@ -23,11 +23,28 @@
 #ifndef NODE_SLICING_H 
 #define NODE_SLICING_H 
 
-#include "mask_tile_processing.h"
+#include <iterator>
+
+#include "node_collection.h"
+#include "mask_containers.h"
+#include "mask_collection.h"
+#include "grid_neighborhood.h"
+#include "thread_aligned_array.h"
 
 
 namespace sapi
 {
+// Forward definition to link with mask_tile_processing.h
+template < typename CoordT >
+void filter_insert_jointures(
+    std::vector< std::pair< nodeidx_t, CoordT > >&,
+    const IndexedNodeSequenceJointureMap&,
+    const NodeIdxCoordMap< CoordT >&,
+    const MaskCollection< CoordT >* const&,
+    const bool&
+);
+
+
 typedef DistributedTiledNodeSequenceMap::const_iterator DistTns_IT;
 typedef TileIdxNodeSequenceMap::const_iterator Tns_IT;
 
@@ -71,7 +88,7 @@ get_optional_tiled_node_sequences(
 template < typename CoordT >
 std::forward_list< const Tile< CoordT >* >
 inline get_optional_masked_sub_tiles(
-    const Tile< CoordT >* const& tile,
+    const Tile< CoordT >& tile,
     const MaskCollection< CoordT >* const& mask_collection
 )
 {
@@ -80,7 +97,7 @@ inline get_optional_masked_sub_tiles(
     if ( mask_collection->has_source_mask() )
         leaf_sub_tiles = mask_collection->source_overlapping_leafs( tile );
     else
-        tile->insert_leaf_sub_tiles( leaf_sub_tiles );
+        tile.insert_leaf_sub_tiles( leaf_sub_tiles );
 
     return leaf_sub_tiles;
 }
@@ -171,7 +188,7 @@ firstprivate( opt_dist_tns_it )
 #pragma omp master
 #pragma omp taskgroup
     {
-        const auto mask_collection = mc_array.get_local_thread_item().get();
+        const auto mask_collection = mc_array.get_local_thread_item();
         for ( const auto& [tile_index, opt_tns_it] :
             get_optional_tiled_node_sequences( opt_dist_tns_it, grid_node_col ) )
         {
@@ -181,7 +198,7 @@ firstprivate( opt_dist_tns_it )
             const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
 
             const auto overlapping_leafs = get_optional_masked_sub_tiles(
-                tile_pos_it->get_tile(),
+                tile_pos_it->tile_,
                 mask_collection
             );
 
@@ -217,7 +234,7 @@ firstprivate( emplace_leaf_res, opt_tns_it, coord_map_it )
                     emplace_leaf_res.first->second,
                     opt_tns_it,
                     coord_map_it->second,
-                    mc_array.get_local_thread_item().get()
+                    mc_array.get_local_thread_item()
                 );
             }
         }

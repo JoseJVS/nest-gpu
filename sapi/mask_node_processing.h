@@ -40,7 +40,7 @@ inline void check_minimal_displacement(
 {
     tracked_minimum = computed_displacement.has_value()
         ? tracked_minimum.has_value()
-        ? leq_test( computed_displacement->distance2_, tracked_minimum->distance2_ )
+        ? std::isless( computed_displacement->distance2_, tracked_minimum->distance2_ )
         ? std::move( computed_displacement )
         : tracked_minimum
         : std::move( computed_displacement )
@@ -548,7 +548,7 @@ firstprivate( local_node_vec_it, remote_node_vec_it,\
                         inverted_pool_driver ? remote_node_vec_it->second : local_node_vec_it->second,
                         inverted_pool_driver ? local_node_vec_it->second : remote_node_vec_it->second,
                         target_shift_set_pair_it->second,
-                        mc_array.get_local_thread_item().get()
+                        mc_array.get_local_thread_item()
                     );
                 }
             }

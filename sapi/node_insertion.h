@@ -26,8 +26,11 @@
 #include <tuple>
 #include <iterator>
 
+#include "tile.h"
+#include "bounding_box.h"
 #include "node_collection.h"
 #include "node_distribution.h"
+#include "grid_neighborhood.h"
 
 
 namespace sapi
@@ -58,7 +61,7 @@ bool recursive_bounds_test(
         );
         if (
             !grid_neighborhood.tile_ranks_ownership_map_[ bounding_box.tile_index_ ].empty() &&
-            tile_grid.positions_[ bounding_box.tile_index_ ].get_tile()->coord_in_tile(
+            tile_grid.positions_[ bounding_box.tile_index_ ].tile_.coord_in_tile(
                 coord
             ) )
         {
@@ -232,7 +235,7 @@ insert_node_positions_in_grid(
 )
 {
     assert(
-        !tile_grid.positions_.empty() &&
+        tile_grid.has_split_ &&
         grid_neighborhood.has_owners_ &&
         rng_manager.is_initialized()
     );
@@ -293,18 +296,18 @@ template < typename CoordT >
 void recursive_sub_tile_test(
     CoordT&& coord,
     TiledCoordMap< CoordT >& sub_tile_coord_map,
-    const Tile< CoordT >* const& tile
+    const Tile< CoordT >& tile
 )
 {
     // Tile coord check is performed at previous recursive call
     // for root tile this is done during recursive bounds test
-    if ( !tile->is_split() )
+    if ( tile.sub_tiles_.empty() )
     {
-        auto search = sub_tile_coord_map.find( tile->index_ );
+        auto search = sub_tile_coord_map.find( tile.index_ );
         if ( search == sub_tile_coord_map.end() )
             search = sub_tile_coord_map.emplace(
                     std::make_pair(
-                        tileidx_t( tile->index_ ),
+                        tileidx_t( tile.index_ ),
                         std::list< CoordT >()
                     )
             ).first;
@@ -314,12 +317,11 @@ void recursive_sub_tile_test(
     else
     {
         const Tile< CoordT >* sub_tile = nullptr;
-        for ( const auto& st : tile->get_sub_tiles() )
+        for ( const auto& st : tile.sub_tiles_ )
         {
-            assert( st );
-            if ( st->coord_in_tile( coord ) )
+            if ( st.coord_in_tile( coord ) )
             {
-                sub_tile = st.get();
+                sub_tile = &st;
                 break;
             }
         }
@@ -328,23 +330,23 @@ void recursive_sub_tile_test(
             recursive_sub_tile_test(
                 std::move( coord ),
                 sub_tile_coord_map,
-                sub_tile
+                *sub_tile
             );
         else
         {
             space_t min_distance = std::numeric_limits< space_t >::max();
-            for ( const auto& st : tile->get_sub_tiles() )
+            for ( const auto& st : tile.sub_tiles_ )
             {
                 const auto distance = distance2(
-                    coord, st->project_point_to_surface(
+                    coord, st.project_point_to_surface(
                         coord
                     )
                 );
 
-                if ( leq_test( distance, min_distance ) )
+                if ( std::isless( distance, min_distance ) )
                 {
                     min_distance = distance;
-                    sub_tile = st.get();
+                    sub_tile = &st;
                 }
             }
 
@@ -352,7 +354,7 @@ void recursive_sub_tile_test(
             recursive_sub_tile_test(
                 std::move( coord ),
                 sub_tile_coord_map,
-                sub_tile
+                *sub_tile
             );
         }
     }
@@ -369,7 +371,6 @@ void insert_node_positions_in_leafs(
 {
     assert( !coord_list.empty() );
 
-    const auto tile = tile_position.get_tile();
     TiledCoordMap< CoordT > sub_tile_coord_map;
     auto coord_move_it = std::make_move_iterator( coord_list.begin() );
     while ( !coord_list.empty() )
@@ -380,7 +381,7 @@ void insert_node_positions_in_leafs(
         recursive_sub_tile_test(
             std::move( coord ),
             sub_tile_coord_map,
-            tile
+            tile_position.tile_
         );
     }
 
@@ -432,8 +433,8 @@ void insert_node_positions_in_tiles(
 )
 {
     assert(
-        !grid_node_col.tiles_node_coord_map_.empty() &&
-        tile_grid.has_split_
+        tile_grid.has_split_ &&
+        !grid_node_col.tiles_node_coord_map_.empty()
     );
 
     if ( node_seq_per_tile.empty() )

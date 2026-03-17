@@ -24,7 +24,6 @@
 #define CREATOR_REGISTRY_H
 
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 
 #include "type_erasure_helpers.h"
@@ -78,7 +77,8 @@ inline void CreatorRegistry< RT >::register_creator(
 
 
 template < typename RT >
-inline const std::unique_ptr< StateLessCreator< RT > >& CreatorRegistry< RT >::get_creator(
+inline const std::unique_ptr< StateLessCreator< RT > >&
+CreatorRegistry< RT >::get_creator(
     const std::string& name
 ) const
 {
