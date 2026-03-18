@@ -134,6 +134,9 @@ void consolidate_connection_map(
             {
                 const auto& [pool_index, weight, delay] = conn_tuple;
 
+                cvec.first_index_ = driver_index < cvec.first_index_
+                    ? driver_index
+                    : cvec.first_index_;
                 cvec.connection_sources_.emplace_back( driver_index );
                 cvec.connection_targets_.emplace_back( pool_index );
                 cvec.connection_weights_.emplace_back( weight );
@@ -160,6 +163,10 @@ void consolidate_connection_map(
             {
                 const auto [driver_index, pool_index, weight, delay, multiplicity] = *ci_move_it++;
                 ci_fl.pop_front();
+
+                conn_vec->first_index_ = driver_index < conn_vec->first_index_
+                    ? driver_index
+                    : conn_vec->first_index_;
 
                 for ( mult_t mult = 0; mult < multiplicity; ++mult )
                 {

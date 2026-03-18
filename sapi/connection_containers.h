@@ -26,6 +26,7 @@
 #include <map>
 #include <tuple>
 #include <vector>
+#include <limits>
 #include <forward_list>
 #include <unordered_map>
 
@@ -46,6 +47,7 @@ typedef std::tuple<
 struct ConnectionVectors
 {
     count_t sizes_ = 0;
+    conn_index_t first_index_ = std::numeric_limits< conn_index_t >::max();
 
     std::vector< conn_index_t > connection_sources_;
     std::vector< conn_index_t > connection_targets_;
