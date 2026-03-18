@@ -47,8 +47,10 @@ typedef std::tuple<
 struct ConnectionVectors
 {
     count_t sizes_ = 0;
-    conn_index_t first_index_ = std::numeric_limits< conn_index_t >::max();
-    conn_index_t unique_source_count_ = 0;
+    conn_index_t first_source_index_ = std::numeric_limits< conn_index_t >::max();
+    conn_index_t last_source_index_ = 0;
+    conn_index_t first_target_index_ = std::numeric_limits< conn_index_t >::max();
+    conn_index_t last_target_index_ = 0;
 
     std::vector< conn_index_t > connection_sources_;
     std::vector< conn_index_t > connection_targets_;
@@ -61,7 +63,32 @@ struct ConnectionVectors
     ~ConnectionVectors() = default;
 
     void prepare_vectors( const count_t& size );
+
+    void update_first_last_source( const conn_index_t& );
+    void update_first_last_target( const conn_index_t& );
 };
+
+
+inline void ConnectionVectors::update_first_last_source( const conn_index_t& idx )
+{
+    first_source_index_ = idx < first_source_index_
+        ? idx
+        : first_source_index_;
+    last_source_index_ = last_source_index_ < idx
+        ? idx
+        : last_source_index_;
+}
+
+
+inline void ConnectionVectors::update_first_last_target( const conn_index_t& idx )
+{
+    first_target_index_ = idx < first_target_index_
+        ? idx
+        : first_target_index_;
+    last_target_index_ = last_target_index_ < idx
+        ? idx
+        : last_target_index_;
+}
 
 
 // Maps are aggregated by driver tile/node

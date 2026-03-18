@@ -20,8 +20,6 @@
  *
  */
 
-#include <unordered_set>
-
 #include "connection_generation.h"
 
 
@@ -131,20 +129,25 @@ void consolidate_connection_map(
             ConnectionVectors cvec;
             // Conversion guaranteed by total_generated_connections being positive
             cvec.prepare_vectors( static_cast< count_t >( split_conn_map.second.size() ) );
-            cvec.unique_source_count_ = cvec.sizes_;
             emplaced_connections += cvec.sizes_;
             for ( const auto& [driver_index, conn_tuple] : split_conn_map.second )
             {
                 const auto& [pool_index, weight, delay] = conn_tuple;
 
-                cvec.first_index_ = driver_index < cvec.first_index_
-                    ? driver_index
-                    : cvec.first_index_;
+                cvec.update_first_last_source( driver_index );
+                cvec.update_first_last_target( pool_index );
+
                 cvec.connection_sources_.emplace_back( driver_index );
                 cvec.connection_targets_.emplace_back( pool_index );
                 cvec.connection_weights_.emplace_back( weight );
                 cvec.connection_delays_.emplace_back( delay );
             }
+
+            assert(
+                cvec.first_source_index_ <= cvec.last_source_index_ &&
+                cvec.first_target_index_ <= cvec.last_target_index_
+            );
+
             tci.partitioned_connection_vectors_.emplace_back( std::move( cvec ) );
         }
 
@@ -152,7 +155,6 @@ void consolidate_connection_map(
     }
     else
     {
-        std::unordered_set< conn_index_t > unique_set;
         tci.partitioned_connection_vectors_.resize( 1 );
         const auto conn_vec = tci.partitioned_connection_vectors_.begin();
         conn_vec->prepare_vectors( tci.total_generated_connections_ );
@@ -168,10 +170,8 @@ void consolidate_connection_map(
                 const auto [driver_index, pool_index, weight, delay, multiplicity] = *ci_move_it++;
                 ci_fl.pop_front();
 
-                unique_set.insert( driver_index );
-                conn_vec->first_index_ = driver_index < conn_vec->first_index_
-                    ? driver_index
-                    : conn_vec->first_index_;
+                conn_vec->update_first_last_source( driver_index );
+                conn_vec->update_first_last_target( pool_index );
 
                 for ( mult_t mult = 0; mult < multiplicity; ++mult )
                 {
@@ -183,10 +183,11 @@ void consolidate_connection_map(
             }
         }
 
-        // Conversion guaranteed by total_generated_connections being positive
-        conn_vec->unique_source_count_ = static_cast< conn_index_t >( unique_set.size() );
-
-        assert( conn_vec->connection_sources_.size() == static_cast< std::size_t >( tci.total_generated_connections_ ) );
+        assert(
+            conn_vec->connection_sources_.size() == static_cast< std::size_t >( tci.total_generated_connections_ ) &&
+            conn_vec->first_source_index_ <= conn_vec->last_source_index_ &&
+            conn_vec->first_target_index_ <= conn_vec->last_target_index_
+        );
     }
 }
 }
