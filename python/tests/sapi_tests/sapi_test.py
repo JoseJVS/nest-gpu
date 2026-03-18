@@ -24,18 +24,15 @@ def update_verbosity():
     logging.basicConfig(level=args.verbosity, handlers=(stdout,))
 
 
-def middle_factors(n: int) -> typing.Tuple[int, int]:
+def middle_factors(n: int) -> tuple:
     step = 2 if n % 2 else 1
-    factors = reduce(
-        list.__add__,
-        ([i, n // i] for i in range(1, int(np.sqrt(n)) + 1, step) if n % i == 0),
-    )
-    # Should be at least 4 and a multiple of 2 as duplicates are not removed and pairs of factors are inserted
-    if (
-        len(factors) < 4
-    ):  # Under above premise only 1 and N are in list if this condition is true
-        return 1, n
-    return factors[-2], factors[-1]
+    upper_bound = int(np.floor(np.sqrt(n))) + 1
+    lower_factor = 1
+    higher_factor = n
+    for i in range(1, upper_bound, step):
+        if n % i == 0:
+            lower_factor, higher_factor = i, n // i
+    return lower_factor, higher_factor
 
 
 def main() -> None:
@@ -51,8 +48,9 @@ def main() -> None:
     nestgpu.generate_tile_grid(
         (0, 0),
         (1, 1),
-        "Square",
-        (0.1, 0),
+        "Rectangle",
+        (0.1,),
+        tuple(),
         [{0} for r in range(num_processes)],
         0,
     )
@@ -73,6 +71,7 @@ def main() -> None:
             "only_neighborhood": False,
             "allow_self_connections": False,
             "allow_multiplicity": False,
+            "partition_connections_by_source": True,
             "conn_gen_name": "PairWiseBernoulli",
             "weight_df_name": "Distance",
             "weight_ufs_names": ["LowerBound", "Inverse"],
@@ -113,15 +112,16 @@ def main() -> None:
         spatial_conns = nestgpu.get_spatial_connections(conn_index)
 
         spatial_conn_map = {}
-        for conn_t in spatial_conns[1][local_rank]:
-            source, target, weight, delay = conn_t
-            if source in spatial_conn_map:
-                source_map = spatial_conn_map[source]
-                assert target not in source_map
-                source_map[target] = (weight, delay)
-            else:
-                source_map = spatial_conn_map[source] = {}
-                source_map[target] = (weight, delay)
+        for conn_part in spatial_conns[1][local_rank]:
+            for conn_t in conn_part:
+                source, target, weight, delay = conn_t
+                if source in spatial_conn_map:
+                    source_map = spatial_conn_map[source]
+                    assert target not in source_map
+                    source_map[target] = (weight, delay)
+                else:
+                    source_map = spatial_conn_map[source] = {}
+                    source_map[target] = (weight, delay)
 
         assert len(gpu_conn_map) == len(
             spatial_conn_map
