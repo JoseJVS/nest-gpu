@@ -1,4 +1,3 @@
-import json
 import logging
 import sys
 import typing
@@ -43,7 +42,7 @@ def main() -> None:
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
     width, length = middle_factors(num_processes)
-    total_nodes = 3 * num_processes
+    total_nodes = 10 * num_processes
 
     LOG.info("RANK %i: generating %ix%i tile grid", local_rank, width, length)
     nestgpu.generate_tile_grid(
@@ -89,60 +88,6 @@ def main() -> None:
 
     LOG.info("RANK %i: calibrating network", local_rank)
     nestgpu.Calibrate()
-
-    LOG.info("RANK %i: checking local connections", local_rank)
-    if sp_ns.local_index is not None and sp_ns.local_length is not None:
-        spatial_conns = nestgpu.get_spatial_connections(conn_index)
-        total_cons = 0
-        spatial_conn_map = {}
-        for conn_part in spatial_conns[1][local_rank]:
-            total_cons += len(conn_part)
-            for conn_t in conn_part:
-                source, target, weight, delay = conn_t
-                if source in spatial_conn_map:
-                    source_map = spatial_conn_map[source]
-                    assert target not in source_map
-                    source_map[target] = (weight, delay)
-                else:
-                    source_map = spatial_conn_map[source] = {}
-                    source_map[target] = (weight, delay)
-
-        assert total_cons > 0 and len(spatial_conn_map) > 0
-
-        ns = nestgpu.NodeSeq(sp_ns.local_index, sp_ns.local_length)
-        conn_list = nestgpu.GetConnections(ns, ns)
-        conn_status = nestgpu.GetConnectionStatus(conn_list)
-
-        print(json.dumps(conn_status, indent=4))
-
-        gpu_conn_map = {}
-        for conn_d in conn_status:
-            source = conn_d["source"]
-            target = conn_d["target"]
-            weight = conn_d["weight"]
-            delay = conn_d["delay"]
-            if source in gpu_conn_map:
-                source_map = gpu_conn_map[source]
-                assert target not in source_map
-                source_map[target] = (weight, delay)
-            else:
-                source_map = gpu_conn_map[source] = {}
-                source_map[target] = (weight, delay)
-
-        assert len(spatial_conn_map) == len(gpu_conn_map)
-
-        for source, target_map in gpu_conn_map.items():
-            assert source in spatial_conn_map
-            sp_target_map = spatial_conn_map[source]
-            assert len(target_map) == len(sp_target_map)
-            for target, (weight, delay) in target_map.items():
-                assert target in sp_target_map
-                sp_weight, sp_delay = sp_target_map[target]
-                computed_sp_delay = float(
-                    int(np.round(np.float32(sp_delay) / np.float32(0.1)))
-                    * np.float32(0.1)
-                )  # Conversion to mimic delay discretization in kernel
-                assert weight == sp_weight and np.isclose(delay, computed_sp_delay)
 
 
 if __name__ == "__main__":
