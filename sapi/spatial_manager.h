@@ -440,7 +440,7 @@ SpatialManager< CoordT >::distribute_nodes_in_grid(
     ndt->start();
 
     if ( !is_initialized() )
-        throw std::runtime_error( "Cannot distribute nodes without generating a tile grid" );
+          throw std::runtime_error( "Spatial grid not initialized" );
 
     auto [
         node_counts_per_rank,
@@ -474,7 +474,7 @@ SpatialManager< CoordT >::insert_positions_in_grid(
     nit->start();
 
     if ( !is_initialized() )
-        throw std::runtime_error( "Cannot distribute nodes without generating a tile grid" );
+          throw std::runtime_error( "Spatial grid not initialized" );
 
     std::list < CoordT > coord_list;
     for ( auto& anycoord : positions )
@@ -534,6 +534,9 @@ SpatialManager< CoordT >::generate_nodes_in_tiles(
     const auto nct = rank_timer_registry_->get_register_timer( "node_consolidation_time" );
     nct->start();
 
+    if ( !is_initialized() )
+          throw std::runtime_error( "Spatial grid not initialized" );
+
     if ( temp_node_generation_data_.empty() )
         throw std::invalid_argument( "Incorrect node generation data cache" );
 
@@ -582,6 +585,9 @@ SpatialManager< CoordT >::insert_positions_in_tiles(
 {
     const auto nct = rank_timer_registry_->get_register_timer( "node_consolidation_time" );
     nct->start();
+
+    if ( !is_initialized() )
+          throw std::runtime_error( "Spatial grid not initialized" );
 
     if ( temp_node_insertion_data_.empty() )
         throw std::invalid_argument( "Incorrect node insertion data cache" );
@@ -717,6 +723,9 @@ SpatialManager< CoordT >::compute_spatial_connections(
     const auto sct = rank_timer_registry_->get_register_timer( "spatial_conn_time" );
     sct->start();
 
+    if ( !is_initialized() )
+          throw std::runtime_error( "Spatial grid not initialized" );
+
     _initialize_mask_parameters( mask_parameters );
     _initialize_connection_parameters( connection_parameters );
 
@@ -760,6 +769,9 @@ SpatialManager< CoordT >::get_nodes(
 {
     const auto sst = rank_timer_registry_->get_register_timer( "spatial_slicing_time" );
     sst->start();
+
+    if ( !is_initialized() )
+          throw std::runtime_error( "Spatial grid not initialized" );
 
     DistributedTiledNodeSequenceMap* dist_tns = nullptr;
 
@@ -829,7 +841,7 @@ SpatialManager< CoordT >::get_grid_vertices()
     gvt->start();
 
     if ( !is_initialized() )
-        throw std::runtime_error( "Cannot get grid vertices without generating a tile grid" );
+          throw std::runtime_error( "Spatial grid not initialized" );
 
     GridVertexMap grid_vertices;
     grid_vertices.dimensions_ = CoordT::D;

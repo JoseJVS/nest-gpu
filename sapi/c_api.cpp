@@ -177,11 +177,20 @@ void CAPI::generate_tile_grid(
     if ( rng_type_ != DEFAULT_RNG_TYPE_ )
         spatial_manager_->set_rng_type( rng_type_ );
 
-    spatial_manager_->initialize_tile_grid(
-        nested_array_to_set_vector( rank_tiles_ownership ),
-        gpstruct_to_grid_params( grid_parameters ),
-        num_splits
-    );
+    try
+    {
+        spatial_manager_->initialize_tile_grid(
+            nested_array_to_set_vector( rank_tiles_ownership ),
+            gpstruct_to_grid_params( grid_parameters ),
+            num_splits
+        );
+    }
+    catch ( const std::exception& e )
+    {
+        spatial_storage_.free_gc();
+        spatial_manager_ = nullptr;
+        throw e;
+    }
 }
 
 
