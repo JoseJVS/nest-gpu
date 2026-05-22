@@ -362,4 +362,15 @@ CAPI::get_timer_data()
         gc_
     );
 }
+
+
+void CAPI::clear_spatial_connections(
+    const std::size_t index
+)
+{
+    if ( spatial_manager_ == nullptr )
+        throw std::runtime_error( "Spatial grid not initialized yet" );
+
+    spatial_manager_->clear_connection_map( index );
+}
 }

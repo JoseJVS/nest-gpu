@@ -185,6 +185,8 @@ struct DistributedConnectionInfo
     DistributedConnectionInfo& operator=( DistributedConnectionInfo&& ) = delete;
 
     bool operator==( const DistributedConnectionInfo& ) const;
+
+    void clear();
 };
 
 
@@ -194,6 +196,13 @@ inline bool DistributedConnectionInfo::operator==(
 {
     return outgoing_connections_ == rci.outgoing_connections_
         && incoming_connections_ == rci.incoming_connections_;
+}
+
+
+inline void DistributedConnectionInfo::clear()
+{
+    outgoing_connections_.clear();
+    incoming_connections_.clear();
 }
 
 

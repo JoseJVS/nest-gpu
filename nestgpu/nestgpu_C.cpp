@@ -2698,4 +2698,17 @@ extern "C"
       END_ERR_PROP
       return nullptr;
   }
+
+  bool clear_spatial_connections(
+    std::size_t index
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      capi.clear_spatial_connections( index );
+      return true;
+    }
+      END_ERR_PROP
+      return false;
+  }
 }

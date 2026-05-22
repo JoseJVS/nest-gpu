@@ -118,6 +118,10 @@ struct CAPI
 
     RecordedTimesArrayPair* get_timer_data();
 
+    void clear_spatial_connections(
+        const std::size_t index
+    );
+
 private:
     vp_t local_rank_ = 0;
     vp_t num_processes_ = 1;

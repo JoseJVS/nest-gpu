@@ -487,6 +487,10 @@ extern "C"
   );
 
   sapi::RecordedTimesArrayPair* get_timer_data();
+
+  bool clear_spatial_connections(
+    std::size_t index
+  );
 }
 
 #endif

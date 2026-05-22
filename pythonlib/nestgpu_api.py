@@ -3390,6 +3390,9 @@ _nestgpu.get_distributed_node_sequences.restype = ctypes.POINTER(
 
 _nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.RecordedTimesArrayPair)
 
+_nestgpu.clear_spatial_connections.argtypes = (ctypes.c_size_t,)
+_nestgpu.clear_spatial_connections.restype = ctypes.c_bool
+
 
 def free_gc() -> None:
     ret = _nestgpu.free_gc()
@@ -3739,3 +3742,10 @@ def get_timer_data() -> typing.Mapping[str, float | typing.Sequence[float]]:
     td |= ll_sapi.thread_timer_data_pair_array_to_dict(pair.second_)
     free_gc()
     return td
+
+
+def clear_spatial_connections(conn_index: int) -> None:
+    ret = _nestgpu.clear_spatial_connections(ctypes.c_size_t(conn_index))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)

@@ -76,6 +76,10 @@ public:
 
     RecordedTimes get_timer_data() const;
 
+    void clear_connection_map(
+        const std::size_t index
+    );
+
     virtual bool is_initialized() const = 0;
 
     virtual void update_num_threads() = 0;
@@ -170,6 +174,14 @@ BaseSpatialManager::get_connection_map(
 inline RecordedTimes BaseSpatialManager::get_timer_data() const
 {
     return timer_manager_.get_times();
+}
+
+
+inline void BaseSpatialManager::clear_connection_map(
+    const std::size_t index
+)
+{
+    cached_connection_maps_.at( index ).clear();
 }
 
 
