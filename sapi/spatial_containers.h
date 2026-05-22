@@ -32,29 +32,45 @@
 
 namespace sapi
 {
+// This structure is used to export tiled node coordinates
+// using a contiguous flat coordinates array
+struct IndexedNodeCoordinates
+{
+    dim_t dimensions_ = 0;
+    std::vector< nodeidx_t > indexes_;
+    std::vector< space_t > coordinates_;
+};
+
+
 // This map is used to export tile vertices
-typedef std::unordered_map< tileidx_t,
-    std::pair< std::vector< std::vector< space_t > >,
-    std::unordered_map< tileidx_t,
-    std::vector< std::vector< space_t > > > >
-> GridTileVertexMap;
+struct GridVertexMap
+{
+    dim_t dimensions_ = 0;
+    std::size_t num_tiles_ = 0;
+    std::size_t leaves_per_tile_ = 0;
+    std::size_t vertices_per_tile_ = 0;
+    std::size_t vertices_per_leaf_ = 0;
 
-typedef std::unordered_map< nodeidx_t,
-    std::vector< space_t > > NodeIdxAnyCoordMap;
-
-// This map is used to export tiled node coordinates
-// regardless of coordinate structure type used
-typedef std::unordered_map< tileidx_t,
-    NodeIdxAnyCoordMap > TileIdxNodeIdxACM;
-
-
-// This map is used to export tiled node coordinates
-// using tile and leaf sub tile index
-typedef std::unordered_map< tileidx_t,
-    TileIdxNodeIdxACM > NestedTileIdxNodeIdxACM;
+    std::vector< tileidx_t > tile_indexes_;
+    std::vector< space_t > tile_vertices_;
+    std::vector< space_t > leaf_vertices_;
+};
 
 
 // ----- Input parameters -----
+struct GridParameters
+{
+    // Grid size and origin
+    std::vector< space_t > grid_origin_;
+    std::vector< tileidx_t > grid_dimensions_;
+
+    // Tile type and size
+    std::string tile_type_;
+    std::vector< space_t > tile_side_lengths_;
+    std::vector< angle_t > tile_angular_offsets_;
+};
+
+
 struct MaskParameters
 {
     // At least one required
@@ -77,11 +93,10 @@ struct ConnectionParameters
     // Control parameters
     bool edge_wrap_ = false;
     bool only_neighborhood_ = false;
-    bool inverted_conn_rule_ = false;
     bool allow_multiplicity_ = false;
     bool allow_self_connections_ = false;
     bool partition_connections_by_source_ = false;
-    mult_t connection_counts_ = 0;
+    count_t connection_counts_ = 0;
 
     // Connection generation
     std::string conn_gen_name_;

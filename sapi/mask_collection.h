@@ -24,49 +24,27 @@
 #define MASK_COLLECTION_H
 
 #include "mask.h"
-#include "creator_registry.h"
 
 
 namespace sapi
 {
+// Forward definition to creator_registry.h
+template < typename RT >
+class CreatorRegistry;
+
+
 template < typename CoordT >
-class MaskCollection final : public Cloneable< MaskCollection< CoordT > >
+struct MaskCollection
 {
-public:
-    MaskCollection() = default;
-    MaskCollection( const MaskCollection& ) = delete;
-    MaskCollection( MaskCollection&& ) = default;
-
-    MaskCollection(
-        std::optional< Mask< CoordT > >&&,
-        std::optional< Mask< CoordT > >&&,
-        std::optional< Mask< CoordT > >&&
-    );
-
-    MaskCollection(
-        const std::string&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const std::string&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const std::string&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const CreatorRegistry< Mask< CoordT > >&
-    );
-
-    MaskCollection& operator=( MaskCollection&& );
-
-    std::unique_ptr< MaskCollection > clone() const override;
+    Mask< CoordT > blueprint_;
+    Mask< CoordT > source_mask_;
+    Mask< CoordT > target_mask_;
 
     bool has_blueprint() const;
     bool has_source_mask() const;
     bool has_target_mask() const;
 
-    std::optional< Displacement< CoordT > >
+    OptDisp< CoordT >
         blueprint_overlap(
             const CoordT& a, const CoordT& b
         ) const;
@@ -81,7 +59,7 @@ public:
         const Tile< CoordT >& b
     ) const;
 
-    std::optional< Displacement< CoordT > >
+    OptDisp< CoordT >
         source_overlap( const CoordT& c ) const;
 
     bool source_overlap( const Tile< CoordT >& t ) const;
@@ -89,41 +67,18 @@ public:
     std::forward_list< const Tile< CoordT >* >
         source_overlapping_leafs( const Tile< CoordT >& t ) const;
 
-    std::optional< Displacement< CoordT > >
+    OptDisp< CoordT >
         target_overlap( const CoordT& c ) const;
 
     bool target_overlap( const Tile< CoordT >& t ) const;
 
     std::forward_list< const Tile< CoordT >* >
         target_overlapping_leafs( const Tile< CoordT >& t ) const;
-
-protected:
-    Mask< CoordT > blueprint_;
-    Mask< CoordT > source_mask_;
-    Mask< CoordT > target_mask_;
 };
 
 
 template < typename CoordT >
-MaskCollection< CoordT >::MaskCollection(
-    std::optional< Mask< CoordT > >&& blueprint,
-    std::optional< Mask< CoordT > >&& source_mask,
-    std::optional< Mask< CoordT > >&& target_mask
-)
-{
-    if ( blueprint.has_value() )
-        blueprint_ = std::move( blueprint.value() );
-
-    if ( source_mask.has_value() )
-        source_mask_ = std::move( source_mask.value() );
-
-    if ( target_mask.has_value() )
-        target_mask_ = std::move( target_mask.value() );
-}
-
-
-template < typename CoordT >
-MaskCollection< CoordT >::MaskCollection(
+inline MaskCollection< CoordT > create_mask_collection(
     const std::string& blueprint_name,
     const std::vector< space_t >& blueprint_params,
     const std::vector< space_t >& blueprint_offset,
@@ -138,47 +93,20 @@ MaskCollection< CoordT >::MaskCollection(
     const CreatorRegistry< Mask< CoordT > >& mc_registry
 )
 {
+    MaskCollection< CoordT > mc;
     if ( !blueprint_name.empty() )
-        blueprint_ = mc_registry.get_creator( blueprint_name )->create(
+        mc.blueprint_ = mc_registry.get_creator( blueprint_name )->create(
             {}, blueprint_params, blueprint_offset
         );
     if ( !source_mask_name.empty() )
-        source_mask_ = mc_registry.get_creator( source_mask_name )->create(
+        mc.source_mask_ = mc_registry.get_creator( source_mask_name )->create(
             source_mask_origin, source_mask_params, source_mask_offset
         );
     if ( !target_mask_name.empty() )
-        target_mask_ = mc_registry.get_creator( target_mask_name )->create(
+        mc.target_mask_ = mc_registry.get_creator( target_mask_name )->create(
             target_mask_origin, target_mask_params, target_mask_offset
         );
-}
-
-
-template < typename CoordT >
-inline MaskCollection< CoordT >&
-MaskCollection< CoordT >::operator=( MaskCollection&& mc )
-{
-    blueprint_ = std::move( mc.blueprint_ );
-    source_mask_ = std::move( mc.source_mask_ );
-    target_mask_ = std::move( mc.target_mask_ );
-    return *this;
-}
-
-
-template < typename CoordT >
-inline std::unique_ptr< MaskCollection< CoordT > >
-MaskCollection< CoordT >::clone() const
-{
-    return std::make_unique< MaskCollection >(
-        has_blueprint()
-        ? std::make_optional< Mask< CoordT > >( blueprint_ )
-        : std::optional< Mask< CoordT > >(),
-        has_source_mask()
-        ? std::make_optional< Mask< CoordT > >( source_mask_ )
-        : std::optional< Mask< CoordT > >(),
-        has_target_mask()
-        ? std::make_optional< Mask< CoordT > >( target_mask_ )
-        : std::optional< Mask< CoordT > >()
-    );
+    return mc;
 }
 
 
@@ -204,7 +132,7 @@ inline bool MaskCollection< CoordT >::has_target_mask() const
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
+inline OptDisp< CoordT >
 MaskCollection< CoordT >::blueprint_overlap(
     const CoordT& a, const CoordT& b
 ) const
@@ -234,7 +162,7 @@ inline bool MaskCollection< CoordT >::blueprint_overlap(
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
+inline OptDisp< CoordT >
 MaskCollection< CoordT >::source_overlap(
     const CoordT& c
 ) const
@@ -265,7 +193,7 @@ MaskCollection< CoordT >::source_overlapping_leafs(
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
+inline OptDisp< CoordT >
 MaskCollection< CoordT >::target_overlap(
     const CoordT& c
 ) const
@@ -292,54 +220,6 @@ MaskCollection< CoordT >::target_overlapping_leafs(
 ) const
 {
     return target_mask_.get_overlapping_leaf_sub_tiles( t );
-}
-
-
-template < typename CoordT >
-inline bool no_overlap(
-    const Tile< CoordT >& tile,
-    const MaskCollection< CoordT >* const& mask_collection,
-    const bool& apply_on_target
-)
-{
-    return apply_on_target
-        ? mask_collection->has_target_mask()
-        ? !mask_collection->target_overlap( tile )
-        : false
-        : mask_collection->has_source_mask()
-        ? !mask_collection->source_overlap( tile )
-        : false;
-}
-
-
-template < typename CoordT >
-inline bool no_overlap(
-    const CoordT& coord,
-    const MaskCollection< CoordT >* const& mask_collection,
-    const bool& apply_on_target
-)
-{
-    return apply_on_target
-        ? mask_collection->has_target_mask()
-        ? !mask_collection->target_overlap( coord ).has_value()
-        : false
-        : mask_collection->has_source_mask()
-        ? !mask_collection->source_overlap( coord ).has_value()
-        : false;
-}
-
-
-template < typename CoordT >
-inline bool no_overlap(
-    const CoordT& coord,
-    const Tile< CoordT >& tile,
-    const MaskCollection< CoordT >* const& mask_collection,
-    const bool& apply_on_target
-)
-{
-    return mask_collection->has_blueprint()
-        ? !mask_collection->blueprint_overlap( coord, tile )
-        : false;
 }
 }
 

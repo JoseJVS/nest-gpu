@@ -23,19 +23,20 @@
 #ifndef GRID_GENERATION_H
 #define GRID_GENERATION_H
 
+#include <optional>
+
 #include "tile_grid.h"
 #include "gf_collection.h"
-#include "thread_aligned_array.h"
 
 
 namespace sapi
 {
 // Forward definition to link with coordinate_geometry.h
 template < typename CoordT >
-std::pair< CoordT, CoordT > minmax_coords(
+std::pair< CoordT, CoordT >
+minmax_vertices(
     const std::vector< CoordT >& coord_vec
 );
-
 
 // Forward definition to link with bounding_box.h
 template < typename CoordT >
@@ -44,42 +45,44 @@ stack_boxes(
     std::vector< BoundingBox< CoordT > >&& bbs
 );
 
+// Forward definition to thread_aligned_array.h
+template < typename T,
+    typename std::enable_if_t<
+    std::is_copy_constructible_v< T >,
+    bool >
+>
+class TAArray;
+
 
 template < typename CoordT >
-class DimensionalNavigator
+struct DimensionalNavigator
 {
-public:
-    const GridPosition< CoordT > dimensions_;
-
-    DimensionalNavigator() = delete;
-    DimensionalNavigator( const DimensionalNavigator& ) = delete;
-    DimensionalNavigator( DimensionalNavigator&& ) = default;
-    ~DimensionalNavigator() = default;
-
-    DimensionalNavigator(
-        const GridPosition< CoordT >& grid_dimensions
-    );
+    void initialize( const GridPosition< CoordT >& grid_dimensions );
 
     std::pair< GridPosition< CoordT >, bool >
         get_pos_and_advance();
 
-protected:
-    bool next_ = true;
+private:
+    bool next_ = false;
+    GridPosition< CoordT > dimensions_;
     GridPosition< CoordT > current_position_;
 };
 
 
 template < typename CoordT >
-DimensionalNavigator< CoordT >::DimensionalNavigator(
+inline void DimensionalNavigator< CoordT >::initialize(
     const GridPosition< CoordT >& grid_dimensions
 )
-    : dimensions_( grid_dimensions )
 {
-    assert( std::all_of(
-        dimensions_.cbegin(),
-        dimensions_.cend(),
+    if ( !std::all_of(
+        grid_dimensions.cbegin(),
+        grid_dimensions.cend(),
         positiveTix
-    ) );
+    ) )
+        throw std::invalid_argument( "Invalid navigator dimensions" );
+
+    next_ = true;
+    dimensions_ = grid_dimensions;
 
     std::fill( current_position_.begin(), current_position_.end(), 0 );
 }
@@ -89,8 +92,9 @@ template < typename CoordT >
 std::pair< GridPosition< CoordT >, bool >
 DimensionalNavigator< CoordT >::get_pos_and_advance()
 {
-    auto prev = current_position_;
-    auto prev_state = next_;
+    std::pair< GridPosition< CoordT >, bool > res(
+        current_position_, next_
+    );
 
     if ( next_ )
     {
@@ -109,17 +113,14 @@ DimensionalNavigator< CoordT >::get_pos_and_advance()
         );
     }
 
-    return std::make_pair(
-        std::move( prev ),
-        std::move( prev_state )
-    );
+    return res;
 }
 
 
 template < typename CoordT >
 void generate_grid_images(
     TilePosition< CoordT >& tile_position,
-    const GFCollection< CoordT >* const& gf_collection
+    const GFCollection< CoordT >* const gf_collection
 )
 {
     std::size_t possible_shifts = 1;
@@ -134,10 +135,13 @@ void generate_grid_images(
         shifts = { -1, 0, 1 };
     }
 
-    tile_position.grid_images_.resize( possible_shifts );
-    auto shifted_image_it = tile_position.grid_images_.begin();
+    tile_position.tile_images_.resize( possible_shifts );
+    tile_position.image_displacements_.resize( possible_shifts );
+    auto image_it = tile_position.tile_images_.begin();
+    auto displacement_it = tile_position.image_displacements_.begin();
 
-    DimensionalNavigator< CoordT > navigator( shifts_dimensions );
+    DimensionalNavigator< CoordT > navigator;
+    navigator.initialize( shifts_dimensions );
 
     for ( auto position_next_pair = navigator.get_pos_and_advance();
         position_next_pair.second;
@@ -147,11 +151,9 @@ void generate_grid_images(
 
         auto shift_pos_it = shifted_position.begin();
         auto shift_index_it = position_next_pair.first.cbegin();
-        auto grid_dim_it = gf_collection->get_grid_dimensions().cbegin();
+        auto grid_dim_it = gf_collection->grid_dimensions_.cbegin();
         for ( const auto& shifts : shifts_array )
             *shift_pos_it++ += shifts[ *shift_index_it++ ] * ( *grid_dim_it++ );
-
-        shifted_image_it->shifted_position_ = shifted_position;
 
         if ( shifted_position != tile_position.position_ )
         {
@@ -168,19 +170,20 @@ void generate_grid_images(
                 shifted_position_parity
             );
 
-            shifted_image_it->shifted_tile_.emplace(
-                gf_collection->create_tile(
-                    shifted_origin,
-                    shifted_position_parity
-                )
+            *image_it = gf_collection->create_tile(
+                shifted_origin,
+                shifted_position_parity
             );
-
-            shifted_image_it->shift_displacement_.emplace(
-                shifted_origin - tile_position.tile_.c_radius_.origin_
-            );
+            *displacement_it = shifted_origin - tile_position.tile_.c_radius_.origin_;
+        }
+        else
+        {
+            std::iter_swap( image_it, tile_position.tile_images_.begin() );
+            std::iter_swap( displacement_it, tile_position.image_displacements_.begin() );
         }
 
-        ++shifted_image_it;
+        ++image_it;
+        ++displacement_it;
     }
 }
 
@@ -189,14 +192,14 @@ template < typename CoordT >
 void insert_neighbor(
     TilePosition< CoordT >& tile_pos,
     const GridShift< CoordT >& grid_shift,
-    const GFCollection< CoordT >* const& gf_collection
+    const GFCollection< CoordT >* const gf_collection
 )
 {
     GridPosition< CoordT > neighbor_position;
 
     bool is_wrapped = false;
     auto gp_it = tile_pos.position_.cbegin();
-    auto gd_it = gf_collection->get_grid_dimensions().cbegin();
+    auto gd_it = gf_collection->grid_dimensions_.cbegin();
     auto np_it = neighbor_position.begin();
     for ( const auto& shift : grid_shift )
     {
@@ -212,12 +215,12 @@ void insert_neighbor(
     if ( is_wrapped )
     {
         tile_pos.wrapped_tile_neighborhood_.insert(
-            gf_collection->get_index( neighbor_position )
+            gf_collection->compute_index( neighbor_position )
         );
     }
     else
     {
-        const auto index = gf_collection->get_index( neighbor_position );
+        const auto index = gf_collection->compute_index( neighbor_position );
         tile_pos.direct_tile_neighborhood_.insert( index );
         tile_pos.wrapped_tile_neighborhood_.insert( index );
     }
@@ -228,7 +231,7 @@ template < typename CoordT >
 void generate_tile_position(
     std::vector< TilePosition< CoordT > >& positions,
     const GridPosition< CoordT >& grid_position,
-    const GFCollection< CoordT >* const& gf_collection
+    const GFCollection< CoordT >* const gf_collection
 )
 {
     GridPositionParity< CoordT > position_parity;
@@ -239,7 +242,7 @@ void generate_tile_position(
         evenTix
     );
 
-    TilePosition< CoordT > tile_pos;
+    TilePosition< CoordT >& tile_pos = positions[ gf_collection->compute_index( grid_position ) ];
     tile_pos.position_ = grid_position;
     tile_pos.tile_ = gf_collection->create_tile(
         gf_collection->shift_origin(
@@ -252,7 +255,7 @@ void generate_tile_position(
     generate_grid_images( tile_pos, gf_collection );
 
     for ( const auto& shift :
-        gf_collection->get_grid_shifts().position_independent_shifts_ )
+        gf_collection->gps_.position_independent_shifts_ )
         insert_neighbor(
             tile_pos,
             shift,
@@ -261,7 +264,7 @@ void generate_tile_position(
 
     auto parity_it = position_parity.cbegin();
     for ( const auto& dim_shifts :
-        gf_collection->get_grid_shifts().position_dependent_shifts_ )
+        gf_collection->gps_.position_dependent_shifts_ )
         for ( const auto& shift : *parity_it++ ?
             dim_shifts.first : dim_shifts.second )
             insert_neighbor(
@@ -269,8 +272,6 @@ void generate_tile_position(
                 shift,
                 gf_collection
             );
-
-    positions[ gf_collection->get_index( grid_position ) ] = std::move( tile_pos );
 }
 
 
@@ -290,7 +291,7 @@ partition_dimensions(
         upper_bound.cend(),
         lower_bound.cbegin(),
         bound_length.begin(),
-        std::minus< tileidx_t >()
+        minusTix
     );
 
     bool all_one = true;
@@ -314,19 +315,19 @@ partition_dimensions(
     auto sc_it = split_combinations.begin();
     for ( const auto& length : bound_length )
     {
-        auto splits = length == 1
+        *sc_it = length == 1
             ? std::vector< tileidx_t >{ 0, length }
         : evenTix( length )
             ? std::vector< tileidx_t >{ 0, length / 2, length }
         : std::vector< tileidx_t >{ 0, ( length - 1 ) / 2, length };
 
-        auto count = splits.size();
+        auto count = ( *sc_it++ ).size();
         possible_combinations *= ( count - 1 );
         *sl_it++ = static_cast< tileidx_t >( count );
-        *sc_it++ = std::move( splits );
     }
 
-    DimensionalNavigator< CoordT > navigator( split_lengths );
+    DimensionalNavigator< CoordT > navigator;
+    navigator.initialize( split_lengths );
 
     std::vector< std::pair< GridPosition< CoordT >,
         std::optional< GridPosition< CoordT > > > >
@@ -342,23 +343,21 @@ partition_dimensions(
             position_next_pair.first.cbegin(),
             position_next_pair.first.cend(),
             diagonal_split.begin(),
-            []( const auto& split_position )
-            { return split_position - 1; }
+            minusOneTix
         );
 
         if ( std::any_of(
             diagonal_split.cbegin(),
             diagonal_split.cend(),
-            []( const auto& split_position )
-            { return split_position < 0; }
+            negativeTix
         ) )
             continue;
 
-        auto anchor = lower_bound;
-        auto target = lower_bound;
+        dim_par->first = lower_bound;
+        dim_par->second.emplace( lower_bound );
 
-        auto anc_it = anchor.begin();
-        auto tar_it = target.begin();
+        auto anc_it = dim_par->first.begin();
+        auto tar_it = dim_par->second->begin();
         auto ds_it = diagonal_split.cbegin();
         auto sp_it = position_next_pair.first.cbegin();
         for ( const auto& split_dimension : split_combinations )
@@ -367,11 +366,7 @@ partition_dimensions(
             *tar_it++ += split_dimension[ *sp_it++ ];
         }
 
-        *dim_par++ = std::make_pair(
-            std::move( anchor ),
-            std::make_optional< GridPosition< CoordT > >(
-                std::move( target )
-            ) );
+        ++dim_par;
     }
 
     return dimensional_partitions;
@@ -424,7 +419,7 @@ generate_bounding_box_tree(
                     tile_grid.positions_[
                         grid_index
                     ].tile_.vertices_
-                            ),
+                ),
                 grid_index
             );
         }
@@ -436,14 +431,18 @@ generate_bounding_box_tree(
 
 template < typename CoordT >
 TileGrid< CoordT > generate_tile_grid(
-    const GridPosition< CoordT >& grid_dimensions,
     const TAArray< GFCollection< CoordT > >& gc_array
 )
 {
     assert( gc_array.is_initialized() );
 
-    auto navigator = DimensionalNavigator< CoordT >( grid_dimensions );
-    auto grid = TileGrid< CoordT >( grid_dimensions );
+    const GridPosition< CoordT >& dimensions =
+        gc_array.get_local_thread_item()->grid_dimensions_;
+
+    TileGrid< CoordT > grid;
+    grid.prepare( dimensions );
+    DimensionalNavigator< CoordT > navigator;
+    navigator.initialize( dimensions );
 
 #pragma omp parallel default( none )\
 shared( grid, navigator, gc_array )
@@ -466,7 +465,7 @@ firstprivate( position_next_pair )
     grid.bounding_box_ = generate_bounding_box_tree(
         grid,
         origin,
-        grid_dimensions
+        dimensions
     );
 
     return grid;

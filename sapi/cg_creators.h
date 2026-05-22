@@ -23,31 +23,17 @@
 #ifndef CG_CREATORS_H
 #define CG_CREATORS_H
 
-#include "creator_registry.h"
-#include "connection_generator.h"
-
 
 namespace sapi
 {
-template < CONNECTION_METHOD method >
-struct BaseGCCreator final : public StateLessCreator< ConnectionGenerator >
-{
-    ConnectionGenerator create() const override
-    {
-        return ConnectionGenerator( method );
-    }
-};
+// Forward definition to creator_registry.h
+template < typename RT >
+class CreatorRegistry;
 
+// Forward definition to connection_generator.h
+struct ConnectionGenerator;
 
-inline void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr )
-{
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_BERNOULLI > >
-        ( "PairWiseBernoulli" );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_POISSON > >
-        ( "PairWisePoisson" );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_NUMBER > >
-        ( "FixedNumber" );
-}
+void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr );
 }
 
 

@@ -26,99 +26,40 @@
 #include <algorithm>
 
 #include "grid_functors.h"
-#include "creator_registry.h"
 
 
 namespace sapi
 {
+// Forward definition to creator_registry.h
+template < typename RT >
+class CreatorRegistry;
+
+
 template < typename CoordT >
-class GFCollection final : public Cloneable< GFCollection< CoordT > >
+struct GFCollection
 {
-public:
-    GFCollection() = delete;
-    GFCollection( const GFCollection& ) = delete;
-    GFCollection( GFCollection&& ) = default;
-
-    GFCollection(
-        const CoordT&,
-        const GridPosition< CoordT >&,
-        const GridTargetPositionShifts< CoordT >&,
-        const ShiftedOriginCreator< CoordT >&,
-        const CachedTileCreator< CoordT >&
-    );
-
-    GFCollection(
-        const std::vector< space_t >&,
-        const std::vector< tileidx_t >&,
-        const std::string&,
-        const std::vector< space_t >&,
-        const std::vector< angle_t >&,
-        const CreatorRegistry< GridTargetPositionShifts< CoordT > >&,
-        const CreatorRegistry< ShiftedOriginCreator< CoordT > >&,
-        const CreatorRegistry< CachedTileCreator< CoordT > >&
-    );
-
-    GFCollection& operator=( GFCollection&& );
-
-    std::unique_ptr< GFCollection > clone() const override;
-
-    const CoordT&
-        get_grid_origin() const;
-    const GridPosition< CoordT >&
-        get_grid_dimensions() const;
-    const GridTargetPositionShifts< CoordT >&
-        get_grid_shifts() const;
-
-    tileidx_t get_index( const GridPosition< CoordT >& ) const;
-
-    CoordT shift_origin(
-        const GridPosition< CoordT >&,
-        const GridPositionParity< CoordT >&
-    ) const;
-
-    Tile< CoordT > create_tile(
-        const CoordT&,
-        const GridPositionParity< CoordT >&
-    ) const;
-
-protected:
     CoordT grid_origin_;
     GridPosition< CoordT > grid_dimensions_;
     GridTargetPositionShifts< CoordT > gps_;
     ShiftedOriginCreator< CoordT > soc_;
     CachedTileCreator< CoordT > ctc_;
+
+    tileidx_t compute_index( const GridPosition< CoordT >& position ) const;
+
+    CoordT shift_origin(
+        const GridPosition< CoordT >& position,
+        const GridPositionParity< CoordT >& parity
+    ) const;
+
+    Tile< CoordT > create_tile(
+        const CoordT& origin,
+        const GridPositionParity< CoordT >& parity
+    ) const;
 };
 
 
 template < typename CoordT >
-GFCollection< CoordT >::GFCollection(
-    const CoordT& grid_origin,
-    const GridPosition< CoordT >& grid_dimensions,
-    const GridTargetPositionShifts< CoordT >& gps,
-    const ShiftedOriginCreator< CoordT >& soc,
-    const CachedTileCreator< CoordT >& ctc
-)
-    : grid_origin_( grid_origin )
-    , grid_dimensions_( grid_dimensions )
-    , gps_( gps )
-    , soc_( soc )
-    , ctc_( ctc )
-{
-    if (
-        gps_.position_independent_shifts_.empty() || gps_.position_dependent_shifts_.empty() ||
-        soc_.shape_ == TILE_SHAPE::NULL_TS || ctc_.shape_ == TILE_SHAPE::NULL_TS
-        )
-        throw std::invalid_argument( "Invalid GFCollection construction arguments" );
-
-    if ( !ctc_.check_dimensions( grid_dimensions_ ) )
-        throw std::invalid_argument(
-            "Grid cannot be instantiated with the dimension | rotation | edge wrapping combination"
-        );
-}
-
-
-template < typename CoordT >
-GFCollection< CoordT >::GFCollection(
+GFCollection< CoordT > construct_gf_collection(
     const std::vector< space_t >& grid_origin,
     const std::vector< tileidx_t >& grid_dimensions,
     const std::string& tile_type,
@@ -137,78 +78,31 @@ GFCollection< CoordT >::GFCollection(
         )
         throw std::invalid_argument( "Invalid grid params for GFCollection" );
 
+    GFCollection< CoordT > gfc;
+
     std::copy(
         grid_dimensions.cbegin(),
         grid_dimensions.cend(),
-        grid_dimensions_.begin()
+        gfc.grid_dimensions_.begin()
     );
 
-    grid_origin_ = CoordT::copy_from_vec( grid_origin.begin() );
-    gps_ = gpsr.get_creator( tile_type )->create();
-    soc_ = socr.get_creator( tile_type )->create( tile_side_lengths, tile_angular_offsets );
-    ctc_ = ctcr.get_creator( tile_type )->create( tile_side_lengths, tile_angular_offsets );
+    gfc.grid_origin_ = CoordT::copy_from_vec( grid_origin.begin() );
+    gfc.gps_ = gpsr.get_creator( tile_type )->create();
+    gfc.soc_ = socr.get_creator( tile_type )->create( tile_side_lengths, tile_angular_offsets );
+    gfc.ctc_ = ctcr.get_creator( tile_type )->create( tile_side_lengths, tile_angular_offsets );
 
-    if ( !ctc_.check_dimensions( grid_dimensions_ ) )
+    if ( !gfc.ctc_.check_dimensions( gfc.grid_dimensions_ ) )
         throw std::invalid_argument(
             "Grid cannot be instantiated with the dimension | rotation | edge wrapping combination"
         );
+
+    return gfc;
 }
 
-
-template < typename CoordT >
-inline GFCollection< CoordT >&
-GFCollection< CoordT >::operator=( GFCollection&& gfc )
-{
-    grid_origin_ = std::move( gfc.grid_origin_ );
-    grid_dimensions_ = std::move( gfc.grid_dimensions_ );
-    gps_ = std::move( gfc.gps_ );
-    soc_ = std::move( gfc.soc_ );
-    ctc_ = std::move( gfc.ctc_ );
-
-    return *this;
-}
-
-
-template < typename CoordT >
-inline std::unique_ptr< GFCollection< CoordT > >
-GFCollection< CoordT >::clone() const
-{
-    return std::make_unique< GFCollection >(
-        grid_origin_,
-        grid_dimensions_,
-        gps_,
-        soc_,
-        ctc_
-    );
-}
-
-
-template < typename CoordT >
-inline const CoordT&
-GFCollection< CoordT >::get_grid_origin() const
-{
-    return grid_origin_;
-}
-
-
-template < typename CoordT >
-inline const GridPosition< CoordT >&
-GFCollection< CoordT >::get_grid_dimensions() const
-{
-    return grid_dimensions_;
-}
-
-
-template < typename CoordT >
-inline const GridTargetPositionShifts< CoordT >&
-GFCollection< CoordT >::get_grid_shifts() const
-{
-    return gps_;
-}
 
 template < typename CoordT >
 inline tileidx_t
-GFCollection< CoordT >::get_index(
+GFCollection< CoordT >::compute_index(
     const GridPosition< CoordT >& pos
 ) const
 {

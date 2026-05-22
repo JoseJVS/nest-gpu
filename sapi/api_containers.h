@@ -53,12 +53,12 @@ struct ArrayT
     T* array_ = nullptr;
 
     void resize(
-        const std::size_t& size,
-        GC& garbage_collector
+        const std::size_t size,
+        GC& gc
     )
     {
         size_ = size;
-        array_ = garbage_collector.make_collected< T >( size );
+        array_ = gc.make_collected< T >( size );
     }
 };
 
@@ -69,6 +69,37 @@ using PairArrayT = ArrayT< PairT< K, V > >;
 
 extern "C"
 {
+    struct NodesViewStruct
+    {
+        dim_t dimensions_ = 0;
+        std::size_t node_count_ = 0;
+        const nodeidx_t* indexes_ = nullptr;
+        const space_t* coordinates_ = nullptr;
+    };
+
+    struct ConnectionViewStruct
+    {
+        std::size_t num_partitions_ = 0;
+        count_t* partition_sizes_ = nullptr;
+        const conn_index_t** sources_ = nullptr;
+        const conn_index_t** targets_ = nullptr;
+        const conn_param_t** weights_ = nullptr;
+        const conn_param_t** delays_ = nullptr;
+    };
+
+    struct GridViewStruct
+    {
+        dim_t dimensions_ = 0;
+        std::size_t num_tiles_ = 0;
+        std::size_t leaves_per_tile_ = 0;
+        std::size_t vertices_per_tile_ = 0;
+        std::size_t vertices_per_leaf_ = 0;
+
+        const tileidx_t* tile_indexes_ = nullptr;
+        const space_t* tile_vertices_ = nullptr;
+        const space_t* leaf_vertices_ = nullptr;
+    };
+
     typedef PairT< bool, std::size_t > OptionalIndex;
     typedef TripletT< std::size_t, nodeidx_t, nodeidx_t > SpatialNodeSequence;
     typedef ArrayT< char > CharArray;
@@ -84,30 +115,25 @@ extern "C"
         PairArrayT< tileidx_t,
         PairT< nodeidx_t,
         nodeidx_t > > > TiledNodeSequencePairArray;
-    typedef PairArrayT< tileidx_t,
-        PairArrayT< nodeidx_t,
-        ArrayT< space_t > > > NodeCoordPairArray;
-    typedef PairArrayT< tileidx_t,
-        NodeCoordPairArray > NestedNodeCoordPairArray;
-    typedef PairArrayT < tileidx_t,
-        PairT< NestedSpaceTArray,
-        PairArrayT< tileidx_t, NestedSpaceTArray > > > GridTileVerticesPairArray;
 
     typedef PairArrayT< CharArray, double > RankTimerDataPairArray;
     typedef PairArrayT< CharArray, ArrayT< double > > ThreadTimerDataPairArray;
     typedef PairT< RankTimerDataPairArray, ThreadTimerDataPairArray > RecordedTimesArrayPair;
 
-    struct ConnectionInfoStruct
-    {
-        conn_index_t source_index_;
-        conn_index_t target_index_;
-        conn_param_t connection_weight_;
-        conn_param_t connection_delay_;
-    };
+    typedef PairArrayT< vp_t, ConnectionViewStruct > ConnectionViewPairArray;
+    typedef PairT< ConnectionViewPairArray, ConnectionViewPairArray > RemoteConnectionViewPair;
 
-    typedef ArrayT< ConnectionInfoStruct > ConnectionInfoPartition;
-    typedef PairArrayT< vp_t, ArrayT< ConnectionInfoPartition > > ConnectionInfoPairArray;
-    typedef PairT< ConnectionInfoPairArray, ConnectionInfoPairArray > RemoteConnectionInfoPair;
+    struct GPStruct
+    {
+        // Grid size and origin
+        SpaceTArray grid_origin_;
+        TileIdxArray grid_dimensions_;
+
+        // Tile type and size
+        CharArray tile_type_;
+        SpaceTArray tile_side_lengths_;
+        AngleTArray tile_angular_offsets_;
+    };
 
     struct MPStruct
     {
@@ -130,11 +156,10 @@ extern "C"
         // Control parameters
         bool edge_wrap_ = false;
         bool only_neighborhood_ = false;
-        bool inverted_conn_rule_ = false;
         bool allow_multiplicity_ = false;
         bool allow_self_connections_ = false;
         bool partition_connections_by_source_ = false;
-        mult_t connection_counts_ = 0;
+        count_t connection_counts_ = 0;
 
         // Connection generation
         CharArray conn_gen_name_;

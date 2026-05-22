@@ -30,12 +30,7 @@ std::unordered_map< std::string, double > TimerRegister::to_map() const
 {
     std::unordered_map< std::string, double > map;
     for ( const auto& [name, timer] : registered_timers_ )
-        map.emplace(
-            std::make_pair(
-                std::string( name ),
-                timer.time()
-            )
-        );
+        map[ name ] = timer.time();
     return map;
 }
 
@@ -61,17 +56,11 @@ std::string RecordedTimes::to_string( uint8_t tabs ) const
 }
 
 
-TimerManager::TimerManager()
-{
-    initialize();
-}
-
-
 RecordedTimes TimerManager::get_times() const
 {
     RecordedTimes times;
 
-    if ( !initialized_ )
+    if ( !is_initialized() )
         return times;
 
     times.rank_times_ = rank_registry_->to_map();
@@ -89,16 +78,10 @@ RecordedTimes TimerManager::get_times() const
     {
         for ( const auto& [name, time] : tts )
         {
-            auto search = times.thread_times_.find( name );
-            if ( search == times.thread_times_.end() )
-                search = times.thread_times_.emplace(
-                    std::make_pair(
-                        name,
-                        std::vector< double >( thread_times.size(), 0. )
-                    )
-                ).first;
-
-            search->second[ tid ] = time;
+            auto& vec = times.thread_times_[ name ];
+            if ( vec.empty() )
+                vec.resize( thread_times.size(), 0. );
+            vec[ tid ] = time;
         }
         ++tid;
     }

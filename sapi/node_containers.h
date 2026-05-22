@@ -24,12 +24,12 @@
 #define NODE_CONTAINERS_H
 
 #include <list>
+#include <deque>
 #include <vector>
 #include <utility>
 #include <algorithm>
 #include <forward_list>
 #include <unordered_map>
-#include <cassert>
 
 #include "sapi_config.h"
 
@@ -78,31 +78,32 @@ typedef std::vector< TileIdxNodeCountPairList > TileIdxNodeCountPairListVector;
 template < typename CoordT >
 using TiledCoordMap = std::unordered_map< tileidx_t, std::list< CoordT > >;
 
-// Map of node index to coordinate.
-// A map is instantiated for each tile position in a tile grid.
-// Map contains the first node id of a node sequence and
+// This container maps node indexes to coordinates.
+// A vector is instantiated for each tile position in a tile grid.
+// Each entry contains the first node id of a node sequence and
 // a vector containing all the coords of the node sequence.
-// Length of the vector is equal to the size of the node sequence.
+// Length of the coordinate vector is equal to the size of the node sequence.
 template < typename CoordT >
-using NodeIdxCoordMap = std::unordered_map< nodeidx_t, std::vector< CoordT > >;
+using IndexedCoordCollection = std::deque< std::vector< std::pair< nodeidx_t, CoordT > > >;
 
-// When filtering nodes in a node index coord map node sequence jointures are computed
-// for each entry in the map, then the original key of the node index coord map is used
-// as a key for the joint node sequence found.
-typedef std::unordered_map< nodeidx_t, NodeSequence > IndexedNodeSequenceJointureMap;
-
-// This container maps leaf sub tile indexes to node index coord maps.
-// In a grid, for each tile, each leaf sub tile owns a node index coord map.
+// This container maps leaf sub tiles to node index coord vectors.
+// In a grid, for each owned tile, each leaf sub tile owns a node index coord vector.
+// The length of this vector is equal to the number of leaf sub tiles in a tile.
 // When generating node coordinates a leaf sub tile is chosen and sequences of node
-// coordinates are inserted into the map.
+// coordinates are inserted into the corresponding vector.
 template < typename CoordT >
-using TileIdxNodeIdxCoordMap = std::unordered_map< tileidx_t, NodeIdxCoordMap< CoordT > >;
+using LeafNodeCollection = std::vector< IndexedCoordCollection< CoordT > >;
+
+// This container maps tiles to leaf node coord vectors.
+// The length of this vector is equal to the number of tiles in the grid.
+template < typename CoordT >
+using GridNodeCollection = std::vector< LeafNodeCollection< CoordT > >;
 
 
-constexpr NodeSequence shift_sequence(
+constexpr inline NodeSequence shift_sequence(
     const NodeSequence& origin,
     const NodeSequence& target,
-    const nodeidx_t& shift
+    const nodeidx_t shift
 )
 {
     return { origin.first, std::min< nodeidx_t >(
@@ -111,49 +112,11 @@ constexpr NodeSequence shift_sequence(
 }
 
 
-constexpr NodeSequence join_sequences( const NodeSequence& left, const NodeSequence& right )
+constexpr inline NodeSequence join_sequences( const NodeSequence& left, const NodeSequence& right )
 {
     return ( right.first < left.first )
         ? shift_sequence( left, right, left.first - right.first )
         : shift_sequence( right, left, right.first - left.first );
-}
-
-
-template < typename CoordT >
-IndexedNodeSequenceJointureMap
-collect_indexed_node_sequence_jointures(
-    const NodeSequence& node_sequence,
-    const NodeIdxCoordMap< CoordT >& node_index_coord_map
-)
-{
-    assert( 0 <= node_sequence.first && 0 < node_sequence.second );
-
-    // Collect all node sequence jointures
-    IndexedNodeSequenceJointureMap jointures;
-
-    // Loop over all node coord sequences in leaf tile
-    for ( const auto& [node_index, coord_vec] : node_index_coord_map )
-    {
-        NodeSequence jointure = join_sequences(
-            {
-                node_index,
-                static_cast< nodeidx_t >( coord_vec.size() )
-            },
-            node_sequence
-        );
-
-        if ( jointure.second < 1 ) continue;
-
-        // Insert into jointure map
-        jointures.emplace(
-            std::make_pair(
-                nodeidx_t( node_index ),
-                std::move( jointure )
-            )
-        );
-    }
-
-    return jointures;
 }
 }
 

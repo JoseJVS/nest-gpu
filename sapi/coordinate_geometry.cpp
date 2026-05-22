@@ -26,9 +26,7 @@
 namespace sapi
 {
 Coord2D circumscribed_center(
-    const Coord2D& coordA,
-    const Coord2D& coordB,
-    const Coord2D& coordC
+    const std::vector< Coord2D >& coords
 )
 {
     // circumscribed center ( x, y ) of triangle with vertices A, B, C is such that
@@ -66,9 +64,9 @@ Coord2D circumscribed_center(
     // y = det ( | 1 2xB xB^2 + yB^2 | ) / det( | 1 2xB 2yB | )
     //           | 1 2xC xC^2 + yC^2 |          | 1 2xC 2yC |
 
-    const Coord2D twoA = coordA * 2;
-    const Coord2D twoB = coordB * 2;
-    const Coord2D twoC = coordC * 2;
+    const Coord2D twoA = coords[ 0 ] * 2;
+    const Coord2D twoB = coords[ 1 ] * 2;
+    const Coord2D twoC = coords[ 2 ] * 2;
 
     const space_t det_denominator = determinant3x3(
         1, twoA.x_, twoA.y_,
@@ -78,9 +76,9 @@ Coord2D circumscribed_center(
 
     const bool dd_az = almost_zero( det_denominator );
 
-    const space_t n2A = vector_norm2( coordA );
-    const space_t n2B = vector_norm2( coordB );
-    const space_t n2C = vector_norm2( coordC );
+    const space_t n2A = vector_norm2( coords[ 0 ] );
+    const space_t n2B = vector_norm2( coords[ 1 ] );
+    const space_t n2C = vector_norm2( coords[ 2 ] );
 
     const space_t det_x_numerator = determinant3x3(
         1, n2A, twoA.y_,
@@ -107,27 +105,25 @@ Coord2D circumscribed_center(
         ? 0
         : almost_equal( det_x_numerator, det_denominator )
         ? 1
-        : clamp_epsilon_0( det_x_numerator / det_denominator );
+        : det_x_numerator / det_denominator;
 
     const space_t coord_y = dyn_az
         ? 0
         : almost_equal( det_y_numerator, det_denominator )
         ? 1
-        : clamp_epsilon_0( det_y_numerator / det_denominator );
+        : det_y_numerator / det_denominator;
 
-    return Coord2D( std::move( coord_x ), std::move( coord_y ) );
+    return construct_coord_2D( coord_x, coord_y );
 }
 
 
 Coord3D circumscribed_center(
-    const Coord3D& coordA,
-    const Coord3D& coordB,
-    const Coord3D& coordC
+    const std::vector< Coord3D >& coords
 )
 {
     // Here we compute the 2D plane intersecting A, B, and C
-    const Coord3D vBA = coordB - coordA;
-    const Coord3D vCA = coordC - coordA;
+    const Coord3D vBA = coords[ 1 ] - coords[ 0 ];
+    const Coord3D vCA = coords[ 2 ] - coords[ 0 ];
 
     // A is now the origin of our plane
     // We now compute the basis vectors of the plane
@@ -135,30 +131,112 @@ Coord3D circumscribed_center(
     assert( !basis_1.is_null() );
 
     // Gram-Schmidt process for orthonormal basis
-    const Coord3D basis_2 = normalize_vector( vCA - projection_vector( vCA, basis_1, false ) );
+    const Coord3D basis_2 = normalize_vector( vCA - projection_vector< Coord3D, false >( vCA, basis_1 ) );
     assert( !basis_2.is_null() );
 
     // Redefine A, B, and C as Coord2D in the plane and
     // compute the circumscribed center in 2D
+    // A is the origin of the plane
+    std::vector< Coord2D > projected_vertices( 3 );
+    projected_vertices[ 1 ].x_ = vector_dot( vBA, basis_1 );
+    projected_vertices[ 1 ].y_ = vector_dot( vBA, basis_2 );
+    projected_vertices[ 2 ].x_ = vector_dot( vCA, basis_1 );
+    projected_vertices[ 2 ].y_ = vector_dot( vCA, basis_2 );
     const Coord2D planar_circumscribed_center = circumscribed_center(
-        Coord2D(), // A is the origin of the plane
-        Coord2D(
-            vector_dot( vBA, basis_1 ),
-            vector_dot( vBA, basis_2 )
-        ),
-        Coord2D(
-            vector_dot( vCA, basis_1 ),
-            vector_dot( vCA, basis_2 )
-        )
+        projected_vertices
     );
 
     // project the center back to the 3D space
     const Coord3D x_projection = basis_1 * planar_circumscribed_center.x_;
     const Coord3D y_projection = basis_2 * planar_circumscribed_center.y_;
-    return Coord3D(
-        compensated_sum( coordA.x_, x_projection.x_, y_projection.x_ ),
-        compensated_sum( coordA.y_, x_projection.y_, y_projection.y_ ),
-        compensated_sum( coordA.z_, x_projection.z_, y_projection.z_ )
+    return construct_coord_3D(
+        coords[ 0 ].x_ + x_projection.x_ + y_projection.x_,
+        coords[ 0 ].y_ + x_projection.y_ + y_projection.y_,
+        coords[ 0 ].z_ + x_projection.z_ + y_projection.z_
     );
+}
+
+
+bool displacement_in_ellipse(
+    const Coord2D& displacement,
+    const Coord2D& semi_axes
+)
+{
+    switch (
+        ( almost_zero( displacement.x_ ) << 0 )
+        + ( almost_zero( displacement.y_ ) << 1 )
+        )
+    {
+    case 3:
+        return true;
+
+    case 1:
+        return leq_test( displacement.y_ * displacement.y_, semi_axes.y_ );
+
+    case 2:
+        return leq_test( displacement.x_ * displacement.x_, semi_axes.x_ );
+
+    default:
+        return leq_test(
+            semi_axes.y_ * displacement.x_ * displacement.x_
+            + semi_axes.x_ * displacement.y_ * displacement.y_,
+            semi_axes.product()
+        );
+    }
+}
+
+
+bool displacement_in_ellipsoid(
+    const Coord3D& displacement,
+    const Coord3D& semi_axes
+)
+{
+    switch (
+        ( almost_zero( displacement.x_ ) << 0 )
+        + ( almost_zero( displacement.y_ ) << 1 )
+        + ( almost_zero( displacement.z_ ) << 2 )
+        )
+    {
+    case 7:
+        return true;
+
+    case 1:
+        return leq_test(
+            semi_axes.z_ * displacement.y_ * displacement.y_
+            + semi_axes.y_ * displacement.z_ * displacement.z_,
+            semi_axes.y_ * semi_axes.z_
+        );
+
+    case 2:
+        return leq_test(
+            semi_axes.z_ * displacement.x_ * displacement.x_
+            + semi_axes.x_ * displacement.z_ * displacement.z_,
+            semi_axes.x_ * semi_axes.z_
+        );
+
+    case 4:
+        return leq_test(
+            semi_axes.y_ * displacement.x_ * displacement.x_
+            + semi_axes.x_ * displacement.y_ * displacement.y_,
+            semi_axes.x_ * semi_axes.y_
+        );
+
+    case 3:
+        return leq_test( displacement.z_ * displacement.z_, semi_axes.z_ );
+
+    case 5:
+        return leq_test( displacement.y_ * displacement.y_, semi_axes.y_ );
+
+    case 6:
+        return leq_test( displacement.x_ * displacement.x_, semi_axes.x_ );
+
+    default:
+        return leq_test(
+            semi_axes.y_ * semi_axes.z_ * displacement.x_ * displacement.x_
+            + semi_axes.x_ * semi_axes.z_ * displacement.y_ * displacement.y_
+            + semi_axes.x_ * semi_axes.y_ * displacement.z_ * displacement.z_,
+            semi_axes.product()
+        );
+    }
 }
 }

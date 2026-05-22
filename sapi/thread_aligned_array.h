@@ -23,9 +23,12 @@
 #ifndef THREAD_ALIGNED_ARRAY_H
 #define THREAD_ALIGNED_ARRAY_H
 
+#include <vector>
+#include <memory>
+#include <type_traits>
 #include <cassert>
 
-#include "type_erasure_helpers.h"
+#include "sapi_config.h"
 
 
 namespace sapi
@@ -37,38 +40,31 @@ vp_t get_max_omp_threads();
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > = true
 >
 class TAArray
 {
 public:
-    TAArray() = default;
-    TAArray( const TAArray& ) = delete;
-    TAArray( TAArray&& ) = default;
-    ~TAArray() = default;
-
     bool is_initialized() const;
 
     void clear();
     void prepare();
-    void clone( const T& );
-    void clone( const std::unique_ptr< T >& );
+    void clone( const T& item );
 
-    T* get_thread_item( const vp_t& ) const;
+    T* get_thread_item( const vp_t tid ) const;
     const T* get_local_thread_item() const;
 
 protected:
     bool cloned_ = false;
     bool prepared_ = false;
-    vp_t num_threads_ = 0;
     std::vector< std::unique_ptr< T > > item_vec_;
 };
 
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline void TAArray< T, b >::clear()
@@ -79,7 +75,7 @@ inline void TAArray< T, b >::clear()
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline bool TAArray< T, b >::is_initialized() const
@@ -91,16 +87,19 @@ inline bool TAArray< T, b >::is_initialized() const
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline void TAArray< T, b >::prepare()
 {
-    if ( !prepared_ || cloned_ || num_threads_ != get_max_omp_threads() )
+    if (
+        !prepared_
+        || cloned_
+        || item_vec_.size() != static_cast< std::size_t >( get_max_omp_threads() )
+        )
     {
         item_vec_.clear();
-        num_threads_ = get_max_omp_threads();
-        item_vec_.resize( num_threads_ );
+        item_vec_.resize( get_max_omp_threads() );
         prepared_ = true;
         cloned_ = false;
     }
@@ -109,7 +108,7 @@ inline void TAArray< T, b >::prepare()
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline void TAArray< T, b >::clone(
@@ -121,10 +120,7 @@ inline void TAArray< T, b >::clone(
 
 #pragma omp parallel default( none )\
 shared( item_vec_, item )
-    {
-        const auto tid = get_thread_num();
-        item_vec_[ tid ] = item.clone();
-    }
+    item_vec_.at( get_thread_num() ) = std::make_unique< T >( item );
 
     cloned_ = true;
 }
@@ -132,51 +128,25 @@ shared( item_vec_, item )
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
-    bool > b
->
-inline void TAArray< T, b >::clone(
-    const std::unique_ptr< T >& item
-)
-{
-    prepare();
-    assert( !cloned_ && prepared_ );
-
-#pragma omp parallel default( none )\
-shared( item_vec_, item )
-    {
-        const auto tid = get_thread_num();
-        item_vec_[ tid ] = item->clone();
-    }
-
-    cloned_ = true;
-}
-
-
-template < typename T,
-    typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline T*
-TAArray< T, b >::get_thread_item( const vp_t& tid ) const
+TAArray< T, b >::get_thread_item( const vp_t tid ) const
 {
-    assert( 0 <= tid && tid < num_threads_ );
-    return item_vec_[ tid ].get();
+    return item_vec_.at( tid ).get();
 }
 
 
 template < typename T,
     typename std::enable_if_t<
-    std::is_base_of_v< Cloneable< T >, T >,
+    std::is_copy_constructible_v< T >,
     bool > b
 >
 inline const T*
 TAArray< T, b >::get_local_thread_item() const
 {
-    const auto tid = get_thread_num();
-    assert( 0 <= tid && tid < num_threads_ );
-    return item_vec_[ tid ].get();
+    return item_vec_.at( get_thread_num() ).get();
 }
 }
 

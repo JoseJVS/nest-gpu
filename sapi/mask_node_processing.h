@@ -23,373 +23,221 @@
 #ifndef MASK_NODE_PROCESSING_H
 #define MASK_NODE_PROCESSING_H
 
-#include <iterator>
-
-#include "mask_containers.h"
-#include "mask_collection.h"
-#include "thread_aligned_array.h"
+#include "connection_generator.h"
 
 
 namespace sapi
 {
+// Forward definition to link with vp_interface.h
+vp_t get_thread_num();
+vp_t get_max_omp_threads();
+
+// Forward definition to connection_containers.h
+struct RankConnectionInfo;
+
+// Forward definition to mask_collection.h
 template < typename CoordT >
-inline void check_minimal_displacement(
-    std::optional< Displacement< CoordT > >&& computed_displacement,
-    std::optional< Displacement< CoordT > >& tracked_minimum
-)
-{
-    tracked_minimum = computed_displacement.has_value()
-        ? tracked_minimum.has_value()
-        ? std::isless( computed_displacement->distance2_, tracked_minimum->distance2_ )
-        ? std::move( computed_displacement )
-        : tracked_minimum
-        : std::move( computed_displacement )
-        : tracked_minimum;
-}
+struct MaskCollection;
 
-
-template < typename CoordT >
-void compute_minimal_displacement(
-    std::forward_list< NodeDisplacementInfo< CoordT > >& ndi_list,
-    const std::pair< nodeidx_t, CoordT >& driver_node,
-    const std::pair< nodeidx_t, CoordT >& pool_node,
-    const std::vector< std::optional< CoordT > >& shifted_pairings,
-    const MaskCollection< CoordT >* const& mask_collection
-)
-{
-    std::optional< Displacement< CoordT > > min_displacement;
-    for ( const auto& shifted_pairing : shifted_pairings )
-        check_minimal_displacement(
-            mask_collection->blueprint_overlap(
-                driver_node.second,
-                shifted_pairing.has_value()
-                ? pool_node.second + shifted_pairing.value()
-                : pool_node.second
-            ),
-            min_displacement
-        );
-
-    if ( min_displacement.has_value() )
-        ndi_list.emplace_front(
-            NodeDisplacementInfo< CoordT >(
-                nodeidx_t( driver_node.first ),
-                nodeidx_t( pool_node.first ),
-                std::move( min_displacement.value() )
-            )
-        );
-}
+// Forward definition to thread_aligned_array.h
+template < typename T,
+    typename std::enable_if_t<
+    std::is_copy_constructible_v< T >,
+    bool >
+>
+class TAArray;
 
 
 template < typename CoordT >
-void compute_displacement_checks_lists(
-    std::forward_list< NodeDisplacementInfo< CoordT > >& ndi_list,
-    const std::vector< std::pair< nodeidx_t, CoordT > >& driver_node_list,
-    const std::vector< std::pair< nodeidx_t, CoordT > >& pool_node_list,
-    const std::vector< std::optional< CoordT > >& shifted_pairings,
-    const MaskCollection< CoordT >* const& mask_collection
+void add_task(
+    TaskMap< CoordT >& aggregation_map,
+    TaskQueue< CoordT >& task_queue,
+    const CoordDataVector< CoordT >* const pivot_vector,
+    const CoordDataVector< CoordT >* const combination_vector,
+    const std::vector< CoordT >* const image_displacements,
+    const std::size_t combination_length,
+    const count_t used_displacements,
+    const combined_idx_t pivot_key,
+    const combined_idx_t combination_key
 )
 {
-    assert(
-        ndi_list.empty() &&
-        !shifted_pairings.empty() &&
-        mask_collection->has_blueprint()
+    const auto [task_it, success] = aggregation_map.try_emplace(
+        pivot_key,
+        nullptr
     );
 
-    for ( const auto& driver_node : driver_node_list )
-        for ( const auto& pool_node : pool_node_list )
-            compute_minimal_displacement(
-                ndi_list,
-                driver_node,
-                pool_node,
-                shifted_pairings,
-                mask_collection
-            );
-}
-
-
-template < typename CoordT >
-std::pair< bool,
-    std::unordered_map < tileidx_t,
-    std::pair< bool,
-    std::unordered_map < tileidx_t,
-    std::forward_list<
-    std::forward_list<
-    NodeDisplacementInfo< CoordT > > > > > >
-> pivot_aggregation_map(
-    std::unordered_map< tileidx_t,
-    std::unordered_map< tileidx_t,
-    std::unordered_map< tileidx_t,
-    std::unordered_map< tileidx_t,
-    std::forward_list< NodeDisplacementInfo< CoordT > > > > > >& procedural_aggregation_map,
-    const bool& inverted_pool_driver
-)
-{
-    bool valid_tiles = false;
-    std::unordered_map< tileidx_t,
-        std::pair< bool,
-        std::unordered_map < tileidx_t,
-        std::forward_list<
-        std::forward_list<
-        NodeDisplacementInfo< CoordT > > > > > >
-        pivoted_procedural_map;
-
-    if ( procedural_aggregation_map.empty() )
-        return std::make_pair(
-            std::move( valid_tiles ),
-            std::move( pivoted_procedural_map )
-        );
-
-    // Construct dummy iterator to be properly instantiated according
-    // to pivot key
-    auto pivoted_tile_map_it = pivoted_procedural_map.end();
-
-    for ( auto& [local_t_index, remote_t_map] : procedural_aggregation_map )
+    if ( success )
     {
-        if ( remote_t_map.empty() ) continue;
-
-        if ( !inverted_pool_driver )
-            // No need for find as aggregation order guarantees unique local tiles
-            pivoted_tile_map_it = pivoted_procedural_map.emplace(
-                    std::make_pair(
-                        tileidx_t( local_t_index ),
-                        std::make_pair(
-                            false,
-                            std::unordered_map< tileidx_t,
-                            std::forward_list<
-                            std::forward_list<
-                            NodeDisplacementInfo< CoordT > > > >()
-                        )
-                    )
-            ).first;
-
-        for ( auto& [remote_t_index, local_l_map] : remote_t_map )
-        {
-            if ( local_l_map.empty() ) continue;
-
-            if ( inverted_pool_driver )
-            {
-                pivoted_tile_map_it = pivoted_procedural_map.find(
-                    remote_t_index
-                );
-
-                if ( pivoted_tile_map_it == pivoted_procedural_map.end() )
-                    pivoted_tile_map_it = pivoted_procedural_map.emplace(
-                            std::make_pair(
-                                tileidx_t( remote_t_index ),
-                                std::make_pair(
-                                    false,
-                                    std::unordered_map< tileidx_t,
-                                    std::forward_list<
-                                    std::forward_list<
-                                    NodeDisplacementInfo< CoordT > > > >()
-                                )
-                            )
-                    ).first;
-            }
-
-            // At this point pivot key should be defined
-            assert( pivoted_tile_map_it != pivoted_procedural_map.end() );
-
-            // Construct dummy iterator to be properly instantiated according
-            // to pivot key
-            auto pivoted_leaf_map_it = pivoted_tile_map_it->second.second.end();
-
-            for ( auto& [local_l_index, remote_l_map] : local_l_map )
-            {
-                if ( remote_l_map.empty() ) continue;
-
-                if ( !inverted_pool_driver )
-                {
-                    pivoted_leaf_map_it = pivoted_tile_map_it->second.second.find(
-                        local_l_index
-                    );
-
-                    if ( pivoted_leaf_map_it == pivoted_tile_map_it->second.second.end() )
-                        pivoted_leaf_map_it = pivoted_tile_map_it->second.second.emplace(
-                                std::make_pair(
-                                    tileidx_t( local_l_index ),
-                                    std::forward_list<
-                                    std::forward_list<
-                                    NodeDisplacementInfo< CoordT > > >()
-                                )
-                        ).first;
-                }
-
-                for ( auto& [remote_l_index, disp_fl] : remote_l_map )
-                {
-                    if ( disp_fl.empty() ) continue;
-
-                    if ( inverted_pool_driver )
-                    {
-                        pivoted_leaf_map_it = pivoted_tile_map_it->second.second.find(
-                            remote_l_index
-                        );
-
-                        if ( pivoted_leaf_map_it == pivoted_tile_map_it->second.second.end() )
-                            pivoted_leaf_map_it = pivoted_tile_map_it->second.second.emplace(
-                                    std::make_pair(
-                                        tileidx_t( remote_l_index ),
-                                        std::forward_list<
-                                        std::forward_list<
-                                        NodeDisplacementInfo< CoordT > > >()
-                                    )
-                            ).first;
-                    }
-
-                    // At this point pivot key should be defined
-                    assert( pivoted_leaf_map_it != pivoted_tile_map_it->second.second.end() );
-
-                    pivoted_leaf_map_it->second.emplace_front(
-                        std::move( disp_fl )
-                    );
-                    pivoted_tile_map_it->second.first = true;
-                    valid_tiles = true;
-
-                    disp_fl.clear();
-                }
-
-                remote_l_map.clear();
-            }
-
-            local_l_map.clear();
-        }
-
-        remote_t_map.clear();
+        task_it->second = &task_queue.emplace_back(
+            pivot_key,
+            pivot_vector
+        ).second;
+    }
+    else
+    {
+        assert( task_it->second->pivot_vector_ == pivot_vector );
     }
 
-    procedural_aggregation_map.clear();
-
-    return std::make_pair(
-        std::move( valid_tiles ),
-        std::move( pivoted_procedural_map )
-    );
-}
-
-
-template < typename CoordT >
-void merge_node_displacement_info_lists(
-    std::forward_list<
-    std::forward_list<
-    NodeDisplacementInfo< CoordT > > >& ndi_fl2,
-    ConsolidatedNodeDisplacementMap< CoordT >& consolidation_map
-)
-{
-    assert( !ndi_fl2.empty() && consolidation_map.empty() );
-
-    auto ndi_fl_it = std::make_move_iterator( ndi_fl2.begin() );
-    while ( !ndi_fl2.empty() )
-    {
-        auto ndi_fl = *ndi_fl_it++;
-        ndi_fl2.pop_front();
-
-        auto ndi_it = std::make_move_iterator( ndi_fl.begin() );
-        while ( !ndi_fl.empty() )
-        {
-            auto [
-                driver_index,
-                pool_index,
-                displacement
-            ] = *ndi_it++;
-            ndi_fl.pop_front();
-
-            const auto driver_search = consolidation_map.find( driver_index );
-            if ( driver_search == consolidation_map.end() )
-            {
-                std::map< nodeidx_t, Displacement< CoordT > > pool_map;
-                pool_map.emplace(
-                    std::make_pair(
-                        nodeidx_t( pool_index ),
-                        std::move( displacement )
-                    )
-                );
-
-                consolidation_map.emplace(
-                    std::make_pair(
-                        nodeidx_t( driver_index ),
-                        std::move( pool_map )
-                    )
-                );
-
-                continue;
-            }
-
-            const auto emplace_res = driver_search->second.emplace(
-                    std::make_pair(
-                        nodeidx_t( pool_index ),
-                        std::move( displacement )
-                    )
-            );
-            assert( emplace_res.second );
-        }
-    }
-}
-
-
-template < typename CoordT >
-void consolidate_aggregation_map(
-    DisplacementsInfo< CoordT >& dci,
-    const bool& inverted_pool_driver
-)
-{
-    auto [valid_tiles, pivoted_procedural_map] = pivot_aggregation_map(
-        dci.procedural_aggregation_map_,
-        inverted_pool_driver
-    );
-
-    if ( !valid_tiles ) return;
-
-#pragma omp taskgroup
-    for ( auto tile_pivot_it = pivoted_procedural_map.begin();
-        tile_pivot_it != pivoted_procedural_map.end();
-        ++tile_pivot_it
+    const auto combination_emplace = task_it->second->possible_combinations_.emplace(
+        combination_key,
+        construct_possible_connections< CoordT >(
+            used_displacements,
+            image_displacements,
+            combination_vector
         )
+    );
+    assert( combination_emplace.second );
+
+    task_it->second->total_possible_combinations_ += combination_length;
+}
+
+
+template < typename CoordT, bool aggregate_by_local >
+void generate_connection_tasks(
+    TaskQueue< CoordT >& task_queue,
+    const RankPairInfo< CoordT >& rpi
+)
+{
+    TaskMap< CoordT > aggregation_map;
+    if constexpr ( aggregate_by_local )
     {
-        if ( !tile_pivot_it->second.first ) continue;
+        aggregation_map.reserve(
+            rpi.tile_pairs_set_.valid_leaves_
+        );
+    }
+    else
+    {
+        aggregation_map.reserve(
+            rpi.receiver_info_.total_received_num_leaves_
+        );
+    }
 
-        const auto consolidated_tile_map_it = dci.consolidated_info_map_.emplace(
-                std::make_pair(
-                    tileidx_t( tile_pivot_it->first ),
-                    std::unordered_map< tileidx_t,
-                    ConsolidatedNodeDisplacementMap< CoordT > >()
-                )
-        ).first;
+    for ( const auto& [local_tile_index, remote_tile_pairings] :
+        rpi.tile_pairs_set_.tile_pairings_ )
+    {
+        // Get aggregated local node coordinates
+        const auto local_filtered_tile =
+            rpi.sender_info_.filtered_coords_.find( local_tile_index );
 
-        for ( auto leaf_pivot_it = tile_pivot_it->second.second.begin();
-            leaf_pivot_it != tile_pivot_it->second.second.end();
-            ++leaf_pivot_it
-            )
+        // Local tile index not found -> filtered out during masking
+        if ( local_filtered_tile == rpi.sender_info_.filtered_coords_.end() ||
+            local_filtered_tile->second.empty()
+            ) continue;
+
+        const auto local_key_high = static_cast< combined_idx_t >( local_tile_index ) << 32;
+
+        // Loop over remote tile pairings
+        for ( const auto& [remote_tile_index, tile_pair_info] : remote_tile_pairings )
         {
-            if ( leaf_pivot_it->second.empty() ) continue;
+            if ( tile_pair_info.aggregated_leaf_pairs_.empty() )
+                continue;
 
-            const auto consolidated_leaf_map_it = consolidated_tile_map_it->second.emplace(
-                    std::make_pair(
-                        tileidx_t( leaf_pivot_it->first ),
-                        ConsolidatedNodeDisplacementMap< CoordT >()
-                    )
-            ).first;
+            // Get aggregated remote node coordinates
+            const auto remote_filtered_tile =
+                rpi.receiver_info_.filtered_coords_.find( remote_tile_index );
 
-#pragma omp task default( none ) firstprivate( leaf_pivot_it, consolidated_leaf_map_it )
-            merge_node_displacement_info_lists(
-                leaf_pivot_it->second,
-                consolidated_leaf_map_it->second
-            );
+            // Remote tile not found -> filtered out during masking
+            if ( remote_filtered_tile == rpi.receiver_info_.filtered_coords_.end() ||
+                remote_filtered_tile->second.empty() )
+                continue;
+
+            assert( tile_pair_info.image_displacements_ != nullptr );
+
+            const auto remote_key_high = static_cast< combined_idx_t >( remote_tile_index ) << 32;
+
+            // Loop over paired leafs aggregated by local leaf
+            for ( const auto& [local_leaf_index, remote_leaf_pairings] :
+                tile_pair_info.aggregated_leaf_pairs_ )
+            {
+                // Leaf pairing procedure guarantees that map entries
+                // are only generated for matching pairs
+                assert( !remote_leaf_pairings.empty() );
+
+                // Get node coordinates in local leaf
+                const auto local_filtered_leaf = local_filtered_tile->second.find(
+                    local_leaf_index
+                );
+
+                // Local leaf not found -> filtered out during masking
+                if ( local_filtered_leaf == local_filtered_tile->second.end() )
+                    continue;
+
+                // If the local leaf is found then its vector cannot be empty
+                assert( !local_filtered_leaf->second.empty() );
+
+                const auto local_key = local_key_high | static_cast< combined_idx_t >( local_leaf_index );
+
+                // Loop over target leaf pairs
+                for ( const auto& [remote_leaf_index, used_displacements] : remote_leaf_pairings )
+                {
+                    // Leaf pairing procedure guarantees that map entries
+                    // are only generated for matching pairs
+                    assert( 0 < used_displacements );
+
+                    // Get node coordinates in remote leaf
+                    const auto remote_filtered_leaf = remote_filtered_tile->second.find(
+                        remote_leaf_index
+                    );
+
+                    // Remote leaf not found -> filtered out during masking
+                    if ( remote_filtered_leaf == remote_filtered_tile->second.end() )
+                        continue;
+
+                    // If the remote leaf is found then its vector cannot be empty
+                    assert( !remote_filtered_leaf->second.empty() );
+
+                    if constexpr ( aggregate_by_local )
+                    {
+                        add_task(
+                            aggregation_map,
+                            task_queue,
+                            &local_filtered_leaf->second,
+                            &remote_filtered_leaf->second,
+                            tile_pair_info.image_displacements_,
+                            remote_filtered_leaf->second.size(),
+                            used_displacements,
+                            // Compose 64bit key made of tile index (high bits) and leaf index (low bits)
+                            local_key,
+                            remote_key_high | static_cast< combined_idx_t >( remote_leaf_index )
+                        );
+                    }
+                    else
+                    {
+                        add_task(
+                            aggregation_map,
+                            task_queue,
+                            &remote_filtered_leaf->second,
+                            &local_filtered_leaf->second,
+                            tile_pair_info.image_displacements_,
+                            local_filtered_leaf->second.size(),
+                            used_displacements,
+                            // Compose 64bit key made of tile index (high bits) and leaf index (low bits)
+                            remote_key_high | static_cast< combined_idx_t >( remote_leaf_index ),
+                            local_key
+                        );
+                    }
+                }
+            }
         }
     }
 }
 
 
-template < typename CoordT >
+template < typename CoordT, bool inverted_source_target >
 void compute_displacement_checks_across_tile_pairs(
+    RankConnectionInfo& rci,
     RankPairInfo< CoordT >& rpi,
     const TAArray< MaskCollection< CoordT > >& mc_array,
-    const bool& inverted_pool_driver
+    const TAArray< ConnectionGenerator >& cg_array,
+    const RandomManager& rng_manager,
+    const vp_t target_rank
 )
 {
     assert(
+        rci.procedural_connections_.empty() &&
         mc_array.is_initialized() &&
-        !rpi.tile_pairs_set_.tile_pairs_info_map_.empty() &&
-        rpi.displacement_checks_map_.procedural_aggregation_map_.empty() &&
-        rpi.displacement_checks_map_.consolidated_info_map_.empty()
+        cg_array.is_initialized() &&
+        rng_manager.is_initialized()
     );
 
     // In the unlikely case that tiles passed mask filter
@@ -397,168 +245,71 @@ void compute_displacement_checks_across_tile_pairs(
     // (possible either in sender and/or receiver side)
     // then no work to be done
     if (
-        rpi.sender_info_.tile_idx_leaf_nodes_coords_map_.empty() ||
-        rpi.receiver_info_.tile_idx_leaf_nodes_coords_map_.empty()
+        rpi.tile_pairs_set_.tile_pairings_.empty() ||
+        rpi.sender_info_.filtered_coords_.empty() ||
+        rpi.receiver_info_.filtered_coords_.empty()
         )
     {
-        rpi.tile_pairs_set_.tile_pairs_info_map_.clear();
-        rpi.sender_info_.tile_idx_leaf_nodes_coords_map_.clear();
-        rpi.receiver_info_.tile_idx_leaf_nodes_coords_map_.clear();
+        rpi.tile_pairs_set_.tile_pairings_.clear();
+        rpi.sender_info_.filtered_coords_.clear();
+        rpi.receiver_info_.filtered_coords_.clear();
+        rpi.remote_indexed_coord_cache_.clear();
         return;
     }
 
-#pragma omp taskgroup
-    // Loop over tile pairings aggregated by local tile
-    for ( auto local_tile_tpi_map_pair_it = rpi.tile_pairs_set_.tile_pairs_info_map_.cbegin();
-        local_tile_tpi_map_pair_it != rpi.tile_pairs_set_.tile_pairs_info_map_.cend();
-        ++local_tile_tpi_map_pair_it )
+    const auto local_cg = cg_array.get_local_thread_item();
+    rci.sort_by_pool_indexes_ = local_cg->sort_by_pool_indexes();
+    rci.partition_connections_by_source_ = local_cg->partition_connections_by_source_;
+
+    TaskQueue< CoordT > task_queue;
+    if ( inverted_source_target == rci.sort_by_pool_indexes_ )
+        generate_connection_tasks< CoordT, true >(
+            task_queue,
+            rpi
+        );
+    else
+        generate_connection_tasks< CoordT, false >(
+            task_queue,
+            rpi
+        );
+
+    rpi.tile_pairs_set_.tile_pairings_.clear();
+
+    if ( !task_queue.empty() )
     {
-        // Get aggregated local node coordinates
-        const auto local_leaf_node_map_it =
-            rpi.sender_info_.tile_idx_leaf_nodes_coords_map_.find(
-                local_tile_tpi_map_pair_it->first
+        const auto num_threads = get_max_omp_threads();
+        const std::size_t total_tasks = task_queue.size();
+        rci.procedural_connections_.resize( total_tasks );
+
+#pragma omp taskloop num_tasks( num_threads ) grainsize( 1 ) default( none )\
+    shared( rci, cg_array, mc_array, rng_manager, task_queue )\
+    firstprivate( target_rank, total_tasks )
+        for ( std::size_t task_index = 0; task_index < total_tasks; ++task_index )
+        {
+            const auto tid = get_thread_num();
+            auto& id_task_pair = task_queue[ task_index ];
+
+            const auto total_conns = cg_array.get_thread_item( tid )->generate_connections(
+                *rng_manager.reseed_rank_paired_rng(
+                    tid,
+                    target_rank,
+                    inverted_source_target,
+                    id_task_pair.first
+                ),
+                rci.procedural_connections_[ task_index ],
+                id_task_pair.second,
+                mc_array.get_thread_item( tid )->blueprint_,
+                rng_manager.local_rank_ != static_cast< rng_seed_t >( target_rank )
             );
 
-        // Local tile index not found -> filtered out during masking
-        if (
-            local_leaf_node_map_it ==
-            rpi.sender_info_.tile_idx_leaf_nodes_coords_map_.end() ||
-            local_tile_tpi_map_pair_it->second.empty()
-            ) continue;
-
-        // Create aggregation map for local tile
-        const auto local_tile_aggregation_it =
-            rpi.displacement_checks_map_.procedural_aggregation_map_.emplace(
-                std::make_pair(
-                    tileidx_t( local_tile_tpi_map_pair_it->first ),
-                    std::unordered_map< tileidx_t,
-                    std::unordered_map< tileidx_t,
-                    std::unordered_map< tileidx_t,
-                    std::forward_list<
-                    NodeDisplacementInfo< CoordT > > > > >()
-            )
-        ).first;
-
-        // Loop over remote tile pairings
-        for ( auto remote_tile_tpi_map_pair_it = local_tile_tpi_map_pair_it->second.cbegin();
-            remote_tile_tpi_map_pair_it != local_tile_tpi_map_pair_it->second.cend();
-            ++remote_tile_tpi_map_pair_it )
-        {
-            // Get aggregated remote node coordinates
-            const auto remote_leaf_node_map_it =
-                rpi.receiver_info_.tile_idx_leaf_nodes_coords_map_.find(
-                    remote_tile_tpi_map_pair_it->first
-                );
-
-            // Remote tile not found -> filtered out during masking
-            if (
-                remote_leaf_node_map_it ==
-                rpi.receiver_info_.tile_idx_leaf_nodes_coords_map_.end() ||
-                remote_tile_tpi_map_pair_it->second.aggregated_leaf_pairs_.empty()
-                ) continue;
-
-            // For each local tile create aggregation map over remote tiles
-            const auto remote_tile_aggregation_it =
-                local_tile_aggregation_it->second.emplace(
-                    std::make_pair(
-                        tileidx_t( remote_tile_tpi_map_pair_it->first ),
-                        std::unordered_map< tileidx_t,
-                        std::unordered_map< tileidx_t,
-                        std::forward_list<
-                        NodeDisplacementInfo< CoordT > > > >()
-                    )
-                ).first;
-
-            // Loop over paired leafs aggregated by local leaf
-            for ( auto source_leaf_target_map_pair_it =
-                remote_tile_tpi_map_pair_it->second.aggregated_leaf_pairs_.cbegin();
-                source_leaf_target_map_pair_it !=
-                remote_tile_tpi_map_pair_it->second.aggregated_leaf_pairs_.cend();
-                ++source_leaf_target_map_pair_it )
-            {
-                // Leaf pairing procedure guarantees that map entries
-                // are only generated for matching pairs
-                assert( !source_leaf_target_map_pair_it->second.empty() );
-
-                // Get node coordinates in local leaf
-                const auto local_node_vec_it =
-                    local_leaf_node_map_it->second.find(
-                        source_leaf_target_map_pair_it->first
-                    );
-
-                // Local leaf not found -> filtered out during masking
-                if (
-                    local_node_vec_it ==
-                    local_leaf_node_map_it->second.end()
-                    ) continue;
-
-                // If the local leaf is found then its vector cannot be empty
-                assert( !local_node_vec_it->second.empty() );
-
-                // For each local/remote tile pairs create local leaf aggregation map
-                const auto local_leaf_aggregation_it =
-                    remote_tile_aggregation_it->second.emplace(
-                        std::make_pair(
-                            tileidx_t( source_leaf_target_map_pair_it->first ),
-                            std::unordered_map< tileidx_t,
-                            std::forward_list<
-                            NodeDisplacementInfo< CoordT > > >()
-                        )
-                    ).first;
-
-                // Loop over target leaf pairs
-                for ( auto target_shift_set_pair_it = source_leaf_target_map_pair_it->second.cbegin();
-                    target_shift_set_pair_it != source_leaf_target_map_pair_it->second.cend();
-                    ++target_shift_set_pair_it )
-                {
-                    // Leaf pairing procedure guarantees that map entries
-                    // are only generated for matching pairs
-                    assert( !target_shift_set_pair_it->second.empty() );
-
-                    // Get node coordinates in remote leaf
-                    const auto remote_node_vec_it =
-                        remote_leaf_node_map_it->second.find(
-                            target_shift_set_pair_it->first
-                        );
-
-                    // Remote leaf not found -> filtered out during masking
-                    if (
-                        remote_node_vec_it ==
-                        remote_leaf_node_map_it->second.end()
-                        ) continue;
-
-                    // If the remote leaf is found then its vector cannot be empty
-                    assert( !remote_node_vec_it->second.empty() );
-
-                    // For each leaf aggregation map create a node aggregation list 
-                    const auto node_aggregation_it =
-                        local_leaf_aggregation_it->second.emplace(
-                            std::make_pair(
-                                tileidx_t( target_shift_set_pair_it->first ),
-                                std::forward_list< NodeDisplacementInfo< CoordT > >()
-                            )
-                        ).first;
-
-#pragma omp task default( none )\
-shared( mc_array )\
-firstprivate( local_node_vec_it, remote_node_vec_it,\
-    node_aggregation_it, target_shift_set_pair_it, inverted_pool_driver )
-                    compute_displacement_checks_lists(
-                        node_aggregation_it->second,
-                        inverted_pool_driver ? remote_node_vec_it->second : local_node_vec_it->second,
-                        inverted_pool_driver ? local_node_vec_it->second : remote_node_vec_it->second,
-                        target_shift_set_pair_it->second,
-                        mc_array.get_local_thread_item()
-                    );
-                }
-            }
+#pragma omp atomic
+            rci.total_generated_connections_ += total_conns;
         }
     }
 
-    rpi.tile_pairs_set_.tile_pairs_info_map_.clear();
-    rpi.sender_info_.tile_idx_leaf_nodes_coords_map_.clear();
-    rpi.receiver_info_.tile_idx_leaf_nodes_coords_map_.clear();
-    consolidate_aggregation_map( rpi.displacement_checks_map_, inverted_pool_driver );
+    rpi.sender_info_.filtered_coords_.clear();
+    rpi.receiver_info_.filtered_coords_.clear();
+    rpi.remote_indexed_coord_cache_.clear();
 }
 }
 

@@ -24,11 +24,10 @@
 #define NODE_INSERTION_H
 
 #include <tuple>
-#include <iterator>
 
 #include "tile.h"
 #include "bounding_box.h"
-#include "node_collection.h"
+#include "node_containers.h"
 #include "node_distribution.h"
 #include "grid_neighborhood.h"
 
@@ -42,7 +41,7 @@ space_t distance2( const CoordT& coordA, const CoordT& coordB );
 
 template < typename CoordT >
 bool recursive_bounds_test(
-    CoordT&& coord,
+    const CoordT& coord,
     TiledCoordMap< CoordT >& tile_coord_map,
     const BoundingBox< CoordT >& bounding_box,
     const TileGrid< CoordT >& tile_grid,
@@ -61,20 +60,9 @@ bool recursive_bounds_test(
         );
         if (
             !grid_neighborhood.tile_ranks_ownership_map_[ bounding_box.tile_index_ ].empty() &&
-            tile_grid.positions_[ bounding_box.tile_index_ ].tile_.coord_in_tile(
-                coord
-            ) )
+            tile_grid.positions_[ bounding_box.tile_index_ ].tile_.coord_in_tile( coord ) )
         {
-            auto search = tile_coord_map.find( bounding_box.tile_index_ );
-            if ( search == tile_coord_map.end() )
-                search = tile_coord_map.emplace(
-                    std::make_pair(
-                        tileidx_t( bounding_box.tile_index_ ),
-                        std::list< CoordT >()
-                    )
-                ).first;
-
-            search->second.emplace_back( std::move( coord ) );
+            tile_coord_map[ bounding_box.tile_index_ ].emplace_back( coord );
             inserted = true;
         }
     }
@@ -83,7 +71,7 @@ bool recursive_bounds_test(
         for ( const auto& bb : bounding_box.inner_boxes_ )
         {
             inserted |= recursive_bounds_test(
-                std::move( coord ),
+                coord,
                 tile_coord_map,
                 bb,
                 tile_grid,
@@ -99,55 +87,45 @@ bool recursive_bounds_test(
 
 template < typename CoordT >
 void aggregate_local_node_positions(
-    std::list< CoordT >&& coord_list,
+    std::list< CoordT >& coord_list,
     TiledCoordMap< CoordT >& tiled_coord_map,
-    const tileidx_t& tile_index,
-    const nodeidx_t& move_count,
-    const nodeidx_t& skip_count
+    const tileidx_t tile_index,
+    const nodeidx_t copy_count,
+    const nodeidx_t skip_count
 )
 {
-    assert( 0 < move_count &&
+    assert( 0 < copy_count &&
         0 <= skip_count &&
-        static_cast< std::size_t >( skip_count + move_count ) <= coord_list.size()
+        static_cast< std::size_t >( skip_count + copy_count ) <= coord_list.size()
     );
 
     // This function should only be called once per tile and only for local tiles
-    if ( 0 == skip_count && static_cast< std::size_t >( move_count ) == coord_list.size() )
+    if ( 0 == skip_count && static_cast< std::size_t >( copy_count ) == coord_list.size() )
     {
-        tiled_coord_map.emplace(
-            std::make_pair(
-                tileidx_t( tile_index ),
-                std::move( coord_list )
-            )
-        );
+        tiled_coord_map[ tile_index ].swap( coord_list );
         return;
     }
 
-    const auto emplace_it = tiled_coord_map.emplace(
-        std::make_pair(
-            tileidx_t( tile_index ),
-            std::list< CoordT >()
-        )
-    ).first;
+    auto& tiled_coord_list = tiled_coord_map[ tile_index ];
 
-    nodeidx_t moved_coords = 0;
+    nodeidx_t copied_coords = 0;
     nodeidx_t skipped_coords = 0;
-    auto coord_move_it = std::make_move_iterator( coord_list.begin() );
+    auto coord_it = coord_list.begin();
     while ( !coord_list.empty() )
     {
-        auto coord = *coord_move_it++;
+        auto coord = *coord_it++;
         coord_list.pop_front();
 
         if ( skipped_coords++ < skip_count )
             continue;
 
-        if ( move_count <= moved_coords++ )
+        if ( copy_count <= copied_coords++ )
             break;
 
-        emplace_it->second.emplace_back(
-            std::move( coord )
-        );
+        tiled_coord_list.emplace_back( coord );
     }
+
+    coord_list.clear();
 }
 
 
@@ -181,13 +159,12 @@ void aggregate_tiled_node_count_by_rank(
             tile_owners->size() < std::numeric_limits< tileidx_t >::max()
         );
 
-        const auto node_counts_per_owning_rank = uniform_distribute_node_counts(
-            static_cast< nodeidx_t >( coord_list.size() ),
-            static_cast< tileidx_t >( tile_owners->size() ),
-            rng_manager,
-            true, // balanced
-            true // global
-        );
+        const auto node_counts_per_owning_rank = uniform_distribute_node_counts
+            < nodeidx_t, true, true >(
+                static_cast< nodeidx_t >( coord_list.size() ),
+                static_cast< tileidx_t >( tile_owners->size() ),
+                rng_manager
+            );
 
         nodeidx_t coord_skip = 0;
         auto nc_it = node_counts_per_owning_rank.cbegin();
@@ -197,7 +174,7 @@ void aggregate_tiled_node_count_by_rank(
             if ( count == 0 ) continue;
             node_counts_per_rank[ owner_rank ] += count;
             tiled_node_counts_per_rank[ owner_rank ].emplace_front(
-                std::make_pair( tile_index, count )
+                tile_index, count
             );
 
             if ( owner_rank != grid_neighborhood.local_rank_ )
@@ -206,7 +183,7 @@ void aggregate_tiled_node_count_by_rank(
                 // As tile_owners is a set
                 // this is guaranteed to happen only once per tile
                 aggregate_local_node_positions(
-                    std::move( coord_list ),
+                    coord_list,
                     local_tiled_coord_map,
                     tile_index,
                     count,
@@ -253,23 +230,21 @@ insert_node_positions_in_grid(
         );
 
     TiledCoordMap< CoordT > global_tiled_coords;
-    auto coord_move_it = std::make_move_iterator( coord_list.begin() );
+    auto coord_it = coord_list.begin();
     while ( !coord_list.empty() )
     {
-        auto coord = *coord_move_it++;
+        auto coord = *coord_it++;
         coord_list.pop_front();
 
         if ( !recursive_bounds_test(
-            std::move( coord ),
+            coord,
             global_tiled_coords,
             tile_grid.bounding_box_,
             tile_grid,
             grid_neighborhood
         ) )
         {
-            // If test failed it is guaranteed that coord
-            // was not moved during recursion
-            leftovers.emplace_back( std::move( coord ) );
+            leftovers.emplace_back( coord );
         }
     }
 
@@ -282,7 +257,7 @@ insert_node_positions_in_grid(
         rng_manager
     );
 
-    coord_list = std::move( leftovers );
+    coord_list.swap( leftovers );
 
     return std::make_tuple(
         std::move( node_counts_per_rank ),
@@ -294,7 +269,7 @@ insert_node_positions_in_grid(
 
 template < typename CoordT >
 void recursive_sub_tile_test(
-    CoordT&& coord,
+    const CoordT& coord,
     TiledCoordMap< CoordT >& sub_tile_coord_map,
     const Tile< CoordT >& tile
 )
@@ -303,16 +278,7 @@ void recursive_sub_tile_test(
     // for root tile this is done during recursive bounds test
     if ( tile.sub_tiles_.empty() )
     {
-        auto search = sub_tile_coord_map.find( tile.index_ );
-        if ( search == sub_tile_coord_map.end() )
-            search = sub_tile_coord_map.emplace(
-                    std::make_pair(
-                        tileidx_t( tile.index_ ),
-                        std::list< CoordT >()
-                    )
-            ).first;
-
-        search->second.emplace_back( std::move( coord ) );
+        sub_tile_coord_map[ tile.index_ ].emplace_back( coord );
     }
     else
     {
@@ -328,7 +294,7 @@ void recursive_sub_tile_test(
 
         if ( sub_tile != nullptr )
             recursive_sub_tile_test(
-                std::move( coord ),
+                coord,
                 sub_tile_coord_map,
                 *sub_tile
             );
@@ -338,9 +304,7 @@ void recursive_sub_tile_test(
             for ( const auto& st : tile.sub_tiles_ )
             {
                 const auto distance = distance2(
-                    coord, st.project_point_to_surface(
-                        coord
-                    )
+                    coord, st.project_point_to_surface( coord )
                 );
 
                 if ( std::isless( distance, min_distance ) )
@@ -352,7 +316,7 @@ void recursive_sub_tile_test(
 
             assert( sub_tile != nullptr );
             recursive_sub_tile_test(
-                std::move( coord ),
+                coord,
                 sub_tile_coord_map,
                 *sub_tile
             );
@@ -363,8 +327,8 @@ void recursive_sub_tile_test(
 
 template < typename CoordT >
 void insert_node_positions_in_leafs(
-    std::list< CoordT >&& coord_list,
-    TileNodeCollection< CoordT >& tile_node_col,
+    std::list< CoordT >& coord_list,
+    LeafNodeCollection< CoordT >& leaf_node_col,
     const TilePosition< CoordT >& tile_position,
     const NodeSequence& node_sequence
 )
@@ -372,14 +336,14 @@ void insert_node_positions_in_leafs(
     assert( !coord_list.empty() );
 
     TiledCoordMap< CoordT > sub_tile_coord_map;
-    auto coord_move_it = std::make_move_iterator( coord_list.begin() );
+    auto coord_it = coord_list.begin();
     while ( !coord_list.empty() )
     {
-        auto coord = *coord_move_it++;
+        auto coord = *coord_it++;
         coord_list.pop_front();
 
         recursive_sub_tile_test(
-            std::move( coord ),
+            coord,
             sub_tile_coord_map,
             tile_position.tile_
         );
@@ -395,26 +359,21 @@ void insert_node_positions_in_leafs(
             st_coord_list.size() < std::numeric_limits< nodeidx_t >::max()
         );
 
-        const auto coord_map_it = tile_node_col.sub_tiles_node_coord_map_.find(
-            st_index
-        );
-        assert( coord_map_it != tile_node_col.sub_tiles_node_coord_map_.end() );
+        const auto indexed_coord_col = leaf_node_col.begin() + st_index;
+        assert( indexed_coord_col != leaf_node_col.end() );
 
-        const auto coord_map_emplace_res = coord_map_it->second.emplace(
-            std::make_pair(
-                nodeidx_t( st_node_index ),
-                std::vector< CoordT >( st_coord_list.size() )
-            )
-        );
-        assert( coord_map_emplace_res.second );
+        auto& coord_vec = indexed_coord_col->emplace_back();
+        coord_vec.reserve( st_coord_list.size() );
 
-        st_node_index += static_cast< nodeidx_t >( st_coord_list.size() );
-
-        std::move(
-            st_coord_list.begin(),
-            st_coord_list.end(),
-            coord_map_emplace_res.first->second.begin()
-        );
+        coord_it = st_coord_list.begin();
+        while ( !st_coord_list.empty() )
+        {
+            coord_vec.emplace_back(
+                st_node_index++,
+                *coord_it++
+            );
+            st_coord_list.pop_front();
+        }
 
         st_coord_list.clear();
     }
@@ -434,7 +393,7 @@ void insert_node_positions_in_tiles(
 {
     assert(
         tile_grid.has_split_ &&
-        !grid_node_col.tiles_node_coord_map_.empty()
+        !grid_node_col.empty()
     );
 
     if ( node_seq_per_tile.empty() )
@@ -445,18 +404,18 @@ void insert_node_positions_in_tiles(
     for ( const auto& [tile_index, node_sequence] : node_seq_per_tile )
     {
         const auto tcm_it = tiled_coord_map.find( tile_index );
-        const auto tnc_it = grid_node_col.tiles_node_coord_map_.find( tile_index );
+        const auto tnc_it = grid_node_col.begin() + tile_index;
         assert(
             tcm_it != tiled_coord_map.end() &&
-            tnc_it != grid_node_col.tiles_node_coord_map_.end() &&
+            tnc_it != grid_node_col.end() &&
             0 <= node_sequence.first &&
             0 < node_sequence.second &&
             tcm_it->second.size() == static_cast< std::size_t >( node_sequence.second )
         );
 
         insert_node_positions_in_leafs(
-            std::move( tcm_it->second ),
-            tnc_it->second,
+            tcm_it->second,
+            *tnc_it,
             tile_grid.positions_[ tile_index ],
             node_sequence
         );

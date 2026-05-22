@@ -63,35 +63,19 @@ inline double StopWatch::time() const
 }
 
 
-struct TimerRegister final : public Cloneable< TimerRegister >
+struct TimerRegister
 {
     std::unordered_map< std::string, StopWatch > registered_timers_;
 
     StopWatch* get_register_timer( std::string&& name );
 
     std::unordered_map< std::string, double > to_map() const;
-
-    std::unique_ptr< TimerRegister > clone() const override;
 };
 
 
 inline StopWatch* TimerRegister::get_register_timer( std::string&& name )
 {
-    auto search = registered_timers_.find( name );
-    if ( search == registered_timers_.end() )
-        search = registered_timers_.emplace(
-            std::make_pair(
-                std::move( name ),
-                StopWatch()
-            )
-        ).first;
-    return &search->second;
-}
-
-
-inline std::unique_ptr< TimerRegister > TimerRegister::clone() const
-{
-    return std::make_unique< TimerRegister >();
+    return &registered_timers_[ std::move( name ) ];
 }
 
 
@@ -107,11 +91,6 @@ struct RecordedTimes
 class TimerManager
 {
 public:
-    TimerManager();
-    TimerManager( const TimerManager& ) = delete;
-    TimerManager( TimerManager&& ) = default;
-    ~TimerManager() = default;
-
     void initialize();
 
     bool is_initialized() const;
@@ -123,7 +102,6 @@ public:
     RecordedTimes get_times() const;
 
 protected:
-    bool initialized_ = false;
     std::unique_ptr< TimerRegister > rank_registry_;
     TAArray< TimerRegister > thread_registers_;
 };
@@ -133,26 +111,24 @@ inline void TimerManager::initialize()
 {
     rank_registry_ = std::make_unique< TimerRegister >();
     thread_registers_.clone( TimerRegister() );
-    initialized_ = true;
 }
 
 
 inline bool TimerManager::is_initialized() const
 {
-    return initialized_;
+    return rank_registry_ && thread_registers_.is_initialized();
 }
 
 
 inline TimerRegister* TimerManager::get_rank_registry() const
 {
-    assert( initialized_ );
+    assert( rank_registry_ );
     return rank_registry_.get();
 }
 
 
 inline TimerRegister* TimerManager::get_thread_registry() const
 {
-    assert( initialized_ );
     return thread_registers_.get_thread_item( get_thread_num() );
 }
 }

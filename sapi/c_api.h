@@ -35,97 +35,97 @@ namespace sapi
 // Forward definition to link with spatial_manager.h
 class BaseSpatialManager;
 
-class CAPI
+struct CAPI
 {
-public:
     CAPI();
     CAPI( const CAPI& ) = delete;
-    CAPI( CAPI&& ) = default;
-    ~CAPI() = default;
+    CAPI( CAPI&& ) noexcept = default;
+    ~CAPI() noexcept = default;
+
+    CAPI& operator=( const CAPI& ) = delete;
+    CAPI& operator=( CAPI&& ) = delete;
 
     void reset();
     void free_gc();
+    void free_view_gc();
 
     vp_t get_rank() const;
-    void set_rank( const vp_t& rank );
+    void set_rank( const vp_t rank );
 
     vp_t get_num_processes() const;
-    void set_num_processes( const vp_t& num_processes );
+    void set_num_processes( const vp_t num_processes );
 
     vp_t get_num_threads() const;
-    void set_num_threads( const vp_t& num_threads );
+    void set_num_threads( const vp_t num_threads );
 
-    uint32_t get_rng_seed() const;
-    void set_rng_seed( const uint32_t& seed );
+    rng_seed_t get_rng_seed() const;
+    void set_rng_seed( const rng_seed_t seed );
 
     CharArray* get_rng_type();
     void set_rng_type( const CharArray& rng_type );
 
     void generate_tile_grid(
-        const SpaceTArray& grid_origin,
-        const TileIdxArray& grid_dimensions,
-        const CharArray& tile_type,
-        const SpaceTArray& tile_side_lengths,
-        const AngleTArray& tile_angular_offsets,
-        const NestedTileIdxArray& rank_tiles_ownership_map,
-        const split_t& num_splits
+        const NestedTileIdxArray& rank_tiles_ownership,
+        const GPStruct& grid_parameters,
+        const split_t num_splits
     );
 
     NodeCountVector
         generate_nodes_in_grid(
-            const largenodeidx_t& num_nodes,
-            const TileIdxArray& tile_set,
-            const uint8_t& distribution_mode
+            const largenodeidx_t num_nodes,
+            const TileIdxArray& target_tiles,
+            const uint8_t distribution_mode
         );
 
     std::size_t generate_nodes_in_tiles(
-        const RankNodeSequenceMap& node_sequence_map,
-        const uint8_t& distribution_mode
+        const RankNodeSequenceMap& node_sequences_per_rank,
+        const uint8_t distribution_mode
     );
 
     std::pair< NodeCountVector, NestedSpaceTArray* >
         insert_positions_in_grid(
-            const NestedSpaceTArray& anycoord_array
+            const NestedSpaceTArray& positions
         );
 
     std::size_t insert_positions_in_tiles(
-        const RankNodeSequenceMap& node_sequence_map
+        const RankNodeSequenceMap& node_sequences_per_rank
     );
 
-    std::pair< std::size_t, RankConnectionInfo* >
+    std::pair< std::size_t, DistributedConnectionInfo* >
         compute_spatial_connections(
-        const std::size_t& dist_tns_source_index,
-        const std::size_t& dist_tns_target_index,
-        const MPStruct& mask_params,
-        const CPStruct& conn_params
+            const std::size_t source_index,
+            const std::size_t target_index,
+            const MPStruct& mask_parameters,
+            const CPStruct& connection_parameters
+        );
+
+    NodesViewStruct* view_nodes(
+        const OptionalIndex& index,
+        const MPStruct& mask_parameters
     );
 
-    NestedNodeCoordPairArray* get_nodes(
-        const OptionalIndex& opt_dist_tns_index,
-        const MPStruct& mask_params
-    );
+    RemoteConnectionViewPair*
+        view_spatial_connections(
+            const std::size_t index
+        );
+
+    GridViewStruct* view_grid_vertices();
 
     TiledNodeSequencePairArray*
         get_distributed_node_sequences(
-        const std::size_t& dist_tns_index
-    );
-
-    RemoteConnectionInfoPair*
-        get_spatial_connections(
-        const std::size_t& conn_map_idx
-    );
-
-    GridTileVerticesPairArray* get_grid_vertices();
+            const std::size_t index
+        );
 
     RecordedTimesArrayPair* get_timer_data();
 
 private:
     vp_t local_rank_ = 0;
     vp_t num_processes_ = 1;
-    uint32_t seed_ = DEFAULT_BASE_SEED_;
+    rng_seed_t seed_ = DEFAULT_BASE_SEED_;
     std::string rng_type_ = DEFAULT_RNG_TYPE_;
 
     GC gc_;
+    GC view_gc_;
     GC spatial_storage_;
     BaseSpatialManager* spatial_manager_ = nullptr;
 };

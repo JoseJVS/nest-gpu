@@ -23,8 +23,10 @@
 #ifndef NODE_CREATION_H
 #define NODE_CREATION_H
 
+#include <optional>
+
 #include "tile.h"
-#include "node_collection.h"
+#include "node_containers.h"
 #include "node_distribution.h"
 #include "grid_neighborhood.h"
 
@@ -50,6 +52,47 @@ get_distribution_mode( I&& mode )
 }
 
 
+template < bool balanced >
+void aggregate_tiled_node_count_by_rank(
+    NodeCountVector& node_counts_per_rank,
+    TileIdxNodeCountPairListVector& tiled_node_counts_per_rank,
+    const tileidx_t tile_index,
+    const nodeidx_t node_count_in_tile,
+    const GridNeighborhood& grid_neighborhood,
+    const RandomManager& rng_manager
+)
+{
+    assert( 0 <= node_count_in_tile );
+
+    if ( node_count_in_tile == 0 )
+        return;
+
+    const auto tile_owners = grid_neighborhood.tile_ranks_ownership_map_.cbegin() + tile_index;
+    assert( tile_owners != grid_neighborhood.tile_ranks_ownership_map_.end() );
+    if ( tile_owners->empty() )
+        throw std::runtime_error( "Tile with allocated nodes has no owning rank" );
+
+    const auto node_counts_per_owning_rank = uniform_distribute_node_counts
+        < nodeidx_t, balanced, true >(
+            node_count_in_tile,
+            static_cast< tileidx_t >( tile_owners->size() ),
+            rng_manager
+        );
+    assert( node_counts_per_owning_rank.size() == tile_owners->size() );
+
+    auto nc_it = node_counts_per_owning_rank.cbegin();
+    for ( const auto& owner_rank : *tile_owners )
+    {
+        const auto count = *nc_it++;
+        if ( count == 0 ) continue;
+        node_counts_per_rank[ owner_rank ] += count;
+        tiled_node_counts_per_rank[ owner_rank ].emplace_front(
+            std::make_pair( tile_index, count )
+        );
+    }
+}
+
+
 // Here both returned vectors are in size == num processes.
 // The first vector contains the total number of nodes
 // to be instantiated in each rank.
@@ -62,12 +105,12 @@ template <
 >
 std::pair< NodeCountVector, TileIdxNodeCountPairListVector >
 distribute_node_counts_in_grid(
-    const I& num_nodes,
+    const I num_nodes,
     const std::optional< std::set< tileidx_t > >& tile_set,
     const TileGrid< CoordT >& tile_grid,
     const GridNeighborhood& grid_neighborhood,
     const RandomManager& rng_manager,
-    const DISTRIBUTION_MODE& mode
+    const DISTRIBUTION_MODE mode
 )
 {
     assert(
@@ -90,7 +133,7 @@ distribute_node_counts_in_grid(
         throw std::invalid_argument(
             "Distribution of a large number of nodes can only be done over all tiles"
         );
-    if ( large_distribution && mode != grid_neighborhood.rank_tile_bijection_ )
+    if ( large_distribution && !grid_neighborhood.rank_tile_bijection_ )
         throw std::invalid_argument(
             "Distribution of a large number of nodes can only be done over a bijected grid"
         );
@@ -118,40 +161,63 @@ firstprivate( num_nodes, large_distribution, mode )
 #pragma omp master
 #pragma omp taskgroup
     {
-        const auto balanced = mode == DISTRIBUTION_MODE::BALANCED;
-        const auto node_counts_per_tile = large_distribution
-            ? uniform_distribute_node_counts(
-                static_cast< largenodeidx_t >( num_nodes ),
-                tile_grid.num_tiles_,
-                rng_manager,
-                true, // balanced
-                true // global
-            )
-            : tile_set.has_value()
-            ? uniform_distribute_node_counts(
-                static_cast< nodeidx_t >( num_nodes ),
-                //Given that tiles are uniquely indexed with tileidx_t
-                // the size of tile set will always fit in tileidx_t
-                static_cast< tileidx_t >( tile_set.value().size() ),
-                rng_manager,
-                balanced,
-                true // global
-            )
-            : mode == DISTRIBUTION_MODE::FREE
-            ? uniform_distribute_node_counts(
-                static_cast< nodeidx_t >( num_nodes ),
-                tile_grid.num_tiles_,
-                tile_grid.dimensions_,
-                rng_manager,
-                true // global
-            )
-            : uniform_distribute_node_counts(
-                static_cast< nodeidx_t >( num_nodes ),
-                tile_grid.num_tiles_,
-                rng_manager,
-                balanced,
-                true // global
-            );
+        NodeCountVector node_counts_per_tile;
+
+        switch ( mode )
+        {
+        case DISTRIBUTION_MODE::FREE:
+        {
+            node_counts_per_tile = uniform_distribute_node_counts
+                < nodeidx_t, GridPosition< CoordT >, true >(
+                    num_nodes,
+                    tile_grid.num_tiles_,
+                    tile_grid.dimensions_,
+                    rng_manager
+                );
+
+            break;
+        }
+
+        case DISTRIBUTION_MODE::SQUEEZED:
+        {
+            node_counts_per_tile = uniform_distribute_node_counts
+                < nodeidx_t, false, true >(
+                    num_nodes,
+                    tile_set.has_value()
+                    ? static_cast< tileidx_t >( tile_set->size() )
+                    : tile_grid.num_tiles_,
+                    rng_manager
+                );
+
+            break;
+        }
+
+        default:
+        {
+            if ( large_distribution )
+                node_counts_per_tile = uniform_distribute_node_counts
+                < largenodeidx_t, true, true >(
+                    num_nodes,
+                    tile_grid.num_tiles_,
+                    rng_manager
+                );
+            else
+                node_counts_per_tile = uniform_distribute_node_counts
+                < nodeidx_t, true, true >(
+                    num_nodes,
+                    tile_set.has_value()
+                    ? static_cast< tileidx_t >( tile_set->size() )
+                    : tile_grid.num_tiles_,
+                    rng_manager
+                );
+
+            break;
+        }
+        }
+
+        assert( tile_set.has_value()
+            ? node_counts_per_tile.size() == tile_set->size()
+            : node_counts_per_tile.size() == static_cast< std::size_t >( tile_grid.num_tiles_ ) );
 
         if ( grid_neighborhood.rank_tile_bijection_ && !tile_set.has_value() )
         {
@@ -161,36 +227,65 @@ firstprivate( num_nodes, large_distribution, mode )
                 const auto tile_counts = node_counts_per_tile[ owned_tile ];
                 node_counts_per_rank[ rank ] = tile_counts;
                 tiled_node_counts_per_rank[ rank ].emplace_front(
-                    std::make_pair( owned_tile, tile_counts )
+                    owned_tile, tile_counts
                 );
             }
         }
         else if ( tile_set.has_value() )
         {
             auto nc_it = node_counts_per_tile.cbegin();
-            for ( const auto& tile_index : tile_set.value() )
-                aggregate_tiled_node_count_by_rank(
-                    node_counts_per_rank,
-                    tiled_node_counts_per_rank,
-                    tile_index,
-                    *nc_it++,
-                    grid_neighborhood,
-                    rng_manager,
-                    balanced
-                );
+            if ( mode == DISTRIBUTION_MODE::BALANCED )
+            {
+                for ( const auto& tile_index : tile_set.value() )
+                    aggregate_tiled_node_count_by_rank< true >(
+                        node_counts_per_rank,
+                        tiled_node_counts_per_rank,
+                        tile_index,
+                        *nc_it++,
+                        grid_neighborhood,
+                        rng_manager
+                    );
+            }
+            else
+            {
+                for ( const auto& tile_index : tile_set.value() )
+                    aggregate_tiled_node_count_by_rank< false >(
+                        node_counts_per_rank,
+                        tiled_node_counts_per_rank,
+                        tile_index,
+                        *nc_it++,
+                        grid_neighborhood,
+                        rng_manager
+                    );
+            }
         }
-        else {
+        else
+        {
             auto nc_it = node_counts_per_tile.cbegin();
-            for ( tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_; ++tile_index )
-                aggregate_tiled_node_count_by_rank(
-                    node_counts_per_rank,
-                    tiled_node_counts_per_rank,
-                    tile_index,
-                    *nc_it++,
-                    grid_neighborhood,
-                    rng_manager,
-                    balanced
-                );
+            if ( mode == DISTRIBUTION_MODE::BALANCED )
+            {
+                for ( tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_; ++tile_index )
+                    aggregate_tiled_node_count_by_rank< true >(
+                        node_counts_per_rank,
+                        tiled_node_counts_per_rank,
+                        tile_index,
+                        *nc_it++,
+                        grid_neighborhood,
+                        rng_manager
+                    );
+            }
+            else
+            {
+                for ( tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_; ++tile_index )
+                    aggregate_tiled_node_count_by_rank< false >(
+                        node_counts_per_rank,
+                        tiled_node_counts_per_rank,
+                        tile_index,
+                        *nc_it++,
+                        grid_neighborhood,
+                        rng_manager
+                    );
+            }
         }
     }
 
@@ -200,95 +295,148 @@ firstprivate( num_nodes, large_distribution, mode )
 }
 
 
+template < typename CoordT, bool use_branches, bool balanced >
+void distribute_node_counts_in_tiles(
+    GridNodeCollection< CoordT >& grid_node_col,
+    const TileIdxNodeSequenceMap& node_seq_per_tile,
+    const TileGrid< CoordT >& tile_grid,
+    const RandomManager& rng_manager
+)
+{
+#pragma omp parallel default( none )\
+shared( node_seq_per_tile, grid_node_col, tile_grid, rng_manager )
+#pragma omp master
+#pragma omp taskgroup
+{
+    for ( const auto& [tile_index, node_sequence] : node_seq_per_tile )
+    {
+        assert( 0 <= node_sequence.first && 0 < node_sequence.second );
+
+        const auto tile_nc_it = grid_node_col.begin() + tile_index;
+        const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
+        assert( tile_nc_it != grid_node_col.end()
+            && !tile_nc_it->empty()
+            && tile_pos_it != tile_grid.positions_.cend()
+            && tile_nc_it->size() == tile_pos_it->tile_.leaf_tiles_.size() );
+
+
+        NodeCountVector node_count_per_sub_tile;
+
+        if constexpr ( use_branches )
+        {
+            node_count_per_sub_tile = uniform_distribute_node_counts
+                < nodeidx_t, std::vector< split_t >, false >(
+                    node_sequence.second,
+                    static_cast< tileidx_t >( tile_nc_it->size() ),
+                    tile_pos_it->tile_.get_possible_sub_tile_branches( tile_grid.splits_ ),
+                    rng_manager
+                );
+        }
+        else
+        {
+            node_count_per_sub_tile = uniform_distribute_node_counts
+                < nodeidx_t, balanced, false >(
+                    node_sequence.second,
+                    static_cast< tileidx_t >( tile_nc_it->size() ),
+                    rng_manager
+                );
+        }
+
+        assert( node_count_per_sub_tile.size() == tile_nc_it->size() );
+
+        auto st_nc_it = tile_nc_it->begin();
+        nodeidx_t st_node_index = node_sequence.first;
+        auto leaf_it = tile_pos_it->tile_.leaf_tiles_.cbegin();
+        for ( const auto& node_count : node_count_per_sub_tile )
+        {
+            if ( 0 < node_count )
+            {
+#pragma omp task default( none ) shared( rng_manager )\
+firstprivate( st_nc_it, leaf_it, st_node_index, node_count, tile_index )
+                st_nc_it->emplace_back(
+                    ( *leaf_it )->generate_coords_in_tile(
+                        st_node_index, node_count,
+                        *rng_manager.reseed_rank_paired_rng(
+                            tile_index, ( *leaf_it )->index_
+                        )
+                    )
+                );
+
+                st_node_index += node_count;
+            }
+
+            ++leaf_it;
+            ++st_nc_it;
+        }
+        assert( ( st_node_index - node_sequence.first ) == node_sequence.second );
+    }
+}
+}
+
+
 template < typename CoordT >
 void distribute_node_counts_in_tiles(
     GridNodeCollection< CoordT >& grid_node_col,
     const TileIdxNodeSequenceMap& node_seq_per_tile,
     const TileGrid< CoordT >& tile_grid,
     const RandomManager& rng_manager,
-    const DISTRIBUTION_MODE& mode
+    const DISTRIBUTION_MODE mode
 )
 {
     assert(
         tile_grid.has_split_ &&
-        !grid_node_col.tiles_node_coord_map_.empty() &&
+        !grid_node_col.empty() &&
         rng_manager.is_initialized()
     );
 
     if ( node_seq_per_tile.empty() )
         throw std::invalid_argument( "Cannot generate nodes with empty node sequences" );
 
-#pragma omp parallel default( none )\
-shared( node_seq_per_tile, grid_node_col, tile_grid, rng_manager, mode )
-#pragma omp master
-#pragma omp taskgroup
+    switch ( mode )
     {
-        const auto free = mode == DISTRIBUTION_MODE::FREE;
-        const auto balanced = mode == DISTRIBUTION_MODE::BALANCED;
-        for ( const auto& [tile_index, node_sequence] : node_seq_per_tile )
-        {
-            assert( 0 <= node_sequence.first && 0 < node_sequence.second );
+    case DISTRIBUTION_MODE::FREE:
+    {
+        distribute_node_counts_in_tiles
+            < CoordT, true, false >(
+                grid_node_col,
+                node_seq_per_tile,
+                tile_grid,
+                rng_manager
+            );
 
-            const auto tile_nc_it = grid_node_col.tiles_node_coord_map_.find( tile_index );
-            assert( tile_nc_it != grid_node_col.tiles_node_coord_map_.end() );
-            const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
-
-            const auto node_count_per_sub_tile = free
-                ? uniform_distribute_node_counts(
-                    node_sequence.second,
-                    static_cast< tileidx_t >( tile_nc_it->second.sub_tiles_vector_.size() ),
-                    tile_pos_it->tile_.get_possible_sub_tile_branches( tile_grid.splits_ ),
-                    rng_manager,
-                    false // global
-                )
-                : uniform_distribute_node_counts(
-                    node_sequence.second,
-                    static_cast< tileidx_t >( tile_nc_it->second.sub_tiles_vector_.size() ),
-                    rng_manager,
-                    balanced,
-                    false // global
-                );
-
-            nodeidx_t st_node_index = node_sequence.first;
-            auto st_it = tile_nc_it->second.sub_tiles_vector_.cbegin();
-            for ( const auto& node_count : node_count_per_sub_tile )
-            {
-                if ( node_count < 1 )
-                {
-                    ++st_it;
-                    continue;
-                }
-
-                const auto sub_tile = *st_it++;
-                const auto coord_map_it = tile_nc_it->second.sub_tiles_node_coord_map_.find(
-                    sub_tile->index_
-                );
-                assert( coord_map_it != tile_nc_it->second.sub_tiles_node_coord_map_.end() );
-
-#pragma omp task default( none ) shared( rng_manager )\
-firstprivate( sub_tile, st_node_index, node_count, coord_map_it, tile_index )
-                {
-                    const auto tid = get_thread_num();
-                    const auto rng = rng_manager.reseed_rank_paired_rng(
-                        tid, rng_manager.local_rank_, false,
-                        tile_index, sub_tile->index_
-                    );
-                    const auto coord_map_emplace_res =
-                        coord_map_it->second.emplace(
-                            std::make_pair(
-                                nodeidx_t( st_node_index ),
-                                std::vector< CoordT >( node_count )
-                            )
-                        );
-                    assert( coord_map_emplace_res.second );
-                    sub_tile->generate_coords_in_tile( coord_map_emplace_res.first->second, *rng );
-                }
-
-                st_node_index += node_count;
-            }
-            assert( ( st_node_index - node_sequence.first ) == node_sequence.second );
-        }
+        break;
     }
+
+    case DISTRIBUTION_MODE::SQUEEZED:
+    {
+        distribute_node_counts_in_tiles
+            < CoordT, false, false >(
+                grid_node_col,
+                node_seq_per_tile,
+                tile_grid,
+                rng_manager
+            );
+
+        break;
+    }
+
+    default:
+    {
+        distribute_node_counts_in_tiles
+            < CoordT, false, true >(
+                grid_node_col,
+                node_seq_per_tile,
+                tile_grid,
+                rng_manager
+            );
+
+        break;
+    }
+    }
+
+    rng_manager.update_rank_paired_seed(
+        rng_manager.local_rank_
+    );
 }
 }
 

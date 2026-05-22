@@ -25,294 +25,620 @@
 
 #include <random>
 
-#include "enum_store.h"
-#include "mask_containers.h"
 #include "numeric_functors.h"
-#include "type_erasure_helpers.h"
 #include "connection_containers.h"
 
 
 namespace sapi
 {
+// Forward definition to mask.h
 template < typename CoordT >
-inline bool remove_self_target(
-    std::map< nodeidx_t, Displacement< CoordT > >& pool_map,
-    const nodeidx_t& driver_index,
-    const bool& allow_self_connections
-)
-{
-    if ( allow_self_connections )
-        return false;
+struct Mask;
 
-    if ( const auto self_search =
-        pool_map.find( driver_index );
-        self_search != pool_map.end() )
-    {
-        pool_map.erase( self_search );
-        if ( pool_map.empty() )
-            return true;
-    }
+// Forward definition to coordinates.h
+template < typename CoordT >
+struct Displacement;
+template < typename CoordT >
+using OptDisp = std::pair< bool, Displacement< CoordT > >;
 
-    return false;
-}
+// Forward definition to link with type_erasure_helpers.h
+template < typename RT,
+    typename std::enable_if_t<
+    std::disjunction_v<
+    std::is_same< RT, uint32_t >,
+    std::is_same< RT, uint64_t >
+    >
+    , bool > b
+>
+class AnyRNG_T;
+typedef AnyRNG_T< rng_bits_t, true > AnyRNG;
 
 
-template < typename DistributionT >
-inline mult_t draw_connection_multiplicity(
+template < typename DistributionT, bool allow_multiplicity >
+inline count_t draw_connections(
     AnyRNG& rng,
     DistributionT& dist,
-    const space_t& probability_value,
-    const bool& allow_multiplicity
+    const conn_param_t probability
 )
 {
-    if constexpr ( std::is_same_v< DistributionT, std::uniform_real_distribution< space_t > > )
+    if constexpr ( std::is_same_v< DistributionT, std::uniform_real_distribution< conn_param_t > > )
     {
-        return std::isless( dist( rng ), probability_value );
+        return std::isless( dist( rng ), probability );
     }
     else
     {
         dist.param(
-            static_cast< typename DistributionT::param_type >( probability_value )
+            typename DistributionT::param_type(
+                static_cast< typename DistributionT::result_type >( probability )
+            )
         );
-        return allow_multiplicity
-            ? static_cast< mult_t >( dist( rng ) )
-            : static_cast< mult_t >( std::isless( 0, dist( rng ) ) );
-    }
-}
-
-
-template < typename CoordT, typename DistributionT >
-void compute_probabilistic_connections(
-    TileConnectionInfo& tci,
-    std::forward_list< ConnectionInfo >& conn_list,
-    ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
-    AnyRNG& rng,
-    DistributionT& dist,
-    const NFCollection& cfc,
-    const mult_t& max_connections,
-    const bool& allow_multiplicity,
-    const bool& allow_self_connections
-)
-{
-    assert(
-        conn_list.empty() &&
-        !displacement_map.empty() &&
-        cfc.weight_functor_.is_initialized() &&
-        cfc.delay_functor_.is_initialized() &&
-        cfc.probability_functor_.is_initialized()
-    );
-
-    count_t total_connections = 0;
-    const bool track_connections = 0 < max_connections;
-    for ( auto& [driver_index, pool_map] : displacement_map )
-    {
-        assert( !pool_map.empty() );
-
-        if ( remove_self_target(
-            pool_map, driver_index, allow_self_connections
-        ) ) continue;
-
-        mult_t driver_connections = 0;
-        for ( auto& [pool_index, displacement] : pool_map )
+        if constexpr ( allow_multiplicity )
         {
-            if ( track_connections && max_connections <= driver_connections )
-                break;
-
-            auto multiplicity = draw_connection_multiplicity(
-                rng,
-                dist,
-                cfc.probability_functor_( displacement ),
-                allow_multiplicity
-            );
-
-            if ( multiplicity < 1 ) continue;
-
-            if ( track_connections )
-            {
-                if ( ( driver_connections + multiplicity ) <= max_connections )
-                {
-                    driver_connections += multiplicity;
-                }
-                else
-                {
-                    multiplicity = max_connections - driver_connections;
-                    driver_connections = max_connections;
-                }
-            }
-
-            total_connections += multiplicity;
-
-            conn_list.emplace_front(
-                ConnectionInfo(
-                    conn_index_t( driver_index ),
-                    conn_index_t( pool_index ),
-                    conn_param_t( cfc.weight_functor_( displacement ) ),
-                    conn_param_t( cfc.delay_functor_( displacement ) ),
-                    mult_t( multiplicity )
-                )
-            );
+            return dist( rng );
         }
-
-        pool_map.clear();
+        else
+        {
+            return 0 < dist( rng );
+        }
     }
-
-    assert( 0 <= total_connections );
-
-    displacement_map.clear();
-
-    if ( 0 < total_connections )
-#pragma omp atomic
-        tci.total_generated_connections_ += total_connections;
 }
-
-
-std::vector< mult_t >
-generate_connection_counts(
-    AnyRNG& rng,
-    const std::size_t& available_targets,
-    const mult_t& expected_connection_count,
-    const bool& allow_multiplicity
-);
 
 
 template < typename CoordT >
-void compute_fixed_number_connections(
-    TileConnectionInfo& tci,
-    std::forward_list< ConnectionInfo >& conn_list,
-    ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
-    AnyRNG& rng,
-    const NFCollection& cfc,
-    const mult_t& expected_connection_counts,
-    const bool& allow_multiplicity,
-    const bool& allow_self_connections
+inline void check_minimal_displacement(
+    OptDisp< CoordT >&& computed_displacement,
+    OptDisp< CoordT >& tracked_minimum
 )
 {
-    assert(
-        conn_list.empty() &&
-        !displacement_map.empty() &&
-        cfc.weight_functor_.is_initialized() &&
-        cfc.delay_functor_.is_initialized() &&
-        !cfc.probability_functor_.is_initialized()
-    );
-
-    if ( expected_connection_counts == 0 )
+    if ( ( !tracked_minimum.first && computed_displacement.first )
+        || ( computed_displacement.first && std::isless(
+            computed_displacement.second.distance2_, tracked_minimum.second.distance2_
+        ) ) )
     {
-        displacement_map.clear();
+        tracked_minimum.first = true;
+        tracked_minimum.second = computed_displacement.second;
+    }
+}
+
+
+template < typename CoordT, typename DistributionT, bool allow_self_connections, bool allow_multiplicity >
+count_t compute_minimal_displacement(
+    AnyRNG& rng,
+    DistributionT& dist,
+    std::deque< ConnectionInfo >& connections,
+    const std::pair< nodeidx_t, CoordT >& driver_node,
+    const std::pair< nodeidx_t, CoordT >& pool_node,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const CoordT* const image_displacements,
+    const shift_t total_displacements,
+    const count_t used_displacements,
+    const count_t conn_limit
+)
+{
+    assert( 0 < conn_limit );
+
+    if constexpr ( !allow_self_connections )
+    {
+        if ( driver_node.first == pool_node.first )
+            return conn_limit;
+    }
+
+    OptDisp< CoordT > min_displacement;
+    for ( shift_t index = 0; index < total_displacements; ++index )
+        if ( 0 != ( used_displacements & 1ul << index ) )
+            check_minimal_displacement(
+                mask.coord_in_mask(
+                    driver_node.second,
+                    pool_node.second + image_displacements[ index ]
+                ),
+                min_displacement
+            );
+
+    if ( !min_displacement.first ) return conn_limit;
+
+    if constexpr ( std::is_same_v< DistributionT, std::poisson_distribution< count_t > > )
+    {
+        const count_t multiplicity = std::min( conn_limit,
+            draw_connections< DistributionT, allow_multiplicity >(
+                rng,
+                dist,
+                functors.probability_functor_( min_displacement.second )
+            ) );
+
+        const auto weight = functors.weight_functor_( min_displacement.second );
+        const auto delay = functors.delay_functor_( min_displacement.second );
+        for ( count_t i = 0; i < multiplicity; ++i )
+            connections.emplace_back(
+                construct_connection_info(
+                    pool_node.first,
+                    weight,
+                    delay
+                )
+            );
+
+        return conn_limit - multiplicity;
+    }
+    else
+    {
+        if (
+            ( bool ) draw_connections< DistributionT, allow_multiplicity >(
+                rng,
+                dist,
+                functors.probability_functor_( min_displacement.second )
+            )
+            )
+        {
+            connections.emplace_back(
+                construct_connection_info(
+                    pool_node.first,
+                    functors.weight_functor_( min_displacement.second ),
+                    functors.delay_functor_( min_displacement.second )
+                )
+            );
+
+            return conn_limit - 1;
+        }
+
+        return conn_limit;
+    }
+}
+
+
+template < typename CoordT, typename DistributionT, bool allow_self_connections, bool allow_multiplicity >
+count_t generate_probabilistic_connections(
+    AnyRNG& rng,
+    DistributionT& dist,
+    ProceduralConnectivityBlocks& proc_block,
+    ConnectionTask< CoordT >& task,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const count_t connection_counts
+)
+{
+    assert( proc_block.empty()
+        && task.pivot_vector_ != nullptr
+        && 0 < task.total_possible_combinations_
+        && functors.probability_functor_.is_initialized() );
+
+    count_t tracked_conn_counts = 0;
+    const count_t individual_max_conns = 0 < connection_counts
+        ? connection_counts
+        : task.total_possible_combinations_;
+
+    proc_block.resize( task.pivot_vector_->size() );
+    auto block_it = proc_block.begin();
+    for ( const auto& driver_ptr : *task.pivot_vector_ )
+    {
+        const auto& driver_pair = *driver_ptr;
+        block_it->first = driver_pair.first;
+        count_t individual_conn_counts = individual_max_conns;
+
+        for ( const auto& combination : task.possible_combinations_ )
+        {
+            const auto i_displacements = combination.second.image_displacements_->data();
+            const shift_t total_displacements = static_cast< shift_t >(
+                combination.second.image_displacements_->size() );
+
+            for ( const auto& pool_pair : *combination.second.possible_pairs_ )
+            {
+                individual_conn_counts = compute_minimal_displacement<
+                    CoordT, DistributionT,
+                    allow_self_connections, allow_multiplicity
+                >(
+                    rng,
+                    dist,
+                    block_it->second,
+                    driver_pair,
+                    *pool_pair,
+                    mask,
+                    functors,
+                    i_displacements,
+                    total_displacements,
+                    combination.second.used_displacements_,
+                    individual_conn_counts
+                );
+
+                if ( individual_conn_counts < 1 )
+                    break;
+            }
+
+            if ( individual_conn_counts < 1 )
+                break;
+        }
+
+        assert( 0 <= individual_conn_counts );
+
+        tracked_conn_counts += individual_max_conns - individual_conn_counts;
+        ++block_it;
+    }
+
+    assert( 0 <= tracked_conn_counts );
+
+    task.possible_combinations_.clear();
+
+    return tracked_conn_counts;
+}
+
+
+template < typename CoordT, bool allow_self_connections, bool inverted_pivot, bool compute_probability >
+void compute_minimal_displacement(
+    std::deque< ConnectionInfo >& possible_connections,
+    std::deque< conn_param_t >& connection_probabilities,
+    const std::pair< nodeidx_t, CoordT >& driver_node,
+    const std::pair< nodeidx_t, CoordT >& pool_node,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const CoordT* const image_displacements,
+    const shift_t total_displacements,
+    const count_t used_displacements
+)
+{
+    if constexpr ( !allow_self_connections )
+    {
+        if ( driver_node.first == pool_node.first )
+            return;
+    }
+
+    OptDisp< CoordT > min_displacement;
+    for ( shift_t index = 0; index < total_displacements; ++index )
+        if ( 0 != ( used_displacements & 1ul << index ) )
+            check_minimal_displacement(
+                mask.coord_in_mask(
+                    driver_node.second,
+                    pool_node.second + image_displacements[ index ]
+                ),
+                min_displacement
+            );
+
+    if ( !min_displacement.first ) return;
+
+    if constexpr ( inverted_pivot )
+    {
+        possible_connections.emplace_back(
+            construct_connection_info(
+                driver_node.first,
+                functors.weight_functor_( min_displacement.second ),
+                functors.delay_functor_( min_displacement.second )
+            )
+        );
+    }
+    else
+    {
+        possible_connections.emplace_back(
+            construct_connection_info(
+                pool_node.first,
+                functors.weight_functor_( min_displacement.second ),
+                functors.delay_functor_( min_displacement.second )
+            )
+        );
+    }
+
+    if constexpr ( compute_probability )
+    {
+        connection_probabilities.emplace_back(
+            functors.probability_functor_( min_displacement.second )
+        );
+    }
+}
+
+
+template < bool allow_multiplicity, bool has_kernel >
+void compute_fixed_connections(
+    AnyRNG& rng,
+    std::deque< ConnectionInfo >& selected_connections,
+    std::deque< ConnectionInfo >& possible_connections,
+    std::deque< conn_param_t >& connection_probabilities,
+    const count_t connection_counts
+)
+{
+    assert( selected_connections.empty() );
+
+    // Guaranteed cast from total possible combinations count
+    const count_t available_counts = static_cast< count_t >( possible_connections.size() );
+
+    if ( available_counts == 0 || available_counts == connection_counts )
+    {
+        selected_connections.swap( possible_connections );
         return;
     }
 
-    count_t total_connections = 0;
-    for ( auto& [driver_index, pool_map] : displacement_map )
+    if ( available_counts < connection_counts )
     {
-        assert( !pool_map.empty() );
-
-        if ( remove_self_target(
-            pool_map, driver_index, allow_self_connections
-        ) ) continue;
-
-        const auto connection_counts = generate_connection_counts(
-            rng,
-            pool_map.size(),
-            expected_connection_counts,
-            allow_multiplicity
-        );
-
-        auto connection_count_it = connection_counts.cbegin();
-        for ( auto& [pool_index, displacement] : pool_map )
+        if constexpr ( allow_multiplicity )
         {
-            const auto multiplicity = *connection_count_it++;
-            if ( multiplicity < 1 ) continue;
-
-            total_connections += multiplicity;
-
-            conn_list.emplace_front(
-                ConnectionInfo(
-                    conn_index_t( driver_index ),
-                    conn_index_t( pool_index ),
-                    conn_param_t( cfc.weight_functor_( displacement ) ),
-                    conn_param_t( cfc.delay_functor_( displacement ) ),
-                    mult_t( multiplicity )
-                )
-            );
+            if ( available_counts == 1 )
+            {
+                selected_connections.resize( connection_counts, possible_connections[ 0 ] );
+                return;
+            }
         }
-
-        pool_map.clear();
+        else
+        {
+            selected_connections.swap( possible_connections );
+            return;
+        }
     }
 
-    assert( 0 <= total_connections );
+    assert( allow_multiplicity || connection_counts < available_counts );
+    selected_connections.resize( connection_counts );
 
-    displacement_map.clear();
+    if constexpr ( has_kernel )
+    {
+        assert( connection_probabilities.size() == static_cast< std::size_t >( available_counts ) );
 
-    if ( 0 < total_connections )
-#pragma omp atomic
-        tci.total_generated_connections_ += total_connections;
+        if constexpr ( allow_multiplicity )
+        {
+            std::discrete_distribution< count_t > dist(
+                connection_probabilities.begin(), connection_probabilities.end()
+            );
+
+            for ( count_t index = 0; index < connection_counts; ++index )
+                selected_connections[ index ] = possible_connections[ dist( rng ) ];
+        }
+        else
+        {
+            // A-ExpJ algorithm from https://doi.org/10.1016/j.ipl.2005.11.003
+
+            std::uniform_real_distribution< conn_param_t > weight_dist(
+                std::numeric_limits< conn_param_t >::min(), 1.f
+            );
+
+            count_t index = 0;
+            count_t inserted = 0;
+            std::multimap< conn_param_t, count_t > priority_map;
+            while ( inserted < connection_counts && index < available_counts )
+            {
+                const auto weight = connection_probabilities[ index ];
+                if ( std::isless( 0, weight ) )
+                {
+                    priority_map.emplace(
+                        std::pow( weight_dist( rng ), 1.f / weight ),
+                        index
+                    );
+                    ++inserted;
+                }
+                ++index;
+            }
+
+            if ( 0 < inserted && index < available_counts )
+            {
+                std::uniform_real_distribution< conn_param_t > jump_dist;
+                auto min_key = priority_map.cbegin();
+                conn_param_t jump = std::log( weight_dist( rng ) ) / std::log( min_key->first );
+                for ( ; index < available_counts; ++index )
+                {
+                    const auto weight = connection_probabilities[ index ];
+                    if ( std::isless( 0, weight ) )
+                    {
+                        jump -= weight;
+                        if ( std::islessequal( jump, 0 ) )
+                        {
+                            jump_dist.param(
+                                std::uniform_real_distribution< conn_param_t >::param_type(
+                                    std::pow( min_key->first, weight ), 1.f
+                                )
+                            );
+
+                            priority_map.erase( min_key );
+                            priority_map.emplace(
+                                std::pow( jump_dist( rng ), 1.f / weight ),
+                                index
+                            );
+                            min_key = priority_map.cbegin();
+
+                            jump = std::log( weight_dist( rng ) ) / std::log( min_key->first );
+                        }
+                    }
+                }
+            }
+
+            if ( inserted < connection_counts )
+            {
+                std::sample( possible_connections.begin(), possible_connections.end(),
+                    selected_connections.begin(), connection_counts, rng );
+            }
+            else
+            {
+                std::transform(
+                    priority_map.cbegin(),
+                    priority_map.cend(),
+                    selected_connections.begin(),
+                    [ & ]( const auto& entry ) { return possible_connections[ entry.second ]; }
+                );
+            }
+        }
+    }
+    else
+    {
+        assert( connection_probabilities.empty() );
+
+        if constexpr ( allow_multiplicity )
+        {
+            std::uniform_int_distribution< count_t > dist( 0, available_counts - 1 );
+
+            for ( count_t index = 0; index < connection_counts; ++index )
+                selected_connections[ index ] = possible_connections[ dist( rng ) ];
+        }
+        else
+        {
+            std::sample( possible_connections.begin(), possible_connections.end(),
+                selected_connections.begin(), connection_counts, rng );
+        }
+    }
 }
 
 
-template < typename CoordT >
-inline void compute_connections(
-    TileConnectionInfo& tci,
-    std::forward_list< ConnectionInfo >& conn_list,
-    ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
+template < typename CoordT, bool allow_self_connections, bool allow_multiplicity, bool inverted_pivot, bool has_kernel >
+count_t generate_fixed_number_connections(
     AnyRNG& rng,
-    const NFCollection& cfc,
-    const mult_t& connection_counts,
-    const bool& allow_multiplicity,
-    const bool& allow_self_connections,
-    const CONNECTION_METHOD& cm
+    ProceduralConnectivityBlocks& proc_block,
+    ConnectionTask< CoordT >& task,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const count_t connection_counts
 )
 {
-    switch ( cm )
-    {
-    case CONNECTION_METHOD::FIXED_NUMBER:
-        compute_fixed_number_connections(
-            tci,
-            conn_list,
-            displacement_map,
-            rng,
-            cfc,
-            connection_counts,
-            allow_multiplicity,
-            allow_self_connections
-        );
-        break;
+    assert( proc_block.empty()
+        && task.pivot_vector_ != nullptr
+        && 0 < task.total_possible_combinations_
+        && 0 < connection_counts );
 
+    std::deque< ConnectionInfo > possible_connections;
+    std::deque< conn_param_t > connection_probabilities;
+
+    count_t tracked_conn_counts = 0;
+    proc_block.resize( task.pivot_vector_->size() );
+    auto block_it = proc_block.begin();
+    for ( const auto& pivot_ptr : *task.pivot_vector_ )
+    {
+        const auto& pivot_pair = *pivot_ptr;
+        block_it->first = pivot_pair.first;
+
+        for ( const auto& combination : task.possible_combinations_ )
+        {
+            // Guaranteed cast from total images check in mask tile processing
+            const shift_t total_displacements = static_cast< shift_t >(
+                combination.second.image_displacements_->size() );
+            const auto i_displacements = combination.second.image_displacements_->data();
+
+            for ( const auto& combination_pair : *combination.second.possible_pairs_ )
+            {
+                if constexpr ( inverted_pivot )
+                {
+                    compute_minimal_displacement<
+                        CoordT, allow_self_connections, inverted_pivot, has_kernel
+                    >(
+                        possible_connections,
+                        connection_probabilities,
+                        *combination_pair,
+                        pivot_pair,
+                        mask,
+                        functors,
+                        i_displacements,
+                        total_displacements,
+                        combination.second.used_displacements_
+                    );
+                }
+                else
+                {
+                    compute_minimal_displacement<
+                        CoordT, allow_self_connections, inverted_pivot, has_kernel
+                    >(
+                        possible_connections,
+                        connection_probabilities,
+                        pivot_pair,
+                        *combination_pair,
+                        mask,
+                        functors,
+                        i_displacements,
+                        total_displacements,
+                        combination.second.used_displacements_
+                    );
+                }
+            }
+        }
+
+        compute_fixed_connections< allow_multiplicity, has_kernel >(
+            rng,
+            block_it->second,
+            possible_connections,
+            connection_probabilities,
+            connection_counts
+        );
+
+        possible_connections.clear();
+        connection_probabilities.clear();
+
+        tracked_conn_counts += block_it->second.size();
+        ++block_it;
+    }
+
+    assert( 0 <= tracked_conn_counts );
+
+    task.possible_combinations_.clear();
+
+    return tracked_conn_counts;
+}
+
+
+template < typename CoordT, bool allow_self_connections, bool allow_multiplicity >
+count_t generate_connections(
+    AnyRNG& rng,
+    ProceduralConnectivityBlocks& proc_block,
+    ConnectionTask< CoordT >& task,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const count_t connection_counts,
+    const CONNECTION_METHOD method
+)
+{
+    switch ( method )
+    {
     case CONNECTION_METHOD::PAIRWISE_BERNOULLI:
     {
-        std::uniform_real_distribution< space_t > dist( 0., 1. );
-        compute_probabilistic_connections(
-            tci,
-            conn_list,
-            displacement_map,
-            rng,
-            dist,
-            cfc,
-            connection_counts,
-            allow_multiplicity,
-            allow_self_connections
+        std::uniform_real_distribution< conn_param_t > dist( 0, 1 );
+        return generate_probabilistic_connections<
+            CoordT, std::uniform_real_distribution< conn_param_t >,
+            allow_self_connections, allow_multiplicity
+        >(
+            rng, dist, proc_block, task, mask, functors, connection_counts
         );
-        break;
     }
 
     case CONNECTION_METHOD::PAIRWISE_POISSON:
     {
-        std::poisson_distribution< mult_t > dist;
-        compute_probabilistic_connections(
-            tci,
-            conn_list,
-            displacement_map,
-            rng,
-            dist,
-            cfc,
-            connection_counts,
-            allow_multiplicity,
-            allow_self_connections
+        std::poisson_distribution< count_t > dist;
+        return generate_probabilistic_connections<
+            CoordT, std::poisson_distribution< count_t >,
+            allow_self_connections, allow_multiplicity
+        >(
+            rng, dist, proc_block, task, mask, functors, connection_counts
         );
-        break;
+    }
+
+    case CONNECTION_METHOD::FIXED_IN_DEGREE:
+    {
+        if ( functors.probability_functor_.is_initialized() )
+        {
+            return generate_fixed_number_connections<
+                CoordT, allow_self_connections, allow_multiplicity, true, true
+            >(
+                rng, proc_block, task, mask, functors, connection_counts
+            );
+        }
+        else
+        {
+            return generate_fixed_number_connections<
+                CoordT, allow_self_connections, allow_multiplicity, true, false
+            >(
+                rng, proc_block, task, mask, functors, connection_counts
+            );
+        }
+    }
+
+    case CONNECTION_METHOD::FIXED_OUT_DEGREE:
+    {
+        if ( functors.probability_functor_.is_initialized() )
+        {
+            return generate_fixed_number_connections<
+                CoordT, allow_self_connections, allow_multiplicity, false, true
+            >(
+                rng, proc_block, task, mask, functors, connection_counts
+            );
+        }
+        else
+        {
+            return generate_fixed_number_connections<
+                CoordT, allow_self_connections, allow_multiplicity, false, false
+            >(
+                rng, proc_block, task, mask, functors, connection_counts
+            );
+        }
     }
 
     default:
-        std::invalid_argument( "Invalid connection method" );
+        throw std::runtime_error( "Invalid connection method" );
     }
 }
 }

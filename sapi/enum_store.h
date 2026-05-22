@@ -25,7 +25,7 @@
 
 namespace sapi
 {
-enum TILE_SHAPE
+enum class TILE_SHAPE : uint8_t
 {
     NULL_TS,
     RECTANGLE,
@@ -33,7 +33,7 @@ enum TILE_SHAPE
     HEXAGON
 };
 
-enum MASK_SHAPE
+enum class MASK_SHAPE : uint8_t
 {
     NULL_MS,
     CIRCULAR,
@@ -42,29 +42,30 @@ enum MASK_SHAPE
     TRIANGULAR
 };
 
-enum OVERLAP_LEVEL
+enum class OVERLAP_LEVEL : uint8_t
 {
     NONE,
     PARTIAL,
     FULL
 };
 
-enum DISTRIBUTION_MODE
+enum class DISTRIBUTION_MODE : uint8_t
 {
     FREE,
     SQUEEZED,
     BALANCED
 };
 
-enum CONNECTION_METHOD
+enum class CONNECTION_METHOD : uint8_t
 {
     NULL_CM,
     PAIRWISE_BERNOULLI,
     PAIRWISE_POISSON,
-    FIXED_NUMBER
+    FIXED_IN_DEGREE,
+    FIXED_OUT_DEGREE
 };
 
-enum UNARY_FUNCTION
+enum class UNARY_FUNCTION : uint8_t
 {
     NULL_UF,
     IDENTITY,
@@ -79,7 +80,7 @@ enum UNARY_FUNCTION
     GAUSSIAN
 };
 
-enum DISPLACEMENT_FUNCTION
+enum class DISPLACEMENT_FUNCTION : uint8_t
 {
     NULL_DF,
     CONSTANT,

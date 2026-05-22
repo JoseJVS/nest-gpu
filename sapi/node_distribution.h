@@ -36,8 +36,11 @@ namespace sapi
 vp_t get_thread_num();
 vp_t get_max_omp_threads();
 
-// Forward definition to link with grid_neighborhood.h
-struct GridNeighborhood;
+// Forward definition to link with split_tree.h
+tileidx_t collapse_dimensions(
+    const std::vector< split_t >& branch_sequence,
+    const std::vector< split_t >& split_sequence
+);
 
 
 template < typename T >
@@ -49,44 +52,45 @@ using rcvref = typename std::remove_cv_t<
 template < typename I,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
-std::vector< nodeidx_t >
+NodeCountVector
 safe_convert_vector(
     std::vector< I >&& count_vector
 )
 {
     if constexpr ( std::is_same_v< rcvref< I >, nodeidx_t > )
-        return std::forward< std::vector< nodeidx_t > >( count_vector );
-
-    std::vector< nodeidx_t > output_copy( count_vector.size() );
-    auto out_it = output_copy.begin();
-    for ( const auto& count : count_vector )
+        return std::forward< NodeCountVector >( count_vector );
+    else
     {
-        if (
-            0 <= count &&
-            count < std::numeric_limits< nodeidx_t >::max()
-            )
-            *out_it++ = static_cast< nodeidx_t >( count );
-        else
-            throw std::runtime_error( "Could not distribute node counts over available bins" );
+        NodeCountVector output_copy( count_vector.size() );
+        auto out_it = output_copy.begin();
+        for ( const auto& count : count_vector )
+        {
+            if (
+                0 <= count &&
+                count < std::numeric_limits< nodeidx_t >::max()
+                )
+                *out_it++ = static_cast< nodeidx_t >( count );
+            else
+                throw std::runtime_error( "Could not distribute node counts over available bins" );
+        }
+
+        count_vector.clear();
+
+        return output_copy;
     }
-
-    count_vector.clear();
-
-    return output_copy;
 }
 
 
-template < typename I,
+template < typename I, bool balanced,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
 inline I
 balance_node_counts_by_bins(
     I& num_nodes,
-    const tileidx_t& num_bins,
-    const bool& balanced
+    const tileidx_t num_bins
 )
 {
-    if ( balanced )
+    if constexpr ( balanced )
     {
         const auto balancing = std::div( num_nodes, static_cast< I >( num_bins ) );
         num_nodes = balancing.rem;
@@ -102,8 +106,8 @@ template < typename I,
 >
 inline std::pair< I, I >
 batch_node_counts_by_thread_count(
-    const I& num_nodes,
-    const vp_t& num_threads
+    const I num_nodes,
+    const vp_t num_threads
 )
 {
     // Batch tile index drawing with steps equal to the total number of threads
@@ -151,15 +155,14 @@ template < typename I,
 >
 void left_merge_buffers(
     std::vector< std::vector< I > >& buffer_vec,
-    const vp_t& num_buffers // Buffer size is always in number of threads
+    const vp_t num_buffers // Buffer size is always in number of threads
 )
 {
     vp_t step = 1, step2 = 2;
     do
     {
-#pragma omp taskloop grainsize( 1 ) default( none )\
-    shared( buffer_vec )\
-    firstprivate( num_buffers, step, step2 )
+#pragma omp taskloop num_tasks( num_buffers ) grainsize( 1 ) default( none )\
+    shared( buffer_vec ) firstprivate( num_buffers, step, step2 )
         for ( vp_t curr_idx = 0; curr_idx < num_buffers; curr_idx += step2 )
         {
             const auto next_idx = curr_idx + step;
@@ -168,11 +171,12 @@ void left_merge_buffers(
         }
         step = step2;
         step2 *= 2;
-    } while ( step < num_buffers );
+    }
+    while ( step < num_buffers );
 }
 
 
-template < typename I,
+template < typename I, bool balanced,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
 void batched_draw(
@@ -180,11 +184,10 @@ void batched_draw(
     I& batches,
     AnyRNG& rng,
     std::uniform_int_distribution< tileidx_t >& distribution,
-    const tileidx_t& num_bins,
-    const bool& balanced
+    const tileidx_t num_bins
 )
 {
-    if ( balanced )
+    if constexpr ( balanced )
     {
         assert( batches < num_bins && 1 < num_bins );
         std::vector< tileidx_t > indexes( num_bins );
@@ -226,31 +229,9 @@ collapse_dimensions(
 }
 
 
-template < typename SplitT,
-    typename std::enable_if_t< std::is_integral_v< rcvref< SplitT > >, bool > = true
->
-tileidx_t
-collapse_dimensions(
-    const std::vector< SplitT >& branch_sequence,
-    const std::vector< SplitT >& split_sequence
-)
-{
-    assert( branch_sequence.size() == split_sequence.size() );
-    auto bs_it = branch_sequence.begin();
-    tileidx_t index = *bs_it++;
-    for ( auto ss_it = split_sequence.begin() + 1;
-        ss_it != split_sequence.end();
-        ++ss_it )
-        index = *bs_it++ + *ss_it * index;
-    return index;
-}
-
-
 template <
-    typename I,
-    typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true,
-    typename ForwardDistIT,
-    typename DimensionBoundsT
+    typename I, typename ForwardDistIT, typename DimensionBoundsT,
+    typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
 void batched_draw(
     std::vector< I >& buffer,
@@ -276,16 +257,14 @@ void batched_draw(
 }
 
 
-template < typename I,
+template < typename I, bool balanced, bool global,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
-std::vector< nodeidx_t >
+NodeCountVector
 uniform_distribute_node_counts(
     I num_nodes,
-    const tileidx_t& num_bins,
-    const RandomManager& rng_manager,
-    const bool& balanced,
-    const bool& global
+    const tileidx_t num_bins,
+    const RandomManager& rng_manager
 )
 {
     assert(
@@ -299,9 +278,10 @@ uniform_distribute_node_counts(
         );
 
     // Initialize map and rng distribution
-    const auto init_val = balance_node_counts_by_bins(
-        num_nodes, num_bins, balanced
-    );
+    const auto init_val = balance_node_counts_by_bins
+        < I, balanced >(
+            num_nodes, num_bins
+        );
     std::vector< I > count_vec( num_bins, init_val );
     if ( num_nodes == 0 )
         return safe_convert_vector( std::move( count_vec ) );
@@ -318,24 +298,32 @@ uniform_distribute_node_counts(
     {
         std::vector< std::vector< I > > buffers( num_threads );
 
-#pragma omp taskloop grainsize( 1 ) default( none )\
-    shared( rng_manager, buffers )\
-    firstprivate( num_threads, num_bins,\
-    full_batches, tile_idx_dist, global, balanced )
+#pragma omp taskloop num_tasks( num_threads ) grainsize( 1 ) default( none )\
+    shared( rng_manager, buffers ) firstprivate( num_threads, num_bins, full_batches, tile_idx_dist )
         for ( vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx )
         {
             const auto curr_buff = buffers.begin() + curr_idx;
             curr_buff->resize( num_bins, 0 );
-            batched_draw(
-                *curr_buff,
-                full_batches,
-                global
-                ? *rng_manager.get_tid_synced_rng( curr_idx )
-                : *rng_manager.get_tid_specific_rng( curr_idx ),
-                tile_idx_dist,
-                num_bins,
-                balanced
-            );
+            if constexpr ( global )
+            {
+                batched_draw< I, balanced >(
+                    *curr_buff,
+                    full_batches,
+                    *rng_manager.get_tid_synced_rng( curr_idx ),
+                    tile_idx_dist,
+                    num_bins
+                );
+            }
+            else
+            {
+                batched_draw< I, balanced >(
+                    *curr_buff,
+                    full_batches,
+                    *rng_manager.get_tid_specific_rng( curr_idx ),
+                    tile_idx_dist,
+                    num_bins
+                );
+            }
         }
 
         left_merge_buffers< I >( buffers, num_threads );
@@ -348,32 +336,42 @@ uniform_distribute_node_counts(
     }
 
     if ( 0 < partial_batches )
-        batched_draw(
-            count_vec,
-            partial_batches,
-            global
-            ? *rng_manager.get_rank_synced_rng()
-            : *rng_manager.get_rank_specific_rng(),
-            tile_idx_dist,
-            num_bins,
-            balanced
-        );
+    {
+        if constexpr ( global )
+        {
+            batched_draw< I, balanced >(
+                count_vec,
+                partial_batches,
+                *rng_manager.get_rank_synced_rng(),
+                tile_idx_dist,
+                num_bins
+            );
+        }
+        else
+        {
+            batched_draw< I, balanced >(
+                count_vec,
+                partial_batches,
+                *rng_manager.get_rank_specific_rng(),
+                tile_idx_dist,
+                num_bins
+            );
+        }
+    }
 
     return safe_convert_vector( std::move( count_vec ) );
 }
 
 
-template < typename I,
-    typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true,
-    typename DimensionBoundsT
+template < typename I, typename DimensionBoundsT, bool global,
+    typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
-std::vector< nodeidx_t >
+NodeCountVector
 uniform_distribute_node_counts(
     I num_nodes,
-    const tileidx_t& num_bins,
+    const tileidx_t num_bins,
     const DimensionBoundsT& dimensions,
-    const RandomManager& rng_manager,
-    const bool& global
+    const RandomManager& rng_manager
 )
 {
     // Trivial case
@@ -395,30 +393,39 @@ uniform_distribute_node_counts(
     distributions.reserve( dimensions.size() );
     for ( const auto& dim : dimensions )
         distributions.emplace_back(
-            std::uniform_int_distribution< tileidx_t >( 0, static_cast< tileidx_t >( dim - 1 ) )
+            0, static_cast< tileidx_t >( dim - 1 )
         );
 
     if ( 0 < full_batches )
     {
         std::vector< std::vector< I > > buffers( num_threads );
 
-#pragma omp taskloop grainsize( 1 ) default( none )\
-    shared( rng_manager, buffers )\
-    firstprivate( num_threads, num_bins,\
-    full_batches, distributions, dimensions, global )
+#pragma omp taskloop num_tasks( num_threads ) grainsize( 1 ) default( none )\
+    shared( rng_manager, buffers ) firstprivate( num_threads, num_bins, full_batches, distributions, dimensions )
         for ( vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx )
         {
             const auto curr_buff = buffers.begin() + curr_idx;
             curr_buff->resize( num_bins, 0 );
-            batched_draw(
-                *curr_buff,
-                full_batches,
-                global
-                ? *rng_manager.get_tid_synced_rng( curr_idx )
-                : *rng_manager.get_tid_specific_rng( curr_idx ),
-                distributions.begin(),
-                dimensions
-            );
+            if constexpr ( global )
+            {
+                batched_draw(
+                    *curr_buff,
+                    full_batches,
+                    *rng_manager.get_tid_synced_rng( curr_idx ),
+                    distributions.begin(),
+                    dimensions
+                );
+            }
+            else
+            {
+                batched_draw(
+                    *curr_buff,
+                    full_batches,
+                    *rng_manager.get_tid_specific_rng( curr_idx ),
+                    distributions.begin(),
+                    dimensions
+                );
+            }
         }
 
         left_merge_buffers< I >( buffers, num_threads );
@@ -427,29 +434,31 @@ uniform_distribute_node_counts(
     }
 
     if ( 0 < partial_batches )
-        batched_draw(
-            count_vec,
-            partial_batches,
-            global
-            ? *rng_manager.get_rank_synced_rng()
-            : *rng_manager.get_rank_specific_rng(),
-            distributions.begin(),
-            dimensions
-        );
+    {
+        if constexpr ( global )
+        {
+            batched_draw(
+                count_vec,
+                partial_batches,
+                *rng_manager.get_rank_synced_rng(),
+                distributions.begin(),
+                dimensions
+            );
+        }
+        else
+        {
+            batched_draw(
+                count_vec,
+                partial_batches,
+                *rng_manager.get_rank_specific_rng(),
+                distributions.begin(),
+                dimensions
+            );
+        }
+    }
 
     return safe_convert_vector( std::move( count_vec ) );
 }
-
-
-void aggregate_tiled_node_count_by_rank(
-    NodeCountVector& node_counts_per_rank,
-    TileIdxNodeCountPairListVector& tiled_node_counts_per_rank,
-    const tileidx_t& tile_index,
-    const nodeidx_t& node_count_in_tile,
-    const GridNeighborhood& grid_neighborhood,
-    const RandomManager& rng_manager,
-    const bool& balanced
-);
 
 
 // Here it is assumed that node sequences in each rank are generated externally
@@ -458,7 +467,7 @@ void aggregate_tiled_node_count_by_rank(
 // of nodes generated in the rank
 DistributedTiledNodeSequenceMap
 consolidate_node_sequences_per_tile_per_rank(
-    const RankNodeSequenceMap& node_seq_per_rank,
+    const RankNodeSequenceMap& node_sequences_per_rank,
     const TileIdxNodeCountPairListVector& node_counts_per_tile_per_rank
 );
 }

@@ -24,79 +24,63 @@
 #define MASK_GEOMETRY_H
 
 #include <vector>
-#include <optional>
 #include <stdexcept>
 #include <type_traits>
 
 #include "enum_store.h"
-#include "sapi_config.h"
-
+#include "coordinates.h"
 
 namespace sapi
 {
-// Forward definition to coordinates.h
-struct Coord2D;
-struct Coord3D;
-template < typename CoordT >
-struct Displacement;
-
 // Forward definition to mask.h
 template < typename CoordT >
 struct Mask;
 
 
 void initialize_circular_mask_helpers(
-    space_t& radius2,
+    Mask< Coord2D >& mask,
     const std::vector< space_t >& mask_params
 );
 
 
 void initialize_elliptical_mask_helpers(
-    space_t& radius2,
-    std::vector< Coord2D >& helper_vectors,
-    std::vector< space_t >& helper_scalars,
+    Mask< Coord2D >& mask,
     const std::vector< space_t >& mask_params
 );
 
 
 void initialize_parallelogram_mask_helpers(
-    space_t& radius2,
-    std::vector< Coord2D >& helper_vectors,
-    std::vector< space_t >& helper_scalars,
-    const Coord2D& origin,
+    Mask< Coord2D >& mask,
     const std::vector< space_t >& mask_params
 );
 
 
 void initialize_triangular_mask_helpers(
-    space_t& radius2,
-    std::vector< Coord2D >& helper_vectors,
-    std::vector< space_t >& helper_scalars,
+    Mask< Coord2D >& mask,
     const std::vector< space_t >& mask_params
 );
 
 
 template < typename CoordT >
-inline void initialize_mask_helpers(
-    space_t& radius2,
-    std::vector< CoordT >& helper_vectors,
-    std::vector< space_t >& helper_scalars,
-    const CoordT& origin,
-    const std::vector< space_t >& mask_params,
-    const MASK_SHAPE& shape
+void initialize_mask_helpers(
+    Mask< CoordT >& mask,
+    const std::vector< space_t >& mask_params
 )
 {
+    const auto params_length = mask_params.size();
+
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
     {
-        const auto params_length = mask_params.size();
-        switch ( shape )
+        switch ( mask.shape_ )
         {
         case MASK_SHAPE::CIRCULAR:
         {
             if ( params_length != 1 )
                 throw std::invalid_argument( "Invalid circular mask params vector" );
 
-            initialize_circular_mask_helpers( radius2, mask_params );
+            initialize_circular_mask_helpers(
+                mask, mask_params
+            );
 
             break;
         }
@@ -107,7 +91,7 @@ inline void initialize_mask_helpers(
                 throw std::invalid_argument( "Invalid elliptical mask params vector" );
 
             initialize_elliptical_mask_helpers(
-                radius2, helper_vectors, helper_scalars, mask_params
+                mask, mask_params
             );
 
             break;
@@ -119,7 +103,7 @@ inline void initialize_mask_helpers(
                 throw std::invalid_argument( "Invalid parallelogram mask params vector" );
 
             initialize_parallelogram_mask_helpers(
-                radius2, helper_vectors, helper_scalars, origin, mask_params
+                mask, mask_params
             );
 
             break;
@@ -131,7 +115,7 @@ inline void initialize_mask_helpers(
                 throw std::invalid_argument( "Invalid triangular mask params vector" );
 
             initialize_triangular_mask_helpers(
-                radius2, helper_vectors, helper_scalars, mask_params
+                mask, mask_params
             );
 
             break;
@@ -148,56 +132,55 @@ inline void initialize_mask_helpers(
 }
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_circular_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_circular_mask(
+    const Coord2D& coord,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_elliptical_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_elliptical_mask(
+    const Coord2D& coord,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_parallelogram_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_parallelogram_mask(
+    const Coord2D& coord,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_triangular_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_triangular_mask(
+    const Coord2D& coord,
+    const Mask< Coord2D >& mask
+);
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
-    coord_in_mask(
-        const Mask< CoordT >& mask,
-        const CoordT& coord
-    )
+OptDisp< CoordT > coord_in_mask(
+    const CoordT& coord,
+    const Mask< CoordT >& mask
+)
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
     {
         switch ( mask.shape_ )
         {
         case MASK_SHAPE::CIRCULAR:
-            return coord_in_circular_mask( mask, coord );
+            return coord_in_circular_mask( coord, mask );
 
         case MASK_SHAPE::ELLIPTICAL:
-            return coord_in_elliptical_mask( mask, coord );
+            return coord_in_elliptical_mask( coord, mask );
 
         case MASK_SHAPE::PARALLELOGRAM:
-            return coord_in_parallelogram_mask( mask, coord );
+            return coord_in_parallelogram_mask( coord, mask );
 
         case MASK_SHAPE::TRIANGULAR:
-            return coord_in_triangular_mask( mask, coord );
+            return coord_in_triangular_mask( coord, mask );
 
         default:
             throw std::invalid_argument( "Invalid mask shape" );
@@ -210,44 +193,43 @@ inline std::optional< Displacement< CoordT > >
 }
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_circular_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_circular_mask(
+    const Coord2D& a,
+    const Coord2D& b,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_elliptical_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_elliptical_mask(
+    const Coord2D& a,
+    const Coord2D& b,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_parallelogram_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_parallelogram_mask(
+    const Coord2D& a,
+    const Coord2D& b,
+    const Mask< Coord2D >& mask
+);
 
 
-std::optional< Displacement< Coord2D > >
-    coord_in_triangular_mask(
-        const Mask< Coord2D >&,
-        const Coord2D&,
-        const Coord2D&
-    );
+OptDisp< Coord2D >
+coord_in_triangular_mask(
+    const Coord2D& a,
+    const Coord2D& b,
+    const Mask< Coord2D >& mask
+);
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
-    coord_in_mask(
-        const Mask< CoordT >& mask,
-        const CoordT& a,
-        const CoordT& b
+OptDisp< CoordT > coord_in_mask(
+    const CoordT& a,
+    const CoordT& b,
+    const Mask< CoordT >& mask
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -255,16 +237,16 @@ inline std::optional< Displacement< CoordT > >
         switch ( mask.shape_ )
         {
         case MASK_SHAPE::CIRCULAR:
-            return coord_in_circular_mask( mask, a, b );
+            return coord_in_circular_mask( a, b, mask );
 
         case MASK_SHAPE::ELLIPTICAL:
-            return coord_in_elliptical_mask( mask, a, b );
+            return coord_in_elliptical_mask( a, b, mask );
 
         case MASK_SHAPE::PARALLELOGRAM:
-            return coord_in_parallelogram_mask( mask, a, b );
+            return coord_in_parallelogram_mask( a, b, mask );
 
         case MASK_SHAPE::TRIANGULAR:
-            return coord_in_triangular_mask( mask, a, b );
+            return coord_in_triangular_mask( a, b, mask );
 
         default:
             throw std::invalid_argument( "Invalid mask shape" );

@@ -25,6 +25,7 @@
 
 #include "creator_registry.h"
 #include "thread_aligned_array.h"
+#include "type_erasure_helpers.h"
 
 
 namespace sapi
@@ -32,15 +33,18 @@ namespace sapi
 class RandomManager
 {
 public:
-    const uint32_t local_rank_;
-    const vp_t num_processes_;
+    const rng_seed_t local_rank_;
+    const rng_seed_t num_processes_;
 
     RandomManager();
     RandomManager( const RandomManager& ) = delete;
-    RandomManager( RandomManager&& ) = default;
-    ~RandomManager() = default;
+    RandomManager( RandomManager&& ) noexcept = default;
+    ~RandomManager() noexcept = default;
 
-    RandomManager( const vp_t&, const vp_t& );
+    RandomManager( const vp_t local_rank, const vp_t num_processes );
+
+    RandomManager& operator=( const RandomManager& ) = delete;
+    RandomManager& operator=( RandomManager&& ) = delete;
 
     void initialize();
 
@@ -48,27 +52,28 @@ public:
 
     AnyRNG* get_rank_synced_rng() const;
     AnyRNG* get_rank_specific_rng() const;
-    AnyRNG* get_tid_synced_rng( const vp_t& ) const;
-    AnyRNG* get_tid_specific_rng( const vp_t& ) const;
+    AnyRNG* get_tid_synced_rng( const vp_t tid ) const;
+    AnyRNG* get_tid_specific_rng( const vp_t tid ) const;
 
     AnyRNG* reseed_rank_paired_rng(
-        const vp_t&,
-        const vp_t&,
-        const bool&,
-        const tileidx_t&,
-        const tileidx_t&
+        const rng_seed_t tile_index,
+        const rng_seed_t leaf_index
     ) const;
 
-    void update_rank_paired_seed( const vp_t& );
+    AnyRNG* reseed_rank_paired_rng(
+        const vp_t tid,
+        const rng_seed_t rank,
+        const bool inverted_source_target,
+        const combined_idx_t combined_seed
+    ) const;
 
-    void set_rng_seed( const uint32_t& );
+    void update_rank_paired_seed( const vp_t rank ) const;
 
-    void set_rng_type( const std::string& );
+    void set_rng_seed( const rng_seed_t seed );
+
+    void set_rng_type( const std::string& name );
 
 protected:
-    bool initialized_ = false;
-    vp_t num_threads_;
-
     CreatorRegistry< AnyRNG > rng_registry_;
     StateLessCreator< AnyRNG >* current_creator_;
     std::string current_rng_type_ = DEFAULT_RNG_TYPE_;
@@ -79,84 +84,113 @@ protected:
     TAArray< AnyRNG > tid_specific_rng_vec_;
     TAArray< AnyRNG > tid_rank_paired_rng_vec_;
 
-    uint32_t base_seed_ = DEFAULT_BASE_SEED_;
-    std::vector< uint32_t > rank_paired_seeds_;
+    rng_seed_t base_seed_ = DEFAULT_BASE_SEED_;
+    mutable std::vector< rng_seed_t > rank_paired_seeds_;
 };
 
 
 inline bool RandomManager::is_initialized() const
 {
-    return initialized_;
+    return rank_synced_rng_
+        && rank_specific_rng_
+        && tid_synced_rng_vec_.is_initialized()
+        && tid_specific_rng_vec_.is_initialized()
+        && tid_rank_paired_rng_vec_.is_initialized();
 }
 
 
 inline AnyRNG* RandomManager::get_rank_synced_rng() const
 {
-    assert( initialized_ );
+    assert( rank_synced_rng_ );
     return rank_synced_rng_.get();
 }
 
 
 inline AnyRNG* RandomManager::get_rank_specific_rng() const
 {
-    assert( initialized_ );
+    assert( rank_specific_rng_ );
     return rank_specific_rng_.get();
 }
 
 
-inline AnyRNG* RandomManager::get_tid_synced_rng( const vp_t& tid ) const
+inline AnyRNG* RandomManager::get_tid_synced_rng( const vp_t tid ) const
 {
-    assert( initialized_ );
     return tid_synced_rng_vec_.get_thread_item( tid );
 }
 
 
-inline AnyRNG* RandomManager::get_tid_specific_rng( const vp_t& tid ) const
+inline AnyRNG* RandomManager::get_tid_specific_rng( const vp_t tid ) const
 {
-    assert( initialized_ );
     return tid_specific_rng_vec_.get_thread_item( tid );
 }
 
 
 inline AnyRNG* RandomManager::reseed_rank_paired_rng(
-    const vp_t& tid,
-    const vp_t& target_rank,
-    const bool& inverted_source_target,
-    const tileidx_t& tile_idx,
-    const tileidx_t& leaf_idx
+    const rng_seed_t tile_index,
+    const rng_seed_t leaf_index
 ) const
 {
-    assert(
-        initialized_ && 0 <= target_rank && target_rank < num_processes_
-    );
-    auto rng = tid_rank_paired_rng_vec_.get_thread_item( tid );
+    auto rng = tid_rank_paired_rng_vec_.get_thread_item( get_thread_num() );
     rng->seed(
         {
             base_seed_,
             THREAD_SEEDER_,
             PARITY_SEEDER_,
-            inverted_source_target ? static_cast< uint32_t >( target_rank ) : local_rank_,
-            inverted_source_target ? local_rank_ : static_cast< uint32_t >( target_rank ),
-            rank_paired_seeds_[ target_rank ],
-            static_cast< uint32_t >( tile_idx ),
-            static_cast< uint32_t >( leaf_idx )
+            rank_paired_seeds_.at( local_rank_ ),
+            tile_index,
+            leaf_index
         }
     );
     return rng;
 }
 
 
-inline void RandomManager::update_rank_paired_seed(
-    const vp_t& target_rank
-)
+inline AnyRNG* RandomManager::reseed_rank_paired_rng(
+    const vp_t tid,
+    const rng_seed_t rank,
+    const bool inverted_source_target,
+    const combined_idx_t combined_seed
+) const
 {
-    assert( 0 <= target_rank && target_rank < num_processes_ );
-#pragma omp atomic
-    ++rank_paired_seeds_[ target_rank ];
+    auto rng = tid_rank_paired_rng_vec_.get_thread_item( tid );
+    if ( inverted_source_target )
+        rng->seed(
+            {
+                base_seed_,
+                THREAD_SEEDER_,
+                PARITY_SEEDER_,
+                rank,
+                local_rank_,
+                rank_paired_seeds_.at( rank ),
+                static_cast< rng_seed_t >( combined_seed >> 32 ),
+                static_cast< rng_seed_t >( combined_seed & 4294967295ul ) // ( 1ul << 32 ) - 1ul
+            }
+        );
+    else
+        rng->seed(
+            {
+                base_seed_,
+                THREAD_SEEDER_,
+                PARITY_SEEDER_,
+                local_rank_,
+                rank,
+                rank_paired_seeds_.at( rank ),
+                static_cast< rng_seed_t >( combined_seed >> 32 ),
+                static_cast< rng_seed_t >( combined_seed & 4294967295ul ) // ( 1ul << 32 ) - 1ul
+            }
+        );
+
+    return rng;
 }
 
 
-inline void RandomManager::set_rng_seed( const uint32_t& seed )
+inline void RandomManager::update_rank_paired_seed( const vp_t rank ) const
+{
+    ++rank_paired_seeds_.at( rank );
+}
+
+
+inline void RandomManager::set_rng_seed( const rng_seed_t seed )
 {
     base_seed_ = seed;
     initialize();

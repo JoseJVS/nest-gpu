@@ -23,7 +23,8 @@
 #ifndef TILE_GEOMETRY_H
 #define TILE_GEOMETRY_H
 
-#include <cmath>
+#include <string>
+#include <stdexcept>
 
 #include "enum_store.h"
 #include "tile2d_geometry.h"
@@ -32,14 +33,13 @@
 namespace sapi
 {
 template < typename CoordT >
-inline void
-    initialize_tile_vertices(
-        std::vector< CoordT >& vertices,
-        CircumscribedRadius< CoordT >& c_radius,
-        const std::vector< space_t >& side_lengths,
-        const std::vector< angle_t >& angular_offsets,
-        const TILE_SHAPE& shape
-    )
+void initialize_tile_vertices(
+    std::vector< CoordT >& vertices,
+    CircumscribedRadius< CoordT >& c_radius,
+    const std::vector< space_t >& side_lengths,
+    const std::vector< angle_t >& angular_offsets,
+    const TILE_SHAPE shape
+)
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
     {
@@ -114,11 +114,11 @@ inline void
 
 
 template < typename CoordT >
-inline void initialize_tile_helpers(
+void initialize_tile_helpers(
     std::vector< CoordT >& helper_vectors,
     std::vector< space_t >& helper_scalars,
     const std::vector< CoordT >& vertices,
-    const TILE_SHAPE& shape
+    const TILE_SHAPE shape
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -170,13 +170,16 @@ inline void initialize_tile_helpers(
 
 
 template < typename CoordT >
-inline void split_tile(
+void split_tile(
     std::vector< Tile< CoordT > >& sub_tiles,
+    std::vector< const Tile< CoordT >* >& leaf_tiles,
     const std::vector< CoordT >& vertices,
     const CircumscribedRadius< CoordT >& c_radius,
-    const tileidx_t& index,
-    const split_t& splits,
-    const TILE_SHAPE& shape
+    SplitBranch& split_tree,
+    const std::vector< split_t >& possible_branches,
+    const split_t splits,
+    const bool generate_total_leaves_vector,
+    const TILE_SHAPE shape
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -187,10 +190,13 @@ inline void split_tile(
         {
             split_rectangle(
                 sub_tiles,
+                leaf_tiles,
                 vertices,
                 c_radius,
-                index,
-                splits
+                split_tree,
+                possible_branches,
+                splits,
+                generate_total_leaves_vector
             );
 
             break;
@@ -200,9 +206,12 @@ inline void split_tile(
         {
             split_triangle(
                 sub_tiles,
+                leaf_tiles,
                 vertices,
-                index,
-                splits
+                split_tree,
+                possible_branches,
+                splits,
+                generate_total_leaves_vector
             );
 
             break;
@@ -212,10 +221,13 @@ inline void split_tile(
         {
             split_hexagon(
                 sub_tiles,
+                leaf_tiles,
                 vertices,
                 c_radius,
-                index,
-                splits
+                split_tree,
+                possible_branches,
+                splits,
+                generate_total_leaves_vector
             );
 
             break;
@@ -233,13 +245,13 @@ inline void split_tile(
 
 
 template < typename CoordT >
-inline bool coord_in_tile(
+bool coord_in_tile(
     const CoordT& coord,
     const CircumscribedRadius< CoordT >& c_radius,
     const std::vector< CoordT >& vertices,
     const std::vector< CoordT >& helper_vectors,
     const std::vector< space_t >& helper_scalars,
-    const TILE_SHAPE& shape
+    const TILE_SHAPE shape
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -247,23 +259,21 @@ inline bool coord_in_tile(
         switch ( shape )
         {
         case TILE_SHAPE::RECTANGLE:
-            return coord_in_tile_2D(
+            return coord_in_rectangle(
                 coord,
                 c_radius,
                 vertices,
                 helper_vectors,
-                helper_scalars,
-                false
+                helper_scalars
             );
 
         case TILE_SHAPE::TRIANGLE:
-            return coord_in_tile_2D(
+            return coord_in_triangle(
                 coord,
                 c_radius,
                 vertices,
                 helper_vectors,
-                helper_scalars,
-                true
+                helper_scalars
             );
 
         case TILE_SHAPE::HEXAGON:
@@ -275,7 +285,6 @@ inline bool coord_in_tile(
                 helper_scalars
             );
 
-
         default:
             throw std::invalid_argument( "Invalid tile shape" );
         }
@@ -288,13 +297,15 @@ inline bool coord_in_tile(
 
 
 template < typename CoordT >
-inline void generate_coords_in_tile(
-    std::vector< CoordT >& coord_vec,
+std::vector< std::pair< nodeidx_t, CoordT > >
+generate_coords_in_tile(
+    const nodeidx_t first_index,
+    const nodeidx_t coord_count,
     AnyRNG& rng,
     const std::vector< CoordT >& vertices,
     const std::vector< CoordT >& helper_vectors,
     const CircumscribedRadius< CoordT >& c_radius,
-    const TILE_SHAPE& shape
+    const TILE_SHAPE shape
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -302,39 +313,30 @@ inline void generate_coords_in_tile(
         switch ( shape )
         {
         case TILE_SHAPE::RECTANGLE:
-        {
-            generate_coords_in_rectangle(
-                coord_vec,
+            return generate_coords_in_rectangle(
+                first_index,
+                coord_count,
                 rng,
                 vertices,
                 helper_vectors
             );
 
-            break;
-        }
-
         case TILE_SHAPE::TRIANGLE:
-        {
-            generate_coords_in_triangle(
-                coord_vec,
+            return generate_coords_in_triangle(
+                first_index,
+                coord_count,
                 rng,
                 vertices
             );
 
-            break;
-        }
-
         case TILE_SHAPE::HEXAGON:
-        {
-            generate_coords_in_hexagon(
-                coord_vec,
+            return generate_coords_in_hexagon(
+                first_index,
+                coord_count,
                 rng,
                 vertices,
                 c_radius
             );
-
-            break;
-        }
 
         default:
             throw std::invalid_argument( "Invalid tile shape" );
@@ -367,71 +369,19 @@ inline CoordT project_point_to_surface(
 }
 
 
-inline tileidx_t
-    compute_sub_tile_count( const split_t& splits, const TILE_SHAPE& shape )
-{
-    switch ( shape )
-    {
-    case TILE_SHAPE::RECTANGLE:
-        return std::pow( 4, splits );
-
-    case TILE_SHAPE::TRIANGLE:
-        return std::pow( 2, splits );
-
-    case TILE_SHAPE::HEXAGON:
-        return splits > 0 ? 6 * std::pow( 2, splits - 1 ) : 1;
-
-    default:
-        throw std::invalid_argument( "Invalid tile shape" );
-    }
-}
+tileidx_t compute_leaves_count(
+    const split_t splits,
+    const TILE_SHAPE shape
+);
 
 
-inline std::vector< split_t >
-    get_possible_sub_tile_branches( const split_t& splits, const TILE_SHAPE& shape )
-{
-    if ( splits == 0 )
-        return {};
-
-    switch ( shape )
-    {
-    case TILE_SHAPE::RECTANGLE:
-        return std::vector< split_t >( splits, 4 );
-
-    case TILE_SHAPE::TRIANGLE:
-        return std::vector< split_t >( splits, 2 );
-
-    case TILE_SHAPE::HEXAGON:
-    {
-        std::vector< split_t > split_vec( splits, 2 );
-        split_vec[ 0 ] = 6;
-        return split_vec;
-    }
-
-    default:
-        throw std::invalid_argument( "Invalid tile shape" );
-    }
-}
+std::vector< split_t > get_possible_sub_tile_branches(
+    const split_t splits,
+    const TILE_SHAPE shape
+);
 
 
-inline std::string
-    get_name( const TILE_SHAPE& shape )
-{
-    switch ( shape )
-    {
-    case TILE_SHAPE::RECTANGLE:
-        return "Rectangle";
-
-    case TILE_SHAPE::TRIANGLE:
-        return "Triangle";
-
-    case TILE_SHAPE::HEXAGON:
-        return "Hexagon";
-
-    default:
-        throw std::invalid_argument( "Invalid tile shape" );
-    }
-}
+std::string get_name( const TILE_SHAPE shape );
 }
 
 

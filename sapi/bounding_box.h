@@ -61,22 +61,23 @@ struct BoundingBox
     // (minz < z < maxz)
     std::vector< BoundingBox< CoordT > > inner_boxes_;
 
-    BoundingBox() = default;
+    BoundingBox() noexcept = default;
     BoundingBox( const BoundingBox& ) = delete;
-    BoundingBox( BoundingBox&& ) = default;
-    ~BoundingBox() = default;
+    BoundingBox( BoundingBox&& ) noexcept = default;
+    ~BoundingBox() noexcept = default;
 
     BoundingBox(
-        std::pair< CoordT, CoordT >&&,
-        const tileidx_t&
-    );
+        std::pair< CoordT, CoordT >&& minmax_bounds,
+        const tileidx_t tile_index
+    ) noexcept;
 
     BoundingBox(
-        std::pair< CoordT, CoordT >&&,
-        std::vector< BoundingBox< CoordT > >&&
-    );
+        std::pair< CoordT, CoordT >&& minmax_bounds,
+        std::vector< BoundingBox< CoordT > >&& inner_boxes
+    ) noexcept;
 
-    BoundingBox& operator=( BoundingBox&& bb );
+    BoundingBox& operator=( const BoundingBox& ) = delete;
+    BoundingBox& operator=( BoundingBox&& ) noexcept;
 
     bool coord_in_box( const CoordT& coord ) const;
 };
@@ -85,34 +86,35 @@ struct BoundingBox
 template < typename CoordT >
 BoundingBox< CoordT >::BoundingBox(
     std::pair< CoordT, CoordT >&& minmax_bounds,
-    const tileidx_t& tile_index
-)
+    const tileidx_t tile_index
+) noexcept
     : tile_index_( tile_index )
     , minmax_bounds_( std::move( minmax_bounds ) )
-{
-}
+{}
 
 
 template < typename CoordT >
 BoundingBox< CoordT >::BoundingBox(
     std::pair< CoordT, CoordT >&& minmax_bounds,
     std::vector< BoundingBox< CoordT > >&& inner_boxes
-)
+) noexcept
     : minmax_bounds_( std::move( minmax_bounds ) )
     , inner_boxes_( std::move( inner_boxes ) )
-{
-}
+{}
 
 
 template < typename CoordT >
 inline BoundingBox< CoordT >&
-BoundingBox< CoordT >::operator=( BoundingBox&& bb )
+BoundingBox< CoordT >::operator=( BoundingBox&& bb ) noexcept
 {
     tile_index_ = bb.tile_index_;
     bb.tile_index_ = -1;
 
-    minmax_bounds_ = std::move( bb.minmax_bounds_ );
-    inner_boxes_ = std::move( bb.inner_boxes_ );
+    minmax_bounds_.first = bb.minmax_bounds_.first;
+    minmax_bounds_.second = bb.minmax_bounds_.second;
+
+    inner_boxes_.swap( bb.inner_boxes_ );
+    bb.inner_boxes_.clear();
 
     return *this;
 }
@@ -133,9 +135,7 @@ inline bool BoundingBox< CoordT >::coord_in_box( const CoordT& coord ) const
 
 template < typename CoordT >
 BoundingBox< CoordT >
-stack_boxes(
-    std::vector< BoundingBox< CoordT > >&& bbs
-)
+stack_boxes( std::vector< BoundingBox< CoordT > >&& bbs )
 {
     const auto bb_count = bbs.size();
     assert( bb_count == 1 || bb_count % 2 == 0 );
@@ -152,7 +152,7 @@ stack_boxes(
     }
 
     return BoundingBox< CoordT >(
-        std::make_pair( std::move( min ), std::move( max ) ),
+        std::make_pair( min, max ),
         std::move( bbs )
     );
 }

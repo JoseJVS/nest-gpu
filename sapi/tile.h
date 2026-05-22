@@ -26,7 +26,6 @@
 #include <forward_list>
 #include <cassert>
 
-#include "coordinates.h"
 #include "tile_geometry.h"
 
 
@@ -36,96 +35,82 @@ template < typename CoordT >
 struct Tile
 {
     TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
-    tileidx_t index_ = 0;
+    tileidx_t index_ = -1;
     CircumscribedRadius< CoordT > c_radius_;
     std::vector< CoordT > vertices_;
     std::vector< CoordT > helper_vectors_;
     std::vector< space_t > helper_scalars_;
-    mutable std::vector< Tile > sub_tiles_;
 
-    Tile() = default;
+    // Structures for spliting
+    std::vector< Tile > sub_tiles_;
+    std::vector< const Tile* > leaf_tiles_;
+
+    Tile() noexcept = default;
     Tile( const Tile& ) = delete;
-    Tile( Tile&& ) = default;
-    ~Tile() = default;
+    Tile( Tile&& ) noexcept = default;
+    ~Tile() noexcept = default;
 
     Tile(
-        const TILE_SHAPE&,
-        const CoordT&,
-        const std::vector< space_t >&,
-        const std::vector< angle_t >&
+        const TILE_SHAPE shape,
+        const CoordT origin,
+        const std::vector< space_t >& side_lengths,
+        const std::vector< angle_t >& angular_offsets
     );
 
     Tile(
-        TILE_SHAPE&&,
-        tileidx_t&&,
-        CircumscribedRadius< CoordT >&&,
-        std::vector< CoordT >&&
+        TILE_SHAPE&& shape,
+        CircumscribedRadius< CoordT >&& c_radius,
+        std::vector< CoordT >&& vertices
+    ) noexcept;
+
+    Tile& operator=( const Tile& ) = delete;
+    Tile& operator=( Tile&& ) noexcept;
+
+    void split(
+        const split_t splits,
+        const bool generate_total_leaves_vector
     );
-
-    Tile& operator=( Tile&& );
-
-    void split_tile(
-        const split_t&
-    ) const;
 
     bool coord_in_tile(
-        const CoordT&
+        const CoordT& coord
     ) const;
 
-    void generate_coords_in_tile(
-        std::vector< CoordT >&,
-        AnyRNG&
-    ) const;
+    std::vector< std::pair< nodeidx_t, CoordT > >
+        generate_coords_in_tile(
+            const nodeidx_t first_index,
+            const nodeidx_t coord_count,
+            AnyRNG& rng
+        ) const;
 
     CoordT project_point_to_surface(
-        const CoordT&
+        const CoordT& coord
     ) const;
 
-    tileidx_t compute_sub_tile_count(
-        const split_t&
+    tileidx_t compute_leaves_count(
+        const split_t known_splits
     ) const;
 
     std::vector< split_t >
         get_possible_sub_tile_branches(
-            const split_t&
+            const split_t known_splits
         ) const;
 
     void insert_leaf_sub_tiles(
-        std::forward_list< const Tile* >&
+        std::forward_list< const Tile* >& leaves
     ) const;
-
-    std::vector< const Tile* > get_leaf_sub_tiles(
-        const split_t&
-    ) const;
-
-    std::vector< std::vector< space_t > >
-        export_vertices_to_nested_vec() const;
 
     bool operator==( const Tile& ) const;
 
     std::string get_name() const;
 
-    std::string to_string( const uint8_t& = 0 ) const;
-
-    template < typename IT >
-    friend void iterate_sub_tiles_depth_first(
-        IT& it,
-        const Tile< CoordT >* const& sub_tile
-    )
-    {
-        if ( !sub_tile->sub_tiles_.empty() )
-            for ( const auto& st : sub_tile->sub_tiles_ )
-                iterate_sub_tiles_depth_first( it, &st );
-        else
-            *it++ = sub_tile;
-    }
+    std::string to_string( const uint8_t tabs = 0 ) const;
 };
 
 
 template < typename CoordT >
 Tile< CoordT >::Tile(
-    const TILE_SHAPE& shape,
-    const CoordT& origin,
+    const TILE_SHAPE shape,
+    const CoordT origin,
     const std::vector< space_t >& side_lengths,
     const std::vector< angle_t >& angular_offsets
 )
@@ -135,6 +120,7 @@ Tile< CoordT >::Tile(
         throw std::invalid_argument( "Invalid tile side lengths vector" );
 
     c_radius_.origin_ = origin;
+
     initialize_tile_vertices(
         vertices_,
         c_radius_,
@@ -154,51 +140,92 @@ Tile< CoordT >::Tile(
 template < typename CoordT >
 Tile< CoordT >::Tile(
     TILE_SHAPE&& shape,
-    tileidx_t&& index,
     CircumscribedRadius< CoordT >&& c_radius,
     std::vector< CoordT >&& vertices
-)
+) noexcept
     : shape_( shape )
-    , index_( index )
     , c_radius_( std::move( c_radius ) )
     , vertices_( std::move( vertices ) )
-{
-    assert(
-        0 <= index_ &&
-        !almost_zero( c_radius_.radius2_ )
-    );
-}
+{}
 
 
 template < typename CoordT >
 inline Tile< CoordT >&
-Tile< CoordT >::operator=( Tile&& t )
+Tile< CoordT >::operator=( Tile&& t ) noexcept
 {
     shape_ = t.shape_;
     index_ = t.index_;
-    c_radius_ = std::move( t.c_radius_ );
-    vertices_ = std::move( t.vertices_ );
-    helper_vectors_ = std::move( t.helper_vectors_ );
-    helper_scalars_ = std::move( t.helper_scalars_ );
-    sub_tiles_ = std::move( t.sub_tiles_ );
+    c_radius_ = t.c_radius_;
+
+    vertices_.swap( t.vertices_ );
+    t.vertices_.clear();
+
+    helper_vectors_.swap( t.helper_vectors_ );
+    t.helper_vectors_.clear();
+
+    helper_scalars_.swap( t.helper_scalars_ );
+    t.helper_scalars_.clear();
+
+    sub_tiles_.swap( t.sub_tiles_ );
+    t.sub_tiles_.clear();
+
+    leaf_tiles_.swap( t.leaf_tiles_ );
+    t.leaf_tiles_.clear();
 
     t.shape_ = TILE_SHAPE::NULL_TS;
+    t.index_ = -1;
 
     return *this;
 }
 
 
 template < typename CoordT >
-inline void Tile< CoordT >::split_tile( const split_t& splits ) const
+inline void Tile< CoordT >::split(
+    const split_t splits,
+    const bool generate_total_leaves_vector
+)
 {
-    sapi::split_tile(
-        sub_tiles_,
-        vertices_,
-        c_radius_,
-        index_,
-        splits,
-        shape_
-    );
+    static_assert( std::is_unsigned_v< split_t > );
+
+    // Leaf tiles will meet first condition
+    // intermediate sub tiles second
+    // root tiles last
+    if ( 0 <= index_ || !sub_tiles_.empty() || !leaf_tiles_.empty() )
+        return;
+
+    if ( 0 < splits )
+    {
+        SplitBranch split_tree;
+        const auto possible_branches =
+            sapi::get_possible_sub_tile_branches( splits, shape_ );
+
+        if ( generate_total_leaves_vector )
+        {
+            const auto num_leaves = compute_leaves_count( splits );
+            assert( 0 < num_leaves );
+            leaf_tiles_.resize( num_leaves, nullptr );
+        }
+
+#pragma omp taskgroup
+        sapi::split_tile(
+            sub_tiles_,
+            leaf_tiles_,
+            vertices_,
+            c_radius_,
+            split_tree,
+            possible_branches,
+            splits,
+            generate_total_leaves_vector,
+            shape_
+        );
+    }
+    else
+    {
+        index_ = 0;
+
+        if ( generate_total_leaves_vector )
+            leaf_tiles_.resize( 1, this );
+    }
 }
 
 
@@ -217,13 +244,16 @@ inline bool Tile< CoordT >::coord_in_tile( const CoordT& coord ) const
 
 
 template < typename CoordT >
-inline void Tile< CoordT >::generate_coords_in_tile(
-    std::vector< CoordT >& coord_vec,
+inline std::vector< std::pair< nodeidx_t, CoordT > >
+Tile< CoordT >::generate_coords_in_tile(
+    const nodeidx_t first_index,
+    const nodeidx_t coord_count,
     AnyRNG& rng
 ) const
 {
-    sapi::generate_coords_in_tile(
-        coord_vec,
+    return sapi::generate_coords_in_tile(
+        first_index,
+        coord_count,
         rng,
         vertices_,
         helper_vectors_,
@@ -243,27 +273,27 @@ inline CoordT Tile< CoordT >::project_point_to_surface(
 
 
 template < typename CoordT >
-inline tileidx_t Tile< CoordT >::compute_sub_tile_count(
-    const split_t& splits
+inline tileidx_t Tile< CoordT >::compute_leaves_count(
+    const split_t known_splits
 ) const
 {
-    return sapi::compute_sub_tile_count( splits, shape_ );
+    return sapi::compute_leaves_count( known_splits, shape_ );
 }
 
 
 template < typename CoordT >
 inline std::vector< split_t >
 Tile< CoordT >::get_possible_sub_tile_branches(
-    const split_t& splits
+    const split_t known_splits
 ) const
 {
-    return sapi::get_possible_sub_tile_branches( splits, shape_ );
+    return sapi::get_possible_sub_tile_branches( known_splits, shape_ );
 }
 
 
 template < typename CoordT >
 void Tile< CoordT >::insert_leaf_sub_tiles(
-    std::forward_list< const Tile* >& lst_container
+    std::forward_list< const Tile* >& leaves
 ) const
 {
     std::forward_list< const Tile* > tree{ this };
@@ -276,55 +306,10 @@ void Tile< CoordT >::insert_leaf_sub_tiles(
             for ( const auto& st : tile->sub_tiles_ )
                 tree.emplace_front( &st );
         else
-            lst_container.emplace_front( std::move( tile ) );
+            leaves.emplace_front( tile );
 
-    } while ( !tree.empty() );
-}
-
-
-template < typename CoordT >
-std::vector< const Tile< CoordT >* >
-Tile< CoordT >::get_leaf_sub_tiles(
-    const split_t& known_split_order
-) const
-{
-    if ( known_split_order == 0 )
-        return std::vector< const Tile* >{ this };
-
-    const auto leaf_count = compute_sub_tile_count( known_split_order );
-    assert( leaf_count > 1 );
-
-    std::vector < const Tile* > lst_vec( leaf_count, nullptr );
-    auto lst_it = lst_vec.begin();
-
-    iterate_sub_tiles_depth_first(
-        lst_it,
-        this
-    );
-
-    assert( lst_it == lst_vec.end() );
-
-    return lst_vec;
-}
-
-
-template < typename CoordT >
-std::vector< std::vector< space_t > >
-Tile< CoordT >::export_vertices_to_nested_vec() const
-{
-    std::vector< std::vector< space_t > >
-        nested_spaceT_vec( vertices_.size() + 1 );
-    auto nv_it = nested_spaceT_vec.begin();
-
-    nv_it->resize( CoordT::D );
-    c_radius_.origin_.copy_to_vec( ( *nv_it++ ).begin() );
-    for ( const auto& vertex : vertices_ )
-    {
-        nv_it->resize( CoordT::D );
-        vertex.copy_to_vec( ( *nv_it++ ).begin() );
     }
-
-    return nested_spaceT_vec;
+    while ( !tree.empty() );
 }
 
 
@@ -336,7 +321,7 @@ inline std::string Tile< CoordT >::get_name() const
 
 
 template < typename CoordT >
-std::string Tile< CoordT >::to_string( const uint8_t& tabs ) const
+std::string Tile< CoordT >::to_string( const uint8_t tabs ) const
 {
     std::string str = "";
     for ( uint8_t t = 0; t < tabs; ++t )

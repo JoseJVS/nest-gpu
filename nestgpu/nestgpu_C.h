@@ -421,9 +421,13 @@ extern "C"
    int *target_host_arr, int n_target_host, uint **target_arr, uint *n_target_arr,
    int indegree, int i_host_group );
 
-  bool reset_api();
-
   bool free_gc();
+
+  bool free_view_gc();
+
+  sapi::OptionalIndex get_rank();
+
+  sapi::OptionalIndex get_num_processes();
 
   sapi::OptionalIndex get_num_threads();
 
@@ -431,60 +435,56 @@ extern "C"
 
   sapi::OptionalIndex get_rng_seed();
 
-  bool set_rng_seed( uint32_t seed );
+  bool set_rng_seed( sapi::rng_seed_t seed );
 
   sapi::CharArray* get_rng_type();
 
   bool set_rng_type( const sapi::CharArray& rng_type );
 
   bool generate_tile_grid(
-    const sapi::SpaceTArray& grid_origin,
-    const sapi::TileIdxArray& grid_dimensions,
-    const sapi::CharArray& tile_type,
-    const sapi::SpaceTArray& tile_side_lengths,
-    const sapi::AngleTArray& tile_angular_offsets,
-    const sapi::NestedTileIdxArray& rank_tiles_ownership_map,
+    const sapi::NestedTileIdxArray& rank_tiles_ownership,
+    const sapi::GPStruct& grid_parameters,
     sapi::split_t num_splits
   );
 
   sapi::PairT< bool, sapi::SpatialNodeSequence >
     generate_nodes_in_grid(
-      sapi::largenodeidx_t num_nodes,
-      int num_ports,
       const sapi::CharArray& model_name,
-      const sapi::TileIdxArray& tile_set,
+      sapi::largenodeidx_t num_nodes,
+      const sapi::TileIdxArray& target_tiles,
+      int num_ports,
       uint8_t grid_distribution_mode,
       uint8_t tile_distribution_mode
     );
 
   sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
     insert_positions_in_grid(
-      int num_ports,
       const sapi::CharArray& model_name,
-      const sapi::NestedSpaceTArray& positions
+      const sapi::NestedSpaceTArray& positions,
+      int num_ports
     );
 
   sapi::OptionalIndex compute_spatial_connections(
-    std::size_t dist_tns_source_index,
-    std::size_t dist_tns_target_index,
-    const sapi::MPStruct& mask_params,
-    const sapi::CPStruct& conn_params
+    std::size_t source_index,
+    std::size_t target_index,
+    const sapi::MPStruct& mask_parameters,
+    const sapi::CPStruct& connection_parameters
   );
 
-  sapi::NestedNodeCoordPairArray* get_nodes(
-    sapi::OptionalIndex opt_dist_tns_index,
-    const sapi::MPStruct& mask_params
+  sapi::NodesViewStruct* view_nodes(
+    sapi::OptionalIndex index,
+    const sapi::MPStruct& mask_parameters
   );
+
+  sapi::RemoteConnectionViewPair* view_spatial_connections(
+    std::size_t index
+  );
+
+  sapi::GridViewStruct* view_grid_vertices();
 
   sapi::TiledNodeSequencePairArray* get_distributed_node_sequences(
-    std::size_t dist_tns_index
+    std::size_t index
   );
-
-  sapi::RemoteConnectionInfoPair* get_spatial_connections(
-    std::size_t conn_idx
-  );
-
-  sapi::GridTileVerticesPairArray* get_grid_vertices();
 
   sapi::RecordedTimesArrayPair* get_timer_data();
 }

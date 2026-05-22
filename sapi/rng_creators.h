@@ -1,5 +1,5 @@
 /*
- *  mask_creators.h
+ *  rng_creators.h
  *
  *  This file is part of NEST GPU.
  *
@@ -20,8 +20,12 @@
  *
  */
 
-#ifndef MASK_CREATORS_H
-#define MASK_CREATORS_H
+#ifndef RNG_CREATORS_H
+#define RNG_CREATORS_H
+
+#include <type_traits>
+
+#include "sapi_config.h"
 
 
 namespace sapi
@@ -30,18 +34,20 @@ namespace sapi
 template < typename RT >
 class CreatorRegistry;
 
-// Forward definition to coordinates.h
-struct Coord2D;
-struct Coord3D;
+// Forward definition to link with type_erasure_helpers.h
+template < typename RT,
+    typename std::enable_if_t<
+    std::disjunction_v<
+    std::is_same< RT, uint32_t >,
+    std::is_same< RT, uint64_t >
+    >
+    , bool > b
+>
+class AnyRNG_T;
 
-// Forward definition to mask.h
-template < typename CoordT >
-struct Mask;
 
-
-void initialize_mk_registry( CreatorRegistry< Mask< Coord2D > >& mkr );
-void initialize_mk_registry( CreatorRegistry< Mask< Coord3D > >& mkr );
+void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint32_t, true > >& anr );
+void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint64_t, true > >& anr );
 }
-
 
 #endif

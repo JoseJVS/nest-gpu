@@ -23,80 +23,71 @@
 #ifndef MASK_H
 #define MASK_H
 
-#include "tile.h"
+#include <forward_list>
+#include <cassert>
+
 #include "mask_geometry.h"
 
 
 namespace sapi
 {
+// Forward definition to tile.h
+template < typename CoordT >
+struct Tile;
+
 template < typename CoordT >
 struct Mask
 {
+    bool has_c_radius_ = false;
     MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;
-    space_t radius2_ = 0;
-    std::optional< CoordT > origin_;
-    std::optional< CoordT > offset_;
+    CoordT offset_;
+    CircumscribedRadius< CoordT > c_radius_;
     std::vector< CoordT > helper_vectors_;
     std::vector< space_t > helper_scalars_;
 
-    Mask() = default;
-    Mask( const Mask& ) = default;
-    Mask( Mask&& ) = default;
-    ~Mask() = default;
-
-    Mask(
-        const MASK_SHAPE&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&,
-        const std::vector< space_t >&
-    );
-
-    Mask& operator=( Mask&& );
-
-    std::optional< Displacement< CoordT > >
+    OptDisp< CoordT >
         coord_in_mask(
-            const CoordT&
+            const CoordT& coord
         ) const;
 
-    std::optional< Displacement< CoordT > >
+    OptDisp< CoordT >
         coord_in_mask(
-            const CoordT&,
-            const CoordT&
+            const CoordT& a,
+            const CoordT& b
         ) const;
 
     bool overlap_with_tile_surface(
-        const Tile< CoordT >&
+        const Tile< CoordT >& tile
     ) const;
 
     bool overlap_with_tile_surface(
-        const CoordT&,
-        const Tile< CoordT >&
+        const CoordT& coord,
+        const Tile< CoordT >& tile
     ) const;
 
     bool tiles_within_mask_range(
-        const Tile< CoordT >&,
-        const Tile< CoordT >&
+        const Tile< CoordT >& a,
+        const Tile< CoordT >& b
     ) const;
 
     OVERLAP_LEVEL tile_overlap(
-        const Tile< CoordT >&
+        const Tile< CoordT >& tile
     ) const;
 
     std::forward_list< const Tile< CoordT >* >
         get_overlapping_leaf_sub_tiles(
-            const Tile< CoordT >&
+            const Tile< CoordT >& tile
         ) const;
 };
 
 
 template < typename CoordT >
-Mask< CoordT >::Mask(
-    const MASK_SHAPE& shape,
+Mask< CoordT > construct_mask(
+    const MASK_SHAPE shape,
     const std::vector< space_t >& mask_origin,
     const std::vector< space_t >& mask_params,
     const std::vector< space_t >& mask_offset
 )
-    : shape_( shape )
 {
     if ( mask_params.empty() )
         throw std::invalid_argument( "Invalid mask params vector" );
@@ -107,63 +98,43 @@ Mask< CoordT >::Mask(
     if ( !mask_offset.empty() && mask_offset.size() != static_cast< std::size_t >( CoordT::D ) )
         throw std::invalid_argument( "Invalid mask offset vector" );
 
+    Mask< CoordT > m;
+    m.shape_ = shape;
+
     if ( !mask_offset.empty() )
-        offset_.emplace( CoordT::copy_from_vec( mask_offset.begin() ) );
+        m.offset_ = CoordT::copy_from_vec( mask_offset.begin() );
 
     if ( !mask_origin.empty() )
     {
-        if ( offset_.has_value() )
-            origin_.emplace( CoordT::copy_from_vec( mask_origin.begin() ) + offset_.value() );
-        else
-            origin_.emplace( CoordT::copy_from_vec( mask_origin.begin() ) );
+        m.has_c_radius_ = true;
+        m.c_radius_.origin_ = CoordT::copy_from_vec( mask_origin.begin() ) + m.offset_;
     }
 
-    initialize_mask_helpers(
-        radius2_,
-        helper_vectors_,
-        helper_scalars_,
-        origin_.value_or( CoordT() ),
-        mask_params,
-        shape_
-    );
+    initialize_mask_helpers( m, mask_params );
+
+    return m;
 }
 
 
 template < typename CoordT >
-inline Mask< CoordT >&
-Mask< CoordT >::operator=( Mask< CoordT >&& m )
-{
-    shape_ = m.shape_;
-    radius2_ = m.radius2_;
-    origin_ = std::move( m.origin_ );
-    offset_ = std::move( m.offset_ );
-    helper_vectors_ = std::move( m.helper_vectors_ );
-    helper_scalars_ = std::move( m.helper_scalars_ );
-
-    m.shape_ = MASK_SHAPE::NULL_MS;
-
-    return *this;
-}
-
-
-template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
+inline OptDisp< CoordT >
 Mask< CoordT >::coord_in_mask(
     const CoordT& coord
 ) const
 {
-    return sapi::coord_in_mask( *this, coord );
+    assert( has_c_radius_ );
+    return sapi::coord_in_mask( coord, *this );
 }
 
 
 template < typename CoordT >
-inline std::optional< Displacement< CoordT > >
+inline OptDisp< CoordT >
 Mask< CoordT >::coord_in_mask(
     const CoordT& a,
     const CoordT& b
 ) const
 {
-    return sapi::coord_in_mask( *this, a, b );
+    return sapi::coord_in_mask( a, b, *this );
 }
 
 
@@ -172,7 +143,8 @@ inline bool Mask< CoordT >::overlap_with_tile_surface(
     const Tile< CoordT >& tile
 ) const
 {
-    return coord_in_mask( tile.project_point_to_surface( origin_.value() ) ).has_value();
+    assert( has_c_radius_ );
+    return coord_in_mask( tile.project_point_to_surface( c_radius_.origin_ ) ).first;
 }
 
 
@@ -182,7 +154,7 @@ inline bool Mask< CoordT >::overlap_with_tile_surface(
     const Tile< CoordT >& tile
 ) const
 {
-    return coord_in_mask( coord, tile.project_point_to_surface( coord ) ).has_value();
+    return coord_in_mask( coord, tile.project_point_to_surface( coord ) ).first;
 }
 
 
@@ -199,7 +171,7 @@ inline bool Mask< CoordT >::tiles_within_mask_range(
         b.project_point_to_surface(
             a.c_radius_.origin_
         )
-    ).has_value();
+    ).first;
 }
 
 
@@ -208,46 +180,40 @@ OVERLAP_LEVEL Mask< CoordT >::tile_overlap(
     const Tile< CoordT >& tile
 ) const
 {
-    // Fast rejection check if mask origin is farther than sum of both radi
-    if ( !tile.c_radius_.disp_in_radius( tile.c_radius_.origin_ - origin_.value(), std::sqrt( radius2_ ) ) )
+    assert( has_c_radius_ );
+
+    if ( !c_radius_.overlapping_radi( tile.c_radius_ ).first )
         return OVERLAP_LEVEL::NONE;
 
-    // Check if tile is fully in mask
-    bool in_mask = true;
+    bool fully_in_mask = true;
     vertidx_t vertices_in_mask = 0;
     auto tile_vit = tile.vertices_.cbegin();
     const auto tile_vend = tile.vertices_.cend();
     for ( ; tile_vit != tile_vend; ++tile_vit )
     {
-        in_mask &= coord_in_mask( *tile_vit ).has_value();
-        if ( !in_mask ) break; // Stop at first failure
+        fully_in_mask &= coord_in_mask( *tile_vit ).first;
+        if ( !fully_in_mask ) break; // Stop at first failure
         ++vertices_in_mask;
     }
 
-    // If tile fully in mask
-    if ( in_mask ) return OVERLAP_LEVEL::FULL;
+    if ( fully_in_mask ) return OVERLAP_LEVEL::FULL;
 
-    // If at least one vertex is in mask
     if ( 0 < vertices_in_mask ) return OVERLAP_LEVEL::PARTIAL;
 
-    // If mask origin is in tile or vice versa
     if (
-        tile.coord_in_tile( origin_.value() ) ||
-        coord_in_mask( tile.c_radius_.origin_ ).has_value()
+        tile.coord_in_tile( c_radius_.origin_ ) ||
+        coord_in_mask( tile.c_radius_.origin_ ).first
         )
         return OVERLAP_LEVEL::PARTIAL;
 
-    // Continue with vertex check if possible
-    // skipped if previous loop went over all vertices
+    // Continue from last vertex check if possible
     for ( ; tile_vit != tile_vend; ++tile_vit )
-        if ( coord_in_mask( *tile_vit ).has_value() )
-            return OVERLAP_LEVEL::PARTIAL;
+        if ( coord_in_mask( *tile_vit ).first )
+            return OVERLAP_LEVEL::PARTIAL; // return on first success
 
-    // Check for mask area overlap with tile edges
     if ( overlap_with_tile_surface( tile ) )
         return OVERLAP_LEVEL::PARTIAL;
 
-    // Tile not in mask, no vertex in mask, mask not in tile, no edge overlap
     return OVERLAP_LEVEL::NONE;
 }
 
@@ -258,6 +224,8 @@ Mask< CoordT >::get_overlapping_leaf_sub_tiles(
     const Tile< CoordT >& tile
 ) const
 {
+    assert( has_c_radius_ );
+
     std::forward_list< const Tile< CoordT >* > leaf_sub_tiles;
     std::forward_list< const Tile< CoordT >* > temps{ &tile };
     do
@@ -271,26 +239,30 @@ Mask< CoordT >::get_overlapping_leaf_sub_tiles(
             // If the tile is completely within the mask we insert all of
             // its leaf sub tiles ( defaults to the tile in question if no sub tiles available )
         case OVERLAP_LEVEL::FULL:
+        {
             current->insert_leaf_sub_tiles( leaf_sub_tiles );
             break;
+        }
 
-            // If there is only a partial overlap then we check into the sub-tiles
-            // if there are no sub-tiles then we add the current tile to our result list
+        // If there is only a partial overlap then we check into the sub-tiles
+        // if there are no sub-tiles then we add the current tile to our result list
         case OVERLAP_LEVEL::PARTIAL:
+        {
             if ( !current->sub_tiles_.empty() )
-            {
                 for ( const auto& st : current->sub_tiles_ )
                     temps.emplace_front( &st );
-            }
             else
-                leaf_sub_tiles.emplace_front( std::move( current ) );
+                leaf_sub_tiles.emplace_front( current );
+
             break;
+        }
 
         default:
             break;
         }
 
-    } while ( !temps.empty() );
+    }
+    while ( !temps.empty() );
 
     return leaf_sub_tiles;
 }

@@ -23,10 +23,6 @@
 #ifndef MASK_CONTAINERS_H
 #define MASK_CONTAINERS_H
 
-#include <map>
-#include <optional>
-#include <stdexcept>
-
 #include "node_containers.h"
 
 
@@ -38,42 +34,100 @@ struct Displacement;
 
 // Forward definition to link with tile.h
 template < typename CoordT >
-class Tile;
+struct Tile;
 
-
+// Tile index
+//  -> leaf index
+//      -> vector of pointers to pairs of
+//          -> node index
+//          -> coordinate
 template < typename CoordT >
-using LeafPairInfo = std::tuple<
-    tileidx_t, // source leaf index
-    tileidx_t, // target leaf index
-    tileidx_t, // unwrapped image index
-    std::optional< CoordT > // unwrapping displacement
->;
+using IndexedCoordPtrMap =
+std::unordered_map< tileidx_t,
+    std::unordered_map< tileidx_t,
+    std::vector< const std::pair< nodeidx_t, CoordT >* > > >;
+
+// Forward definition to comparisons.h
+template < typename CoordT >
+bool compare_indexed_node_ptr_maps(
+    const IndexedCoordPtrMap< CoordT >& left,
+    const IndexedCoordPtrMap< CoordT >& right
+);
+
+
+struct LeafPairInfo
+{
+    tileidx_t source_index_;
+    tileidx_t target_index_;
+    shift_t image_index_;
+};
+
+
+inline LeafPairInfo construct_leaf_pair_info(
+    const tileidx_t source,
+    const tileidx_t target,
+    const shift_t image
+)
+{
+    LeafPairInfo lpi;
+    lpi.source_index_ = source;
+    lpi.target_index_ = target;
+    lpi.image_index_ = image;
+    return lpi;
+}
 
 
 template < typename CoordT >
 struct TilePairInfo
 {
-    std::forward_list< LeafPairInfo< CoordT > >
-        flattened_leaf_pairs_;
+    const std::vector< CoordT >* image_displacements_ = nullptr;
 
     // Local leaf index
     //  -> Remote leaf index
-    //      -> shifted pairings
+    //      -> compressed used pairings
     std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        std::vector< std::optional< CoordT > > > >
+        std::unordered_map< tileidx_t, count_t > >
         aggregated_leaf_pairs_;
 
-    TilePairInfo() = default;
-    TilePairInfo( const TilePairInfo& ) = delete;
-    TilePairInfo( TilePairInfo&& ) = default;
-    ~TilePairInfo() = default;
+    std::forward_list< LeafPairInfo >
+        flattened_leaf_pairs_;
 
-    bool operator==( const TilePairInfo& tpi ) const
-    {
-        return aggregated_leaf_pairs_ == tpi.aggregated_leaf_pairs_;
-    }
+    TilePairInfo() noexcept = default;
+    TilePairInfo( const TilePairInfo& ) = delete;
+    TilePairInfo( TilePairInfo&& ) noexcept = default;
+    ~TilePairInfo() noexcept = default;
+
+    TilePairInfo& operator=( const TilePairInfo& ) = delete;
+    TilePairInfo& operator=( TilePairInfo&& ) noexcept;
+
+    bool operator==( const TilePairInfo& ) const;
 };
+
+
+template < typename CoordT >
+inline TilePairInfo< CoordT >&
+TilePairInfo< CoordT >::operator=( TilePairInfo&& tpi ) noexcept
+{
+    image_displacements_ = tpi.image_displacements_;
+    tpi.image_displacements_ = nullptr;
+
+    aggregated_leaf_pairs_.swap( tpi.aggregated_leaf_pairs_ );
+    tpi.aggregated_leaf_pairs_.clear();
+
+    flattened_leaf_pairs_.swap( tpi.flattened_leaf_pairs_ );
+    tpi.flattened_leaf_pairs_.clear();
+
+    return *this;
+}
+
+
+template < typename CoordT >
+inline bool TilePairInfo< CoordT >::operator==(
+    const TilePairInfo& tpi
+    ) const
+{
+    return aggregated_leaf_pairs_ == tpi.aggregated_leaf_pairs_;
+}
 
 
 template< typename CoordT >
@@ -83,55 +137,66 @@ struct TileSetInfo
     tileidx_t valid_leaves_ = 0;
     nodeidx_t total_node_count_ = 0;
 
-    std::forward_list<
-        std::pair< tileidx_t,
-        std::unordered_map< tileidx_t,
-        std::vector< std::pair< nodeidx_t, CoordT > > > > >
-        flattened_tile_idx_leaf_nodes_coords_;
-
     // Stores the tile to tile pair comparison combinations between
     // locally owned tiles and tiles from another rank
     // Local tile index
     //      remote tile index
     //          tile pair info
-    std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        TilePairInfo< CoordT > > >
-        tile_pairs_info_map_;
+    std::vector< std::pair< tileidx_t,
+        std::vector< std::pair< tileidx_t,
+        TilePairInfo< CoordT > > > > >
+        tile_pairings_;
 
-    TileSetInfo() = default;
+    TileSetInfo() noexcept = default;
     TileSetInfo( const TileSetInfo& ) = delete;
-    TileSetInfo( TileSetInfo&& ) = default;
-    ~TileSetInfo() = default;
+    TileSetInfo( TileSetInfo&& ) noexcept = default;
+    ~TileSetInfo() noexcept = default;
 
-    bool operator==( const TileSetInfo& tsi ) const
-    {
-        return tile_pairs_info_map_ == tsi.tile_pairs_info_map_;
-    }
+    TileSetInfo& operator=( const TileSetInfo& ) = delete;
+    TileSetInfo& operator=( TileSetInfo&& ) noexcept;
+
+    bool operator==( const TileSetInfo& ) const;
 };
 
 
-// This map is used to store copies of node coordinates after filtering tiles with masks
-// Tile index
-//  -> sub tile index
-//      -> list of pairs of
-//          -> node index (from node sequence) and
-//          -> coordinate (filtered by map)
 template < typename CoordT >
-using ConsolidatedNodeCoordMap =
-std::unordered_map< tileidx_t,
-    std::unordered_map< tileidx_t,
-    std::vector< std::pair< nodeidx_t, CoordT > > > >;
+inline TileSetInfo< CoordT >&
+TileSetInfo< CoordT >::operator=( TileSetInfo&& tsi ) noexcept
+{
+    valid_tiles_ = tsi.valid_tiles_;
+    tsi.valid_tiles_ = 0;
+
+    valid_leaves_ = tsi.valid_leaves_;
+    tsi.valid_leaves_ = 0;
+
+    total_node_count_ = tsi.total_node_count_;
+    tsi.total_node_count_ = 0;
+
+    tile_pairings_.swap( tsi.tile_pairings_ );
+    tsi.tile_pairings_.clear();
+
+    return *this;
+}
+
+
+template < typename CoordT >
+inline bool TileSetInfo< CoordT >::operator==(
+    const TileSetInfo& tsi
+    ) const
+{
+    return tile_pairings_ == tsi.tile_pairings_;
+}
 
 
 template < typename CoordT >
 struct CommunicationInfo
 {
+    count_t total_received_num_leaves_ = 0;
+
     // From source rank
     // This map is then copied onto data_payload_
     // to be sent via MPI to receiving rank
-    ConsolidatedNodeCoordMap< CoordT >
-        tile_idx_leaf_nodes_coords_map_;
+    IndexedCoordPtrMap< CoordT > filtered_coords_;
 
     // Payload is composed by:
     //
@@ -150,85 +215,59 @@ struct CommunicationInfo
     //
     // Content:
     //  for the coordinate of each node:
-    //      each dimension as a double: total sequences count * number of dimensions
+    //      each dimension bit-casted to an unsigned 64bit integer: total sequences count * number of dimensions
     //
     // Payload on sender side must be manually cleared once the target has received the data
-    std::vector< int64_t > data_payload_;
+    // on receiver side payload is cleared as soon as reconstruction is done
+    std::vector< uint64_t > data_payload_;
 
-    CommunicationInfo() = default;
+    CommunicationInfo() noexcept = default;
     CommunicationInfo( const CommunicationInfo& ) = delete;
-    CommunicationInfo( CommunicationInfo&& ) = default;
-    ~CommunicationInfo() = default;
+    CommunicationInfo( CommunicationInfo&& ) noexcept = default;
+    ~CommunicationInfo() noexcept = default;
 
-    bool operator==( const CommunicationInfo& ci ) const
-    {
-        return tile_idx_leaf_nodes_coords_map_ ==
-            ci.tile_idx_leaf_nodes_coords_map_;
-    }
+    CommunicationInfo& operator=( const CommunicationInfo& ) = delete;
+    CommunicationInfo& operator=( CommunicationInfo&& ) noexcept;
 
-    CommunicationInfo& operator=( CommunicationInfo&& ci )
-    {
-        tile_idx_leaf_nodes_coords_map_ =
-            std::move( ci.tile_idx_leaf_nodes_coords_map_ );
-        data_payload_ = std::move( ci.data_payload_ );
-        return *this;
-    }
+    bool operator==( const CommunicationInfo& ) const;
 };
 
 
 template < typename CoordT >
-using NodeDisplacementInfo = std::tuple<
-    nodeidx_t,
-    nodeidx_t,
-    Displacement< CoordT >
->;
-
-
-// Need ordered node to node displacement checks for
-// RNG reproducibility
-template < typename CoordT >
-using ConsolidatedNodeDisplacementMap =
-std::map< nodeidx_t,
-    std::map< nodeidx_t,
-    Displacement< CoordT > > >;
-
-
-template < typename CoordT >
-struct DisplacementsInfo
+inline CommunicationInfo< CoordT >&
+CommunicationInfo< CoordT >::operator=( CommunicationInfo&& ci ) noexcept
 {
-    // Local tile idx
-    //      remote tile idx
-    //          local leaf
-    //              remote leaf
-    //                  local node idx
-    //                      partial remote node displacement check list
-    std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        std::forward_list<
-        NodeDisplacementInfo< CoordT > > > > > > procedural_aggregation_map_;
+    total_received_num_leaves_ =
+        ci.total_received_num_leaves_;
+    ci.total_received_num_leaves_ = 0;
+
+    filtered_coords_.swap( ci.filtered_coords_ );
+    ci.filtered_coords_.clear();
+
+    data_payload_.swap( ci.data_payload_ );
+    ci.data_payload_.clear();
+
+    return *this;
+}
 
 
-    // Driver tile idx
-    //      Driver leaf idx
-    //          ( ordered ) driver node idx
-    //              ( ordered ) pool node idx
-    //                  displacement check list
-    std::unordered_map< tileidx_t,
-        std::unordered_map< tileidx_t,
-        ConsolidatedNodeDisplacementMap< CoordT > > > consolidated_info_map_;
+template < typename CoordT >
+inline bool CommunicationInfo< CoordT >::operator==(
+    const CommunicationInfo& ci
+    ) const
+{
+    return compare_indexed_node_ptr_maps(
+        filtered_coords_,
+        ci.filtered_coords_
+    );
+}
 
-    DisplacementsInfo() = default;
-    DisplacementsInfo( const DisplacementsInfo& ) = delete;
-    DisplacementsInfo( DisplacementsInfo&& ) = default;
-    ~DisplacementsInfo() = default;
 
-    bool operator==( const DisplacementsInfo& dci ) const
-    {
-        return consolidated_info_map_ == dci.consolidated_info_map_;
-    }
-};
+// Storage for received indexed coord pairs
+// one storage is instantiated per rank
+template < typename CoordT >
+using RemoteIndexedCoordCache = std::forward_list<
+    std::vector< std::pair< nodeidx_t, CoordT > > >;
 
 
 template < typename CoordT >
@@ -237,21 +276,45 @@ struct RankPairInfo
     TileSetInfo< CoordT > tile_pairs_set_;
     CommunicationInfo< CoordT > sender_info_;
     CommunicationInfo< CoordT > receiver_info_;
-    DisplacementsInfo< CoordT > displacement_checks_map_;
 
-    RankPairInfo() = default;
+    RemoteIndexedCoordCache< CoordT > remote_indexed_coord_cache_;
+
+    RankPairInfo() noexcept = default;
     RankPairInfo( const RankPairInfo& ) = delete;
-    RankPairInfo( RankPairInfo&& ) = default;
-    ~RankPairInfo() = default;
+    RankPairInfo( RankPairInfo&& ) noexcept = default;
+    ~RankPairInfo() noexcept = default;
 
-    bool operator==( const RankPairInfo& rpi ) const
-    {
-        return tile_pairs_set_ == rpi.tile_pairs_set_ &&
-            sender_info_ == rpi.sender_info_ &&
-            receiver_info_ == rpi.receiver_info_ &&
-            displacement_checks_map_ == rpi.displacement_checks_map_;
-    }
+    RankPairInfo& operator=( const RankPairInfo& ) = delete;
+    RankPairInfo& operator=( RankPairInfo&& ) noexcept;
+
+    bool operator==( const RankPairInfo& ) const;
 };
+
+
+template < typename CoordT >
+inline RankPairInfo< CoordT >&
+RankPairInfo< CoordT >::operator=( RankPairInfo&& rpi ) noexcept
+{
+    tile_pairs_set_ = std::move( rpi.tile_pairs_set_ );
+    sender_info_ = std::move( rpi.sender_info_ );
+    receiver_info_ = std::move( rpi.receiver_info_ );
+
+    remote_indexed_coord_cache_.swap( rpi.remote_indexed_coord_cache_ );
+    rpi.remote_indexed_coord_cache_.clear();
+
+    return *this;
+}
+
+
+template < typename CoordT >
+inline bool RankPairInfo< CoordT >::operator==(
+    const RankPairInfo& rpi
+    ) const
+{
+    return tile_pairs_set_ == rpi.tile_pairs_set_ &&
+        sender_info_ == rpi.sender_info_ &&
+        receiver_info_ == rpi.receiver_info_;
+}
 
 
 template < typename CoordT >
@@ -260,183 +323,25 @@ struct DistributedPairInfo
     std::unordered_map< vp_t, RankPairInfo< CoordT > > source_side_info_;
     std::unordered_map< vp_t, RankPairInfo< CoordT > > target_side_info_;
 
-    DistributedPairInfo() = default;
+    DistributedPairInfo() noexcept = default;
     DistributedPairInfo( const DistributedPairInfo& ) = delete;
-    DistributedPairInfo( DistributedPairInfo&& ) = default;
-    ~DistributedPairInfo() = default;
+    DistributedPairInfo( DistributedPairInfo&& ) noexcept = default;
+    ~DistributedPairInfo() noexcept = default;
 
-    bool operator==( const DistributedPairInfo& dci ) const
-    {
-        return source_side_info_ == dci.source_side_info_
-            && target_side_info_ == dci.target_side_info_;
-    }
+    DistributedPairInfo& operator=( const DistributedPairInfo& ) = delete;
+    DistributedPairInfo& operator=( DistributedPairInfo&& ) = delete;
+
+    bool operator==( const DistributedPairInfo& ) const;
 };
 
 
 template < typename CoordT >
-void prepare_data_payload(
-    CommunicationInfo< CoordT >& si,
-    const TileSetInfo< CoordT >& tsi
-)
+inline bool DistributedPairInfo< CoordT >::operator==(
+    const DistributedPairInfo& dci
+    ) const
 {
-    // Compute total data length
-    constexpr const vp_t three = 3;
-    constexpr const vp_t two = 2;
-    constexpr const vp_t dims = CoordT::D;
-    const vp_t total_header_size = three + two * (
-        static_cast< vp_t >( tsi.valid_tiles_ )
-        + static_cast< vp_t >( tsi.valid_leaves_ )
-        ) + static_cast< vp_t >( tsi.total_node_count_ );
-    const vp_t total_content_size = static_cast< vp_t >( tsi.total_node_count_ ) * dims;
-    const vp_t total_payload_size = total_header_size + total_content_size;
-
-    // Check overflow
-    if ( !(
-        3 <= total_header_size &&
-        0 <= total_content_size &&
-        3 <= total_payload_size
-        ) )
-        throw std::runtime_error( "Could not compute correct total payload size." );
-
-    assert( ( 3 < total_payload_size ) != si.tile_idx_leaf_nodes_coords_map_.empty() );
-
-    // Prepare payload buffer
-    si.data_payload_.resize( total_payload_size );
-
-    // Prepare writing iterators
-    auto info_writing_pos = si.data_payload_.begin();
-    const auto info_writing_end = si.data_payload_.begin() + total_header_size;
-    auto content_writing_pos = info_writing_end;
-    const auto content_writing_end = si.data_payload_.end();
-
-    // Write fixed header metadata
-    *info_writing_pos++ = total_header_size;
-    *info_writing_pos++ = total_content_size;
-    *info_writing_pos++ = tsi.valid_tiles_;
-
-    for ( const auto& [tile_idx, leaf_ncm] : si.tile_idx_leaf_nodes_coords_map_ )
-    {
-        assert( !leaf_ncm.empty() );
-
-        // Write tile index and total number of sub tiles in tile
-        *info_writing_pos++ = tile_idx;
-        *info_writing_pos++ = leaf_ncm.size();
-
-        for ( const auto& [leaf_idx, node_coord_pairs] : leaf_ncm )
-        {
-            assert( !node_coord_pairs.empty() );
-
-            // Write sub tile index and total number of nodes in sub tile
-            *info_writing_pos++ = leaf_idx;
-            const auto num_nodes = static_cast< nodeidx_t >( node_coord_pairs.size() );
-            *info_writing_pos++ = num_nodes;
-
-            assert(
-                num_nodes <= std::distance( info_writing_pos, info_writing_end ) &&
-                dims * num_nodes <= std::distance( content_writing_pos, content_writing_end )
-            );
-
-            for ( const auto& [node_idx, coord] : node_coord_pairs )
-            {
-                // Write node index and coord
-                *info_writing_pos++ = node_idx;
-                coord.bit_copy_to_vec( content_writing_pos );
-            }
-        }
-    }
-
-    assert(
-        info_writing_pos == info_writing_end &&
-        content_writing_pos == content_writing_end
-    );
-}
-
-
-template < typename CoordT >
-void reconstruct_received_info( CommunicationInfo< CoordT >& ri )
-{
-    const auto payload_size = ri.data_payload_.size();
-    assert( 3 <= payload_size );
-
-    // If only three elements are received it means
-    // the payload content is empty and only
-    // minimum header was received
-    if ( 3 == payload_size )
-    {
-        ri.data_payload_.clear();
-        return;
-    }
-
-    // Prepare reading iterators
-    auto info_reading_pos = ri.data_payload_.begin();
-    const auto recv_header_length = static_cast< vp_t >( *info_reading_pos++ );
-    const auto recv_content_length = static_cast< vp_t >( *info_reading_pos++ );
-    const auto recv_payload_length = recv_header_length + recv_content_length;
-    assert(
-        8 <= recv_header_length && // Minimum 1 tile 1 subtile 1 node -> 8 header items
-        0 < recv_content_length &&
-        8 < recv_payload_length &&
-        recv_content_length % CoordT::D == 0 &&
-        payload_size == static_cast< std::size_t >( recv_payload_length )
-    );
-
-    const auto info_reading_end = ri.data_payload_.begin() + recv_header_length;
-    auto content_reading_pos = info_reading_end;
-    const auto content_reading_end = ri.data_payload_.end();
-
-    // Read total number of tiles
-    auto recv_num_tiles = static_cast< tileidx_t >( *info_reading_pos++ );
-    assert( 0 < recv_num_tiles );
-    for ( ; recv_num_tiles > 0; --recv_num_tiles )
-    {
-        // Read tile index and total number of sub tiles
-        const auto recv_tile_idx = static_cast< tileidx_t >( *info_reading_pos++ );
-        auto recv_num_sub_tiles = static_cast< tileidx_t >( *info_reading_pos++ );
-        assert( 0 < recv_num_sub_tiles );
-
-        std::unordered_map< tileidx_t, std::vector< std::pair< nodeidx_t, CoordT > > >
-            leaf_nodes_coords_map;
-        for ( ; recv_num_sub_tiles > 0; --recv_num_sub_tiles )
-        {
-            // Read sub tile index and total number of nodes
-            const auto recv_st_idx = static_cast< tileidx_t >( *info_reading_pos++ );
-            auto recv_num_nodes = static_cast< nodeidx_t >( *info_reading_pos++ );
-            assert( 0 < recv_num_nodes &&
-                recv_num_nodes <= std::distance( info_reading_pos, info_reading_end ) &&
-                CoordT::D * recv_num_nodes <= std::distance( content_reading_pos, content_reading_end )
-            );
-
-            std::vector< std::pair< nodeidx_t, CoordT > > node_coord_pairs( recv_num_nodes );
-            auto ncp_it = node_coord_pairs.begin();
-            for ( ; recv_num_nodes > 0; --recv_num_nodes )
-                // Read node idx and coord data
-                *ncp_it++ = std::make_pair(
-                    static_cast< nodeidx_t >( *info_reading_pos++ ),
-                    CoordT::bit_copy_from_vec( content_reading_pos )
-                );
-
-            const auto emplace_res = leaf_nodes_coords_map.emplace(
-                std::make_pair(
-                    tileidx_t( recv_st_idx ),
-                    std::move( node_coord_pairs )
-                )
-            );
-            assert( emplace_res.second );
-        }
-
-        const auto emplace_res = ri.tile_idx_leaf_nodes_coords_map_.emplace(
-            std::make_pair(
-                tileidx_t( recv_tile_idx ),
-                std::move( leaf_nodes_coords_map )
-            )
-        );
-        assert( emplace_res.second );
-    }
-
-    assert( info_reading_pos == info_reading_end && content_reading_pos == content_reading_end );
-
-    // Automatically clear after successful reconstruction
-    ri.data_payload_.clear();
+    return source_side_info_ == dci.source_side_info_
+        && target_side_info_ == dci.target_side_info_;
 }
 }
 

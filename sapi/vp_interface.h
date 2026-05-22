@@ -38,7 +38,7 @@
 
 namespace sapi
 {
-inline void init_mpi( vp_t* const& argc, char*** const& argv )
+inline void init_mpi( vp_t* const argc, char*** const argv )
 {
 #ifdef HAVE_MPI
     vp_t initialized;
@@ -118,7 +118,7 @@ inline vp_t get_max_omp_threads()
 }
 
 
-inline void set_max_omp_threads( const vp_t& num_threads )
+inline void set_max_omp_threads( const vp_t num_threads )
 {
 #ifdef HAVE_OMP
     if ( omp_in_parallel() )

@@ -23,10 +23,8 @@
 #ifndef TILE_GRID_H
 #define TILE_GRID_H
 
-#include <set>
 #include <string>
 #include <utility>
-#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -46,69 +44,20 @@ struct BoundingBox;
 
 
 template < typename CoordT >
-struct ShiftedImage
-{
-    GridPosition< CoordT > shifted_position_;
-    std::optional< Tile< CoordT > > shifted_tile_;
-    // Create shifted displacement to compute distance between nodes.
-    // Node shifts can be computed relative to the origin,
-    // hence we the displacement from the origin to the shifted
-    // origin to each node to get its position relative to the shifted origin
-    std::optional< CoordT > shift_displacement_;
-
-    ShiftedImage() = default;
-    ShiftedImage( const ShiftedImage& ) = delete;
-    ShiftedImage( ShiftedImage&& ) = default;
-    ~ShiftedImage() = default;
-
-    ShiftedImage& operator=( ShiftedImage&& );
-
-    bool operator==( const ShiftedImage& ) const;
-};
-
-
-template < typename CoordT >
-inline ShiftedImage< CoordT >&
-ShiftedImage< CoordT >::operator=( ShiftedImage&& si )
-{
-    shifted_position_ = std::move( si.shifted_position_ );
-    shifted_tile_ = std::move( si.shifted_tile_ );
-    shift_displacement_ = std::move( si.shift_displacement_ );
-
-    return *this;
-}
-
-
-template < typename CoordT >
-inline bool ShiftedImage< CoordT >::operator==( const ShiftedImage& si ) const
-{
-    return shifted_position_ == si.shifted_position_ &&
-        shift_displacement_ == si.shift_displacement_ &&
-        shifted_tile_ == si.shifted_tile_;
-}
-
-
-template < typename CoordT >
 struct TilePosition
 {
     GridPosition< CoordT > position_;
-    Tile< CoordT > tile_;
-    std::vector< ShiftedImage< CoordT > > grid_images_;
+    mutable Tile< CoordT > tile_;
+    mutable std::vector< Tile< CoordT > > tile_images_;
+    std::vector< CoordT > image_displacements_;
     std::unordered_set< tileidx_t > direct_tile_neighborhood_;
     std::unordered_set< tileidx_t > wrapped_tile_neighborhood_;
 
-    TilePosition() = default;
-    TilePosition( const TilePosition& ) = delete;
-    TilePosition( TilePosition&& ) = default;
-    ~TilePosition() = default;
-
-    TilePosition& operator=( TilePosition&& );
-
     const std::unordered_set< tileidx_t >&
-        get_tile_neighborhood( const bool& ) const;
+        get_tile_neighborhood( const bool ) const;
 
     bool in_neighborhood(
-        const tileidx_t&, const bool&
+        const tileidx_t, const bool
     ) const;
 
     std::string to_string() const;
@@ -118,22 +67,8 @@ struct TilePosition
 
 
 template < typename CoordT >
-inline TilePosition< CoordT >&
-TilePosition< CoordT >::operator=( TilePosition&& tp )
-{
-    position_ = std::move( tp.position_ );
-    tile_ = std::move( tp.tile_ );
-    grid_images_ = std::move( tp.grid_images_ );
-    direct_tile_neighborhood_ = std::move( tp.direct_tile_neighborhood_ );
-    wrapped_tile_neighborhood_ = std::move( tp.wrapped_tile_neighborhood_ );
-
-    return *this;
-}
-
-
-template < typename CoordT >
 inline const std::unordered_set< tileidx_t >&
-TilePosition< CoordT >::get_tile_neighborhood( const bool& edge_wrap ) const
+TilePosition< CoordT >::get_tile_neighborhood( const bool edge_wrap ) const
 {
     return edge_wrap ? wrapped_tile_neighborhood_ : direct_tile_neighborhood_;
 }
@@ -141,7 +76,7 @@ TilePosition< CoordT >::get_tile_neighborhood( const bool& edge_wrap ) const
 
 template < typename CoordT >
 inline bool TilePosition< CoordT >::in_neighborhood(
-    const tileidx_t& index, const bool& edge_wrap
+    const tileidx_t index, const bool edge_wrap
 ) const
 {
     if ( edge_wrap )
@@ -170,34 +105,23 @@ inline bool TilePosition< CoordT >::operator==( const TilePosition& tp ) const
     return position_ == tp.position_ &&
         direct_tile_neighborhood_ == tp.direct_tile_neighborhood_ &&
         wrapped_tile_neighborhood_ == tp.wrapped_tile_neighborhood_ &&
+        image_displacements_ == tp.image_displacements_ &&
         tile_ == tp.tile_ &&
-        grid_images_ == tp.grid_images_;
+        tile_images_ == tp.tile_images_;
 }
 
 
 template < typename CoordT >
 struct TileGrid
 {
-    split_t splits_ = 0;
     bool has_split_ = false;
+    split_t splits_ = 0;
     tileidx_t num_tiles_ = 0;
     GridPosition< CoordT > dimensions_;
     BoundingBox< CoordT > bounding_box_;
     std::vector< TilePosition< CoordT > > positions_;
 
-    TileGrid() = default;
-    TileGrid( const TileGrid& ) = delete;
-    TileGrid( TileGrid&& ) = default;
-    ~TileGrid() = default;
-
-    TileGrid( const GridPosition < CoordT >& );
-
-    TileGrid& operator=( TileGrid&& );
-
-    void split_owned_tiles(
-        const split_t&,
-        const std::set< tileidx_t >&
-    );
+    void prepare( const GridPosition < CoordT >& );
 
     std::string to_string() const;
 
@@ -206,62 +130,19 @@ struct TileGrid
 
 
 template < typename CoordT >
-TileGrid< CoordT >::TileGrid( const GridPosition< CoordT >& dimensions )
-    : num_tiles_( 1 )
-    , dimensions_( dimensions )
+void TileGrid< CoordT >::prepare( const GridPosition< CoordT >& dimensions )
 {
+    num_tiles_ = 1;
+    dimensions_ = dimensions;
+
     for ( const auto& d : dimensions_ )
         num_tiles_ *= d;
     if ( num_tiles_ < 1 )
         throw std::invalid_argument( "Invalid grid dimensions" );
+
+    splits_ = 0;
+    has_split_ = false;
     positions_.resize( num_tiles_ );
-}
-
-
-template < typename CoordT >
-inline TileGrid< CoordT >&
-TileGrid< CoordT >::operator=( TileGrid&& tg )
-{
-    splits_ = tg.splits_;
-    tg.splits_ = 0;
-    has_split_ = tg.has_split_;
-    tg.has_split_ = false;
-    num_tiles_ = tg.num_tiles_;
-    tg.num_tiles_ = 0;
-
-    dimensions_ = std::move( tg.dimensions_ );
-    bounding_box_ = std::move( tg.bounding_box_ );
-    positions_ = std::move( tg.positions_ );
-
-    return *this;
-}
-
-
-template < typename CoordT >
-void TileGrid< CoordT >::split_owned_tiles(
-    const split_t& num_splits,
-    const std::set< tileidx_t >& owned_tiles
-)
-{
-    assert( !positions_.empty() && !has_split_ );
-    if ( num_splits < 0 )
-        throw std::invalid_argument( "Cannot negatively split" );
-
-    if ( owned_tiles.empty() )
-    {
-        has_split_ = true;
-        return;
-    }
-
-#pragma omp parallel default( none )\
-shared( positions_, owned_tiles, num_splits )
-#pragma omp master
-#pragma omp taskgroup
-    for ( const auto& position : owned_tiles )
-        positions_.at( position ).tile_.split_tile( num_splits );
-
-    splits_ = num_splits;
-    has_split_ = true;
 }
 
 

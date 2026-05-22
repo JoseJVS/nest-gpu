@@ -21,86 +21,33 @@
  */
 
 #include "vp_interface.h"
+#include "rng_creators.h"
 #include "random_manager.h"
-
-// Third party
-#include "randutils.hpp"
-#include "pcg_random.hpp"
 
 
 namespace sapi
 {
-template < typename RT, typename RNG >
-void RNGModel< RT, RNG >::seed( const std::initializer_list< uint32_t >& l )
-{
-    randutils::auto_seed_256 seq( l );
-    engine_.seed( seq );
-}
-
-
-struct MTGenerator final : public StateLessCreator< AnyRNG >
-{
-    AnyRNG create() const override
-    {
-        if constexpr ( std::is_same_v< rng_bits_t, uint32_t > )
-        {
-            return AnyRNG( std::mt19937{} );
-        }
-        else
-        {
-            return AnyRNG( std::mt19937_64{} );
-        }
-    }
-};
-
-
-struct PCGGenerator final : public StateLessCreator< AnyRNG >
-{
-    AnyRNG create() const override
-    {
-        if constexpr ( std::is_same_v< rng_bits_t, uint32_t > )
-        {
-            return AnyRNG( pcg32_k1024_fast{} );
-        }
-        else
-        {
-            return AnyRNG( pcg64_k1024_fast{} );
-        }
-    }
-};
-
-
-inline void initialize_rng_registry( CreatorRegistry< AnyRNG >& acr )
-{
-    acr.register_creator< MTGenerator >( "MersenneTwister" );
-    acr.register_creator< PCGGenerator >( "PCG" );
-}
-
-
 RandomManager::RandomManager()
-    : local_rank_( static_cast< uint32_t >( get_mpi_rank() ) )
-    , num_processes_( get_num_mpi_processes() )
+    : local_rank_( static_cast< rng_seed_t >( get_mpi_rank() ) )
+    , num_processes_( static_cast< rng_seed_t >( get_num_mpi_processes() ) )
 {
     initialize_rng_registry( rng_registry_ );
     current_creator_ = rng_registry_.get_creator( current_rng_type_ ).get();
-    initialize();
 }
 
 
-RandomManager::RandomManager( const vp_t& local_rank, const vp_t& num_processes )
-    : local_rank_( static_cast< uint32_t >( local_rank ) )
-    , num_processes_( num_processes )
+RandomManager::RandomManager( const vp_t local_rank, const vp_t num_processes )
+    : local_rank_( static_cast< rng_seed_t >( local_rank ) )
+    , num_processes_( static_cast< rng_seed_t >( num_processes ) )
 {
     initialize_rng_registry( rng_registry_ );
     current_creator_ = rng_registry_.get_creator( current_rng_type_ ).get();
-    initialize();
 }
 
 
 void RandomManager::initialize()
 {
     if (
-        initialized_ ||
         !rank_paired_seeds_.empty() ||
         rank_synced_rng_ ||
         rank_specific_rng_ ||
@@ -115,17 +62,16 @@ void RandomManager::initialize()
         tid_specific_rng_vec_.prepare();
         tid_rank_paired_rng_vec_.prepare();
         rank_paired_seeds_.clear();
-        initialized_ = false;
     }
 
     rank_paired_seeds_.resize( num_processes_, 0 );
 
-    const auto rng = current_creator_->create();
-    rank_synced_rng_ = rng.clone();
+    const AnyRNG rng( current_creator_->create() );
+    rank_synced_rng_ = std::make_unique< AnyRNG >( rng );
     rank_synced_rng_->seed(
         { base_seed_, RANK_SEEDER_ }
     );
-    rank_specific_rng_ = rng.clone();
+    rank_specific_rng_ = std::make_unique< AnyRNG >( rng );
     rank_specific_rng_->seed(
         { base_seed_, RANK_SEEDER_, PARITY_SEEDER_, local_rank_ }
     );
@@ -138,15 +84,13 @@ void RandomManager::initialize()
 shared( tid_synced_rng_vec_, tid_specific_rng_vec_ )\
 firstprivate( base_seed_, local_rank_, current_creator_ )
     {
-        const uint32_t tid = static_cast< uint32_t >( get_thread_num() );
+        const auto tid = get_thread_num();
         tid_synced_rng_vec_.get_thread_item( tid )->seed(
-            { base_seed_, THREAD_SEEDER_, tid }
+            { base_seed_, THREAD_SEEDER_, static_cast< rng_seed_t >( tid ) }
         );
         tid_specific_rng_vec_.get_thread_item( tid )->seed(
-            { base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, tid }
+            { base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, static_cast< rng_seed_t >( tid ) }
         );
     }
-
-    initialized_ = true;
 }
 }

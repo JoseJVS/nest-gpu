@@ -25,6 +25,7 @@
 #include "tile.h"
 #include "tile2d_geometry.h"
 #include "coordinate_geometry.h"
+#include "type_erasure_helpers.h"
 
 
 namespace sapi
@@ -33,13 +34,13 @@ void initialize_vertices_2D(
     std::vector< Coord2D >& vertices,
     CircumscribedRadius< Coord2D >& c_radius,
     const std::vector< space_t >& side_lengths,
-    const angle_t& angular_offset,
-    const bool& triangular_vertices
+    const angle_t angular_offset,
+    const bool triangular_vertices
 )
 {
     assert( vertices.empty() );
     for ( const auto& side : side_lengths )
-        if ( almost_zero( squared( side ) ) || std::signbit( side ) )
+        if ( almost_zero( side * side ) || std::signbit( side ) )
             throw std::invalid_argument( "Invalid 2D side length" );
 
     const auto half_width = side_lengths[ 0 ] / 2;
@@ -48,19 +49,17 @@ void initialize_vertices_2D(
     const vertidx_t total_vertices = triangular_vertices ? 3 : 4;
     vertices.reserve( total_vertices );
 
-    bool sign_width = false;
-    bool sign_height = false;
     if ( angular_offset == 0 )
     {
         for ( vertidx_t vert = 0; vert < total_vertices; ++vert )
         {
-            sign_width = vert == 1 || vert == 2;
-            sign_height = 1 < vert;
+            const bool sign_width = vert == 1 || vert == 2;
+            const bool sign_height = 1 < vert;
 
             vertices.emplace_back(
-                Coord2D(
-                    compensated_sum( c_radius.origin_.x_, sign_width ? -half_width : half_width ),
-                    compensated_sum( c_radius.origin_.y_, sign_height ? -half_height : half_height )
+                construct_coord_2D(
+                    c_radius.origin_.x_ + ( sign_width ? -half_width : half_width ),
+                    c_radius.origin_.y_ + ( sign_height ? -half_height : half_height )
                 )
             );
         }
@@ -70,12 +69,12 @@ void initialize_vertices_2D(
         const auto rotation = create_angular_offset( angular_offset );
         for ( vertidx_t vert = 0; vert < total_vertices; ++vert )
         {
-            sign_width = vert == 1 || vert == 2;
-            sign_height = 1 < vert;
+            const bool sign_width = vert == 1 || vert == 2;
+            const bool sign_height = 1 < vert;
 
             vertices.emplace_back(
                 c_radius.origin_ + rotate_displacement(
-                    Coord2D(
+                    construct_coord_2D(
                         sign_width ? -half_width : half_width,
                         sign_height ? -half_height : half_height
                     ),
@@ -94,13 +93,13 @@ void initialize_vertices_2D(
 void initialize_hexagon_vertices(
     std::vector< Coord2D >& vertices,
     CircumscribedRadius< Coord2D >& c_radius,
-    const space_t& side_length,
-    const angle_t& angular_offset
+    const space_t side_length,
+    const angle_t angular_offset
 )
 {
     assert( vertices.empty() );
 
-    c_radius.radius2_ = squared( side_length );
+    c_radius.radius2_ = side_length * side_length;
     if ( std::signbit( side_length ) || almost_zero( c_radius.radius2_ ) )
         throw std::invalid_argument( "Invalid hexagon side length" );
 
@@ -123,13 +122,12 @@ void initialize_helpers_2D(
     assert( ( vertices.size() == 3 || vertices.size() == 4 ) &&
         helper_vectors.empty() && helper_scalars.empty() );
 
-    helper_vectors.reserve( 2 );
-    helper_vectors.emplace_back( vertices[ 0 ] - vertices[ 1 ] );
-    helper_vectors.emplace_back( vertices[ 2 ] - vertices[ 1 ] );
+    helper_vectors.resize( 2 );
+    helper_vectors[ 0 ] = vertices[ 0 ] - vertices[ 1 ];
+    helper_vectors[ 1 ] = vertices[ 2 ] - vertices[ 1 ];
 
-    helper_scalars.resize( 1, coord_sum(
-        vector_cross( helper_vectors[ 0 ], helper_vectors[ 1 ] )
-    ) );
+    helper_scalars.resize( 1,
+        vector_cross( helper_vectors[ 0 ], helper_vectors[ 1 ] ).sum() );
 
     assert( !almost_zero( helper_scalars[ 0 ] ) );
 }
@@ -158,9 +156,8 @@ void initialize_hexagon_helpers(
         );
     }
 
-    helper_scalars.resize( 1, coord_sum(
-        vector_cross( helper_vectors[ 0 ], helper_vectors[ 1 ] )
-    ) );
+    helper_scalars.resize( 1,
+        vector_cross( helper_vectors[ 0 ], helper_vectors[ 1 ] ).sum() );
 
     assert( !almost_zero( helper_scalars[ 0 ] ) );
 }
@@ -168,48 +165,54 @@ void initialize_hexagon_helpers(
 
 void split_rectangle(
     std::vector< Tile< Coord2D > >& sub_tiles,
+    std::vector< const Tile< Coord2D >* >& leaf_tiles,
     const std::vector< Coord2D >& vertices,
     const CircumscribedRadius< Coord2D >& c_radius,
-    const tileidx_t& index,
-    const split_t& splits
+    SplitBranch& split_tree,
+    const std::vector< split_t >& possible_branches,
+    const split_t splits,
+    const bool generate_total_leaves_vector
 )
 {
-    if ( splits < 1 || !sub_tiles.empty() )
-        return;
+    assert( 0 < splits
+        && sub_tiles.empty()
+        && split_tree.children_.empty()
+        && !possible_branches.empty()
+        && leaf_tiles.empty() != generate_total_leaves_vector
+    );
 
     sub_tiles.reserve( 4 );
+    split_tree.children_.reserve( 4 );
     const split_t rem_splits = splits - 1;
     const space_t radius2 = c_radius.radius2_ / 4;
+    assert( !almost_zero( radius2 ) );
 
     Coord2D midpoints[ 4 ];
     for ( vertidx_t vix = 0; vix < 4; ++vix )
         midpoints[ vix ] = midpoint( vertices[ vix ], vertices[ ( vix + 1 ) % 4 ] );
 
-    Coord2D new_origin;
-    vertidx_t opposite_midpoint;
-    for ( vertidx_t partition = 0; partition < 4; ++partition )
+    for ( split_t partition = 0; partition < 4; ++partition )
     {
-        opposite_midpoint = ( partition + 3 ) % 4;
-        new_origin = midpoint( c_radius.origin_, vertices[ partition ] );
-
         sub_tiles.emplace_back(
             Tile< Coord2D >(
                 TILE_SHAPE::RECTANGLE,
-                compute_sub_tile_split_index( index, partition, 5, rem_splits ),
-                CircumscribedRadius< Coord2D >(
-                    new_origin,
+                construct_circumscribed_radius(
+                    midpoint( c_radius.origin_, vertices[ partition ] ),
                     radius2
                 ),
                 { vertices[ partition ],
                 midpoints[ partition ],
                 c_radius.origin_,
-                midpoints[ opposite_midpoint ] }
+                midpoints[ ( partition + 3 ) % 4 ] }
             )
         );
+
+        split_tree.children_.emplace_back( partition, &split_tree );
     }
 
-#pragma omp taskloop num_tasks( 4 ) mergeable final( rem_splits < 4 )\
-default( none ) shared( sub_tiles ) firstprivate( rem_splits )
+#pragma omp taskloop num_tasks( 4 ) grainsize( 1 ) mergeable final( rem_splits < 3 )\
+default( none ) shared( sub_tiles, leaf_tiles, split_tree, possible_branches )\
+firstprivate( rem_splits, generate_total_leaves_vector )
     for ( vertidx_t partition = 0; partition < 4; ++partition )
     {
         const auto st_it = sub_tiles.begin() + partition;
@@ -218,75 +221,91 @@ default( none ) shared( sub_tiles ) firstprivate( rem_splits )
             st_it->helper_scalars_,
             st_it->vertices_
         );
-        split_rectangle(
-            st_it->sub_tiles_,
-            st_it->vertices_,
-            st_it->c_radius_,
-            st_it->index_,
-            rem_splits
-        );
+
+        if ( 0 < rem_splits )
+        {
+            split_rectangle(
+                st_it->sub_tiles_,
+                leaf_tiles,
+                st_it->vertices_,
+                st_it->c_radius_,
+                split_tree.children_[ partition ],
+                possible_branches,
+                rem_splits,
+                generate_total_leaves_vector
+            );
+        }
+        else
+        {
+            st_it->index_ = get_index_from_branches(
+                &split_tree.children_[ partition ],
+                possible_branches
+            );
+
+            if ( generate_total_leaves_vector )
+            {
+                const auto lt_it = leaf_tiles.begin() + st_it->index_;
+                assert( lt_it != leaf_tiles.end() && *lt_it == nullptr );
+                *lt_it = &( *st_it );
+            }
+        }
     }
 }
 
 
 void split_triangle(
     std::vector< Tile< Coord2D > >& sub_tiles,
+    std::vector< const Tile< Coord2D >* >& leaf_tiles,
     const std::vector< Coord2D >& vertices,
-    const tileidx_t& index,
-    const split_t& splits
+    SplitBranch& split_tree,
+    const std::vector< split_t >& possible_branches,
+    const split_t splits,
+    const bool generate_total_leaves_vector
 )
 {
-    if ( splits < 1 || !sub_tiles.empty() )
-        return;
+    assert( 0 < splits
+        && sub_tiles.empty()
+        && split_tree.children_.empty()
+        && !possible_branches.empty()
+        && leaf_tiles.empty() != generate_total_leaves_vector
+    );
 
     sub_tiles.reserve( 2 );
+    split_tree.children_.reserve( 2 );
     const split_t rem_splits = splits - 1;
 
     // Get AB, the largest edge of triangle ABC
-    Coord2D coordA, coordB, coordC;
-    {
-        std::array< Coord2D, 3 > sorted_coords;
-        std::array< Coord2D, 3 > sorted_vectors;
-        std::array< space_t, 3 > sorted_distances2;
-        sort_vertices(
-            { vertices[ 0 ], vertices[ 1 ], vertices[ 2 ] },
-            sorted_coords,
-            sorted_vectors,
-            sorted_distances2
-        );
-        coordA = std::move( sorted_coords[ 0 ] );
-        coordB = std::move( sorted_coords[ 1 ] );
-        coordC = std::move( sorted_coords[ 2 ] );
-    }
+    const auto sorted_coords = std::get< 1 >(
+        sort_triangular_vertices( vertices ) );
 
     // Get D midpoint of AB,
     // this midpoint is now a vertex of each sub-triangle DCA and DCB,
     // this guarantees each sub-triangle has same area size.
-    const Coord2D coordD( midpoint( coordA, coordB ) );
+    const Coord2D coordD( midpoint( sorted_coords[ 0 ], sorted_coords[ 1 ] ) );
 
+    std::vector< Coord2D > left = { sorted_coords[ 2 ], coordD, sorted_coords[ 0 ] };
     sub_tiles.emplace_back(
         Tile< Coord2D >(
             TILE_SHAPE::TRIANGLE,
-            index + 1,
-            compute_c_radius( coordC, coordD, coordA ),
-            { coordC,
-            coordD,
-            coordA }
+            compute_c_radius( left ),
+            std::move( left )
         )
     );
+    split_tree.children_.emplace_back( 0, &split_tree );
+
+    std::vector< Coord2D > right = { sorted_coords[ 2 ], coordD, sorted_coords[ 1 ] };
     sub_tiles.emplace_back(
         Tile< Coord2D >(
             TILE_SHAPE::TRIANGLE,
-            compute_sub_tile_split_index( index, 1, 3, rem_splits ),
-            compute_c_radius( coordC, coordD, coordB ),
-            { coordC,
-            coordD,
-            coordB }
+            compute_c_radius( right ),
+            std::move( right )
         )
     );
+    split_tree.children_.emplace_back( 1, &split_tree );
 
-#pragma omp taskloop num_tasks( 2 ) mergeable final( rem_splits < 8 )\
-default( none ) shared( sub_tiles ) firstprivate( rem_splits )
+#pragma omp taskloop num_tasks( 2 ) grainsize( 1 ) mergeable final( rem_splits < 5 )\
+default( none ) shared( sub_tiles, leaf_tiles, split_tree, possible_branches )\
+firstprivate( rem_splits, generate_total_leaves_vector )
     for ( vertidx_t partition = 0; partition < 2; ++partition )
     {
         const auto st_it = sub_tiles.begin() + partition;
@@ -295,46 +314,70 @@ default( none ) shared( sub_tiles ) firstprivate( rem_splits )
             st_it->helper_scalars_,
             st_it->vertices_
         );
-        split_triangle(
-            st_it->sub_tiles_,
-            st_it->vertices_,
-            st_it->index_,
-            rem_splits
-        );
+
+        if ( 0 < rem_splits )
+        {
+            split_triangle(
+                st_it->sub_tiles_,
+                leaf_tiles,
+                st_it->vertices_,
+                split_tree.children_[ partition ],
+                possible_branches,
+                rem_splits,
+                generate_total_leaves_vector
+            );
+        }
+        else
+        {
+            st_it->index_ = get_index_from_branches(
+                &split_tree.children_[ partition ],
+                possible_branches
+            );
+
+            if ( generate_total_leaves_vector )
+            {
+                const auto lt_it = leaf_tiles.begin() + st_it->index_;
+                assert( lt_it != leaf_tiles.end() && *lt_it == nullptr );
+                *lt_it = &( *st_it );
+            }
+        }
     }
 }
 
 
 void split_hexagon(
     std::vector< Tile< Coord2D > >& sub_tiles,
+    std::vector< const Tile< Coord2D >* >& leaf_tiles,
     const std::vector< Coord2D >& vertices,
     const CircumscribedRadius< Coord2D >& c_radius,
-    const tileidx_t& index,
-    const split_t& splits
+    SplitBranch& split_tree,
+    const std::vector< split_t >& possible_branches,
+    const split_t splits,
+    const bool generate_total_leaves_vector
 )
 {
-    if ( splits < 1 || !sub_tiles.empty() )
-        return;
+    assert( 0 < splits
+        && sub_tiles.empty()
+        && split_tree.children_.empty()
+        && !possible_branches.empty()
+        && leaf_tiles.empty() != generate_total_leaves_vector
+    );
 
     sub_tiles.reserve( 6 );
+    split_tree.children_.reserve( 6 );
     const split_t rem_splits = splits - 1;
     const space_t radius2 = c_radius.radius2_ / 3;
+    assert( !almost_zero( radius2 ) );
 
-    Coord2D new_origin;
-    vertidx_t next_partition;
-    for ( vertidx_t partition = 0; partition < 6; ++partition )
+    for ( split_t partition = 0; partition < 6; ++partition )
     {
-        next_partition = ( partition + 1 ) % 6;
-
-        new_origin = ( c_radius.origin_ / 3 )
-            + ( ( vertices[ partition ] + vertices[ next_partition ] ) / 3 );
+        const split_t next_partition = ( partition + 1 ) % 6;
 
         sub_tiles.emplace_back(
             Tile< Coord2D >(
                 TILE_SHAPE::TRIANGLE,
-                compute_sub_tile_split_index( index, partition, 3, rem_splits ),
-                CircumscribedRadius< Coord2D >(
-                    new_origin,
+                construct_circumscribed_radius(
+                    ( c_radius.origin_ / 3 ) + ( ( vertices[ partition ] + vertices[ next_partition ] ) / 3 ),
                     radius2
                 ),
                 { c_radius.origin_,
@@ -342,11 +385,14 @@ void split_hexagon(
                 vertices[ next_partition ] }
             )
         );
+
+        split_tree.children_.emplace_back( partition, &split_tree );
     }
 
-#pragma omp taskloop num_tasks( 3 ) mergeable final( rem_splits < 9 )\
-default( none ) shared( sub_tiles ) firstprivate( rem_splits )
-    for ( vertidx_t partition = 0; partition < 6; ++partition )
+#pragma omp taskloop num_tasks( 3 ) grainsize( 1 ) mergeable final( rem_splits < 4 )\
+default( none ) shared( sub_tiles, leaf_tiles, split_tree, possible_branches )\
+firstprivate( rem_splits, generate_total_leaves_vector )
+    for ( split_t partition = 0; partition < 6; ++partition )
     {
         const auto st_it = sub_tiles.begin() + partition;
         initialize_helpers_2D(
@@ -354,35 +400,75 @@ default( none ) shared( sub_tiles ) firstprivate( rem_splits )
             st_it->helper_scalars_,
             st_it->vertices_
         );
-        split_triangle(
-            st_it->sub_tiles_,
-            st_it->vertices_,
-            st_it->index_,
-            rem_splits
-        );
+
+        if ( 0 < rem_splits )
+        {
+            split_triangle(
+                st_it->sub_tiles_,
+                leaf_tiles,
+                st_it->vertices_,
+                split_tree.children_[ partition ],
+                possible_branches,
+                rem_splits,
+                generate_total_leaves_vector
+            );
+        }
+        else
+        {
+            st_it->index_ = get_index_from_branches(
+                &split_tree.children_[ partition ],
+                possible_branches
+            );
+
+            if ( generate_total_leaves_vector )
+            {
+                const auto lt_it = leaf_tiles.begin() + st_it->index_;
+                assert( lt_it != leaf_tiles.end() && *lt_it == nullptr );
+                *lt_it = &( *st_it );
+            }
+        }
     }
 }
 
 
-bool coord_in_tile_2D(
+bool coord_in_rectangle(
     const Coord2D& coord,
     const CircumscribedRadius< Coord2D >& c_radius,
     const std::vector< Coord2D >& vertices,
     const std::vector< Coord2D >& helper_vectors,
-    const std::vector< space_t >& helper_scalars,
-    const bool& triangular_projection
+    const std::vector< space_t >& helper_scalars
 )
 {
-    if ( !c_radius.coord_in_radius( coord ).has_value() )
+    if ( !c_radius.coord_in_radius( coord ).first )
         return false;
 
     // Only works for squares or triangles
-    return algebraic_projection_comparison(
+    return algebraic_projection_comparison< Coord2D, false >(
         coord - vertices[ 1 ],
         helper_vectors[ 0 ],
         helper_vectors[ 1 ],
-        helper_scalars[ 0 ],
-        triangular_projection
+        helper_scalars[ 0 ]
+    );
+}
+
+
+bool coord_in_triangle(
+    const Coord2D& coord,
+    const CircumscribedRadius< Coord2D >& c_radius,
+    const std::vector< Coord2D >& vertices,
+    const std::vector< Coord2D >& helper_vectors,
+    const std::vector< space_t >& helper_scalars
+)
+{
+    if ( !c_radius.coord_in_radius( coord ).first )
+        return false;
+
+    // Only works for squares or triangles
+    return algebraic_projection_comparison< Coord2D, true >(
+        coord - vertices[ 1 ],
+        helper_vectors[ 0 ],
+        helper_vectors[ 1 ],
+        helper_scalars[ 0 ]
     );
 }
 
@@ -395,7 +481,7 @@ bool coord_in_hexagon(
     const std::vector< space_t >& helper_scalars
 )
 {
-    if ( !c_radius.coord_in_radius( coord ).has_value() )
+    if ( !c_radius.coord_in_radius( coord ).first )
         return false;
 
     // Parallelogram based comparison using rotating rectangles
@@ -404,12 +490,11 @@ bool coord_in_hexagon(
     for ( vertidx_t vix = 0; vix < 3; ++vix )
     {
         rel_vix = 2 * vix;
-        res = algebraic_projection_comparison(
+        res = algebraic_projection_comparison< Coord2D, false >(
             coord - vertices[ vix ],
             helper_vectors[ rel_vix ],
             helper_vectors[ rel_vix + 1 ],
-            helper_scalars[ 0 ],
-            false // Triangular comparison
+            helper_scalars[ 0 ]
         );
         if ( res ) break;
     }
@@ -418,107 +503,127 @@ bool coord_in_hexagon(
 }
 
 
-void generate_coords_in_rectangle(
-    std::vector< Coord2D >& coord_vec,
+std::vector< std::pair< nodeidx_t, Coord2D > >
+generate_coords_in_rectangle(
+    const nodeidx_t first_index,
+    const nodeidx_t coord_count,
     AnyRNG& rng,
     const std::vector< Coord2D >& vertices,
     const std::vector< Coord2D >& helper_vectors
 )
 {
+    assert( 0 <= first_index && 0 < coord_count );
+    std::vector< std::pair< nodeidx_t, Coord2D > >  vec;
+    vec.reserve( coord_count );
+
     space_t m0, m1;
     std::uniform_real_distribution< space_t > dist( 0., 1. );
-    for ( auto coord_vec_it = coord_vec.begin();
-        coord_vec_it != coord_vec.end(); ++coord_vec_it )
+    for ( nodeidx_t idx = 0; idx < coord_count; ++idx )
     {
         m0 = static_cast< space_t >( dist( rng ) );
         m1 = static_cast< space_t >( dist( rng ) );
-        *coord_vec_it = Coord2D(
-            compensated_sum(
-                vertices[ 1 ].x_,
-                helper_vectors[ 0 ].x_ * m0,
-                helper_vectors[ 1 ].x_ * m1
-            ),
-            compensated_sum(
-                vertices[ 1 ].y_,
-                helper_vectors[ 0 ].y_ * m0,
-                helper_vectors[ 1 ].y_ * m1
+        vec.emplace_back(
+            std::make_pair(
+                first_index + idx,
+                construct_coord_2D(
+                    vertices[ 1 ].x_
+                    + helper_vectors[ 0 ].x_ * m0
+                    + helper_vectors[ 1 ].x_ * m1,
+                    vertices[ 1 ].y_
+                    + helper_vectors[ 0 ].y_ * m0
+                    + helper_vectors[ 1 ].y_ * m1
+                )
             )
         );
     }
+
+    return vec;
 }
 
 
-void generate_coords_in_triangle(
-    std::vector< Coord2D >& coord_vec,
+std::vector< std::pair< nodeidx_t, Coord2D > >
+generate_coords_in_triangle(
+    const nodeidx_t first_index,
+    const nodeidx_t coord_count,
     AnyRNG& rng,
     const std::vector< Coord2D >& vertices
 )
 {
+    assert( 0 <= first_index && 0 < coord_count );
+    std::vector< std::pair< nodeidx_t, Coord2D > >  vec;
+    vec.reserve( coord_count );
+
     space_t m0, m1, m2;
     std::uniform_real_distribution< space_t > dist( 0., 1. );
-    for ( auto coord_vec_it = coord_vec.begin();
-        coord_vec_it != coord_vec.end(); ++coord_vec_it )
+    for ( nodeidx_t idx = 0; idx < coord_count; ++idx )
     {
         m0 = static_cast< space_t >( dist( rng ) );
         m1 = static_cast< space_t >( dist( rng ) );
-        if ( std::isless( 1., m0 + m1 ) )
-        {
-            m0 = std::fmax( std::fmin( 1., 1. - m0 ), 0. );
-            m1 = std::fmax( std::fmin( 1., 1. - m1 ), 0. );
-        }
+        const bool adjust = std::isless( 1., m0 + m1 );
+        m0 = adjust * std::fmax( std::fmin( 1., 1. - m0 ), 0. ) + !adjust * m0;
+        m1 = adjust * std::fmax( std::fmin( 1., 1. - m1 ), 0. ) + !adjust * m1;
         m2 = std::fmax( std::fmin( 1., 1. - m0 - m1 ), 0. );
-        *coord_vec_it = Coord2D(
-            compensated_sum(
-                vertices[ 0 ].x_ * m0,
-                vertices[ 1 ].x_ * m1,
-                vertices[ 2 ].x_ * m2
-            ),
-            compensated_sum(
-                vertices[ 0 ].y_ * m0,
-                vertices[ 1 ].y_ * m1,
-                vertices[ 2 ].y_ * m2
+        vec.emplace_back(
+            std::make_pair(
+                first_index + idx,
+                construct_coord_2D(
+                    vertices[ 0 ].x_ * m0
+                    + vertices[ 1 ].x_ * m1
+                    + vertices[ 2 ].x_ * m2,
+                    vertices[ 0 ].y_ * m0
+                    + vertices[ 1 ].y_ * m1
+                    + vertices[ 2 ].y_ * m2
+                )
             )
         );
     }
+
+    return vec;
 }
 
 
-void generate_coords_in_hexagon(
-    std::vector< Coord2D >& coord_vec,
+std::vector< std::pair< nodeidx_t, Coord2D > >
+generate_coords_in_hexagon(
+    const nodeidx_t first_index,
+    const nodeidx_t coord_count,
     AnyRNG& rng,
     const std::vector< Coord2D >& vertices,
     const CircumscribedRadius< Coord2D >& c_radius
 )
 {
+    assert( 0 <= first_index && 0 < coord_count );
+    std::vector< std::pair< nodeidx_t, Coord2D > >  vec;
+    vec.reserve( coord_count );
+
     vertidx_t hex_idx;
     space_t m0, m1, m2;
     std::uniform_real_distribution< space_t > space_dist( 0., 1. );
     std::uniform_int_distribution< vertidx_t > partition_dist( 0, 5 );
-    for ( auto coord_vec_it = coord_vec.begin();
-        coord_vec_it != coord_vec.end(); ++coord_vec_it )
+    for ( nodeidx_t idx = 0; idx < coord_count; ++idx )
     {
         m0 = static_cast< space_t >( space_dist( rng ) );
         m1 = static_cast< space_t >( space_dist( rng ) );
-        if ( std::isless( 1., m0 + m1 ) )
-        {
-            m0 = std::fmax( std::fmin( 1., 1. - m0 ), 0. );
-            m1 = std::fmax( std::fmin( 1., 1. - m1 ), 0. );
-        }
+        const bool adjust = std::isless( 1., m0 + m1 );
+        m0 = adjust * std::fmax( std::fmin( 1., 1. - m0 ), 0. ) + !adjust * m0;
+        m1 = adjust * std::fmax( std::fmin( 1., 1. - m1 ), 0. ) + !adjust * m1;
         m2 = std::fmax( std::fmin( 1., 1. - m0 - m1 ), 0. );
         hex_idx = partition_dist( rng );
-        *coord_vec_it = Coord2D(
-            compensated_sum(
-                c_radius.origin_.x_ * m0,
-                vertices[ hex_idx ].x_ * m1,
-                vertices[ ( hex_idx + 1 ) % 6 ].x_ * m2
-            ),
-            compensated_sum(
-                c_radius.origin_.y_ * m0,
-                vertices[ hex_idx ].y_ * m1,
-                vertices[ ( hex_idx + 1 ) % 6 ].y_ * m2
+        vec.emplace_back(
+            std::make_pair(
+                first_index + idx,
+                construct_coord_2D(
+                    c_radius.origin_.x_ * m0
+                    + vertices[ hex_idx ].x_ * m1
+                    + vertices[ ( hex_idx + 1 ) % 6 ].x_ * m2,
+                    c_radius.origin_.y_ * m0
+                    + vertices[ hex_idx ].y_ * m1
+                    + vertices[ ( hex_idx + 1 ) % 6 ].y_ * m2
+                )
             )
         );
     }
+
+    return vec;
 }
 
 
@@ -553,11 +658,10 @@ Coord2D project_point_to_2D_perimeter(
     if ( almost_zero( d_first ) )
         return vertices[ first ];
 
-    return projection_coord(
+    return projection_coord< Coord2D, true >(
         coord,
         vertices[ first ],
-        vertices[ second ],
-        true // Clamped projection
+        vertices[ second ]
     );
 }
 }

@@ -23,6 +23,8 @@
 #ifndef GRID_NEIGHBORHOOD_H
 #define GRID_NEIGHBORHOOD_H
 
+#include <set>
+
 #include "tile_grid.h"
 
 
@@ -38,17 +40,16 @@ struct GridNeighborhood
     using TileSet = std::vector< std::set< tileidx_t > >::const_iterator;
     using RankSet = std::vector< std::pair< std::set< vp_t >, std::set< vp_t > > >::const_iterator;
 
-    const vp_t local_rank_;
-    const vp_t num_processes_;
-    bool has_owners_ = false;
-
     // Special condition where
     // one rank only owns one tile
     // each tile is only owned by one rank
     bool rank_tile_bijection_ = false;
+    bool has_owners_ = false;
+    const vp_t local_rank_;
+    const vp_t num_processes_;
 
     // Iterator to set of locally owned tiles
-    TileSet local_owned_tiles_;
+    TileSet locally_owned_tiles_;
     // Iterator to local rank MPI neighborhood
     RankSet local_rank_neighbors_;
     // Tile to owning ranks ( one-to-one mapping on number of tiles in grid )
@@ -62,21 +63,22 @@ struct GridNeighborhood
     GridNeighborhood()
         : local_rank_( get_mpi_rank() )
         , num_processes_( get_num_mpi_processes() )
-    {
-    }
+    {}
 
     GridNeighborhood( const GridNeighborhood& ) = delete;
-    GridNeighborhood( GridNeighborhood&& ) = default;
-    ~GridNeighborhood() = default;
+    GridNeighborhood( GridNeighborhood&& ) noexcept = default;
+    ~GridNeighborhood() noexcept = default;
 
     GridNeighborhood(
-        const vp_t& local_rank,
-        const vp_t& num_processes
-    )
+        const vp_t local_rank,
+        const vp_t num_processes
+    ) noexcept
         : local_rank_( local_rank )
         , num_processes_( num_processes )
-    {
-    }
+    {}
+
+    GridNeighborhood& operator=( const GridNeighborhood& ) = delete;
+    GridNeighborhood& operator=( GridNeighborhood&& ) = delete;
 
     template < typename CoordT >
     void set_tile_ownership(
@@ -86,10 +88,10 @@ struct GridNeighborhood
     );
 
     const std::set< vp_t >&
-        get_rank_neighborhood( const bool& edge_wrap ) const;
+        get_rank_neighborhood( const bool edge_wrap ) const;
 
     bool in_neighborhood(
-        const vp_t& rank, const bool& edge_wrap
+        const vp_t rank, const bool edge_wrap
     ) const;
 
     std::string to_string() const;
@@ -97,14 +99,14 @@ struct GridNeighborhood
 
 
 inline const std::set< vp_t >&
-GridNeighborhood::get_rank_neighborhood( const bool& edge_wrap ) const
+GridNeighborhood::get_rank_neighborhood( const bool edge_wrap ) const
 {
     return edge_wrap ? local_rank_neighbors_->second : local_rank_neighbors_->first;
 }
 
 
 inline bool GridNeighborhood::in_neighborhood(
-    const vp_t& rank, const bool& edge_wrap
+    const vp_t rank, const bool edge_wrap
 ) const
 {
     if ( edge_wrap )
@@ -142,33 +144,27 @@ void GridNeighborhood::set_tile_ownership(
     rank_neighbors_map_.resize( num_processes_ );
     for ( const auto& source_rank_set : tile_ranks_ownership_map_ )
     {
+        assert( !tile_pos_it->direct_tile_neighborhood_.empty()
+            && !tile_pos_it->wrapped_tile_neighborhood_.empty() );
+
         injective_tiles += source_rank_set.size() == 1;
         for ( const auto& source_rank : source_rank_set )
         {
             const auto neighborhood_it = rank_neighbors_map_.begin() + source_rank;
             for ( const auto& neighbor_index : tile_pos_it->direct_tile_neighborhood_ )
-            {
                 for ( const auto& target_rank : tile_ranks_ownership_map_[ neighbor_index ] )
-                {
-                    if ( source_rank == target_rank ) continue;
                     neighborhood_it->first.insert( target_rank );
-                }
-            }
             for ( const auto& neighbor_index : tile_pos_it->wrapped_tile_neighborhood_ )
-            {
                 for ( const auto& target_rank : tile_ranks_ownership_map_[ neighbor_index ] )
-                {
-                    if ( source_rank == target_rank ) continue;
                     neighborhood_it->second.insert( target_rank );
-                }
-            }
         }
+
         ++tile_pos_it;
     }
 
     rank_tile_bijection_ = injective_ranks == num_processes_ && injective_tiles == tile_grid.num_tiles_;
     rank_tiles_ownership_map_ = std::move( rank_tiles_ownership_map );
-    local_owned_tiles_ = rank_tiles_ownership_map_.cbegin() + local_rank_;
+    locally_owned_tiles_ = rank_tiles_ownership_map_.cbegin() + local_rank_;
     local_rank_neighbors_ = rank_neighbors_map_.cbegin() + local_rank_;
     has_owners_ = true;
 }

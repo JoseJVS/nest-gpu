@@ -10,17 +10,31 @@ Authors: JoseJVS.
 
 import ctypes
 import typing
+import math
+import functools
+
+NP = None
+
+try:
+    import numpy as np
+
+    NP = np
+except ImportError:
+    pass
+
 
 vp_t: typing.TypeAlias = ctypes.c_int32
-tix_t: typing.TypeAlias = ctypes.c_int32
 nix_t: typing.TypeAlias = ctypes.c_int32
 lnix_t: typing.TypeAlias = ctypes.c_int64
-mult_t: typing.TypeAlias = ctypes.c_uint16
+tix_t: typing.TypeAlias = ctypes.c_int32
+dim_t: typing.TypeAlias = ctypes.c_uint8
 split_t: typing.TypeAlias = ctypes.c_uint8
-space_t: typing.TypeAlias = ctypes.c_double
+count_t: typing.TypeAlias = ctypes.c_int32
 angle_t: typing.TypeAlias = ctypes.c_int16
+space_t: typing.TypeAlias = ctypes.c_double
 conn_index_t: typing.TypeAlias = ctypes.c_uint32
 conn_param_t: typing.TypeAlias = ctypes.c_float
+rng_seed_t: typing.TypeAlias = ctypes.c_uint32
 CData: typing.TypeAlias = ctypes._SimpleCData | ctypes.Structure | ctypes._Pointer
 
 
@@ -70,6 +84,512 @@ class SpatialNodeSeq:
         raise AttributeError("Cannot set local length")
 
 
+class NodesViewStruct(ctypes.Structure):
+    _fields_ = [
+        ("dimensions_", dim_t),
+        ("node_count_", ctypes.c_size_t),
+        ("indexes_", ctypes.POINTER(nix_t)),
+        ("coordinates_", ctypes.POINTER(space_t)),
+    ]
+
+    def from_tuple(
+        self,
+        t: typing.Tuple[
+            typing.Sequence[int],
+            typing.Sequence[typing.Sequence[float]],
+        ],
+    ) -> None:
+        if len(t) < 1:
+            self.dimensions_ = 0
+            self.node_count_ = 0
+            self.indexes_ = None
+            self.coordinates_ = None
+            return
+
+        elif len(t) != 2:
+            raise ValueError("Invalid nodes coords tuple")
+
+        indexes_length = len(t[0])
+        dimensions_length = len(t[1])
+        if (
+            indexes_length < 1
+            or dimensions_length < 2
+            or 3 < dimensions_length
+            or any(len(c) != indexes_length for c in t[1])
+        ):
+            raise ValueError("Invalid nodes coords tuple")
+
+        try:
+            self.dimensions_ = dimensions_length
+            self.node_count_ = indexes_length
+            self.indexes_ = (nix_t * indexes_length)()
+            self.coordinates_ = (space_t * (indexes_length * dimensions_length))()
+
+            for i, index in enumerate(t[0]):
+                self.indexes_[i] = index
+            for c in range(dimensions_length * indexes_length):
+                self.coordinates_[c] = t[1][c // indexes_length][c % indexes_length]
+
+        except Exception as e:
+            self.dimensions_ = 0
+            self.node_count_ = 0
+            self.indexes_ = None
+            self.coordinates_ = None
+            raise e
+
+    def to_tuple(self) -> typing.Tuple[
+        typing.Sequence[int],
+        typing.Sequence[typing.Sequence[float]],
+    ]:
+        if (0 < self.node_count_) != (0 < self.dimensions_):
+            raise ValueError("Corrupted NodesViewStruct")
+
+        elif self.node_count_ < 1:
+            if bool(self.indexes_) or bool(self.coordinates_):
+                raise ValueError("Corrupted NodesViewStruct")
+            return [], []
+
+        elif not (bool(self.indexes_) and bool(self.coordinates_)):
+            raise ValueError("Error converting nodes coords to tuple")
+
+        indexes = [0] * self.node_count_
+        coordinates = [[]] * self.dimensions_
+
+        for d in range(self.dimensions_):
+            coordinates[d] = [0] * self.node_count_
+
+        for i in range(self.node_count_):
+            indexes[i] = self.indexes_[i]
+        for c in range(self.dimensions_ * self.node_count_):
+            coordinates[c // self.node_count_][c % self.node_count_] = (
+                self.coordinates_[c]
+            )
+
+        return indexes, coordinates
+
+    def to_np_data(self) -> tuple:
+        if NP is None:
+            raise RuntimeError("Cannot create node views without Numpy")
+
+        elif (0 < self.node_count_) != (0 < self.dimensions_):
+            raise ValueError("Corrupted NodesViewStruct")
+
+        elif self.node_count_ < 1:
+            if bool(self.indexes_) or bool(self.coordinates_):
+                raise ValueError("Corrupted NodesViewStruct")
+            return NP.empty((0,)), NP.empty((0,))
+
+        elif not (bool(self.indexes_) and bool(self.coordinates_)):
+            raise ValueError("Error converting nodes coords to tuple")
+
+        return NP.ctypeslib.as_array(
+            self.indexes_, (self.node_count_,)
+        ), NP.ctypeslib.as_array(
+            self.coordinates_, (self.dimensions_ * self.node_count_,)
+        ).reshape(
+            (self.dimensions_, self.node_count_), copy=False
+        )
+
+
+class ConnectionViewStruct(ctypes.Structure):
+    _fields_ = [
+        ("num_partitions_", ctypes.c_size_t),
+        ("partition_sizes_", ctypes.POINTER(count_t)),
+        ("sources_", ctypes.POINTER(ctypes.POINTER(conn_index_t))),
+        ("targets_", ctypes.POINTER(ctypes.POINTER(conn_index_t))),
+        ("weights_", ctypes.POINTER(ctypes.POINTER(conn_param_t))),
+        ("delays_", ctypes.POINTER(ctypes.POINTER(conn_param_t))),
+    ]
+
+    def from_tuple(
+        self,
+        t: typing.Sequence[
+            typing.Tuple[
+                typing.Sequence[int],
+                typing.Sequence[int],
+                typing.Sequence[float],
+                typing.Sequence[float],
+            ]
+        ],
+    ) -> None:
+        num_partitions = len(t)
+        if num_partitions < 1:
+            self.num_partitions_ = 0
+            self.partition_sizes_ = None
+            self.sources_ = None
+            self.targets_ = None
+            self.weights_ = None
+            self.delays_ = None
+            return
+
+        try:
+            self.num_partitions_ = num_partitions
+            self.partition_sizes_ = (count_t * num_partitions)()
+            self.sources_ = (ctypes.POINTER(conn_index_t) * num_partitions)()
+            self.targets_ = (ctypes.POINTER(conn_index_t) * num_partitions)()
+            self.weights_ = (ctypes.POINTER(conn_param_t) * num_partitions)()
+            self.delays_ = (ctypes.POINTER(conn_param_t) * num_partitions)()
+
+            for i, partition in enumerate(t):
+                if len(partition) != 4:
+                    raise ValueError("Invalid connection partition sequence")
+
+                partition_size = len(partition[0])
+                if partition_size < 1 or any(
+                    len(p) != partition_size for p in partition
+                ):
+                    raise ValueError("Invalid connection partition sequence")
+
+                self.partition_sizes_[i] = partition_size
+                self.sources_[i] = (conn_index_t * partition_size)()
+                self.targets_[i] = (conn_index_t * partition_size)()
+                self.weights_[i] = (conn_param_t * partition_size)()
+                self.delays_[i] = (conn_param_t * partition_size)()
+
+                c_sources, c_targets, c_weights, c_delays = (
+                    self.sources_[i],
+                    self.targets_[i],
+                    self.weights_[i],
+                    self.delays_[i],
+                )
+                p_sources, p_targets, p_weights, p_delays = partition
+
+                for p in range(partition_size):
+                    c_sources[p] = p_sources[p]
+                    c_targets[p] = p_targets[p]
+                    c_weights[p] = p_weights[p]
+                    c_delays[p] = p_delays[p]
+
+        except Exception as e:
+            self.num_partitions_ = 0
+            self.partition_sizes_ = None
+            self.sources_ = None
+            self.targets_ = None
+            self.weights_ = None
+            self.delays_ = None
+            raise e
+
+    def to_tuple(self) -> typing.Sequence[
+        typing.Tuple[
+            typing.Sequence[int],
+            typing.Sequence[int],
+            typing.Sequence[float],
+            typing.Sequence[float],
+        ]
+    ]:
+        if self.num_partitions_ < 1:
+            if (
+                bool(self.partition_sizes_)
+                or bool(self.sources_)
+                or bool(self.targets_)
+                or bool(self.weights_)
+                or bool(self.delays_)
+            ):
+                raise ValueError("Corrupted ConnectionViewStruct")
+            return []
+
+        elif not (
+            bool(self.partition_sizes_)
+            and bool(self.sources_)
+            and bool(self.targets_)
+            and bool(self.weights_)
+            and bool(self.delays_)
+        ):
+            raise ValueError("Corrupted ConnectionViewStruct")
+
+        res = [tuple([])] * self.num_partitions_
+        for i in range(self.num_partitions_):
+            check_ptr(self.sources_[i])
+            check_ptr(self.targets_[i])
+            check_ptr(self.weights_[i])
+            check_ptr(self.delays_[i])
+
+            partition_size = self.partition_sizes_[i]
+            if partition_size < 1:
+                raise ValueError("Corrupted partition size")
+
+            c_sources, c_targets, c_weights, c_delays = (
+                self.sources_[i],
+                self.targets_[i],
+                self.weights_[i],
+                self.delays_[i],
+            )
+
+            p_sources, p_targets, p_weights, p_delays = (
+                [0] * partition_size,
+                [0] * partition_size,
+                [0] * partition_size,
+                [0] * partition_size,
+            )
+
+            for p in range(partition_size):
+                p_sources[p] = c_sources[p]
+                p_targets[p] = c_targets[p]
+                p_weights[p] = c_weights[p]
+                p_delays[p] = c_delays[p]
+
+            res[i] = (p_sources, p_targets, p_weights, p_delays)
+
+        return res
+
+    def to_np_data(self) -> typing.Sequence[tuple]:
+        if NP is None:
+            raise RuntimeError("Cannot create connection views without Numpy")
+
+        elif self.num_partitions_ < 1:
+            if (
+                bool(self.partition_sizes_)
+                or bool(self.sources_)
+                or bool(self.targets_)
+                or bool(self.weights_)
+                or bool(self.delays_)
+            ):
+                raise ValueError("Corrupted ConnectionViewStruct")
+            return []
+
+        elif not (
+            bool(self.partition_sizes_)
+            and bool(self.sources_)
+            and bool(self.targets_)
+            and bool(self.weights_)
+            and bool(self.delays_)
+        ):
+            raise ValueError("Corrupted ConnectionViewStruct")
+
+        res = [tuple([])] * self.num_partitions_
+        for i in range(self.num_partitions_):
+            check_ptr(self.sources_[i])
+            check_ptr(self.targets_[i])
+            check_ptr(self.weights_[i])
+            check_ptr(self.delays_[i])
+
+            partition_size = self.partition_sizes_[i]
+            if partition_size < 1:
+                raise ValueError("Corrupted partition size")
+
+            c_sources, c_targets, c_weights, c_delays = (
+                self.sources_[i],
+                self.targets_[i],
+                self.weights_[i],
+                self.delays_[i],
+            )
+
+            res[i] = (
+                NP.ctypeslib.as_array(c_sources, (partition_size,)),
+                NP.ctypeslib.as_array(c_targets, (partition_size,)),
+                NP.ctypeslib.as_array(c_weights, (partition_size,)),
+                NP.ctypeslib.as_array(c_delays, (partition_size,)),
+            )
+
+        return res
+
+
+class GridViewStruct(ctypes.Structure):
+    _fields_ = [
+        ("dimensions_", dim_t),
+        ("num_tiles_", ctypes.c_size_t),
+        ("leaves_per_tile_", ctypes.c_size_t),
+        ("vertices_per_tile_", ctypes.c_size_t),
+        ("vertices_per_leaf_", ctypes.c_size_t),
+        ("tile_indexes_", ctypes.POINTER(tix_t)),
+        ("tile_vertices_", ctypes.POINTER(space_t)),
+        ("leaf_vertices_", ctypes.POINTER(space_t)),
+    ]
+
+    def from_tuple(
+        self,
+        dimensions: int,
+        num_tiles: int,
+        leaves_per_tile: int,
+        vertices_per_tile: int,
+        vertices_per_leaf: int,
+        t: typing.Tuple[
+            typing.Sequence[int],
+            typing.Sequence[typing.Sequence[typing.Sequence[float]]],
+            typing.Sequence[typing.Sequence[typing.Sequence[typing.Sequence[float]]]],
+        ],
+    ) -> None:
+        sizes = (
+            dimensions,
+            num_tiles,
+            leaves_per_tile,
+            vertices_per_tile,
+            vertices_per_leaf,
+        )
+        if all(s < 1 for s in sizes):
+            if len(t) < 1:
+                raise ValueError("Invalid grid vertices tuple")
+            self.dimensions_ = 0
+            self.num_tiles_ = 0
+            self.leaves_per_tile_ = 0
+            self.vertices_per_tile_ = 0
+            self.vertices_per_leaf_ = 0
+            self.tile_indexes_ = None
+            self.tile_vertices_ = None
+            self.leaf_vertices_ = None
+            return
+
+        elif any(s < 1 for s in sizes):
+            raise ValueError("Invalid sizes for grid vertex conversion")
+
+        elif len(t) != 3:
+            raise ValueError("Invalid grid vertices tuple")
+
+        total_tile_size = num_tiles * vertices_per_tile * dimensions
+        total_leaf_size = num_tiles * leaves_per_tile * vertices_per_leaf * dimensions
+
+        if (0 < total_leaf_size) != (0 < total_tile_size):
+            raise ValueError("Invalid sizes for grid vertex conversion")
+
+        if any(len(t[i]) != num_tiles for i in range(3)):
+            raise ValueError("Invalid grid vertices tuple")
+
+        try:
+            self.dimensions_ = dimensions
+            self.num_tiles_ = num_tiles
+            self.leaves_per_tile_ = leaves_per_tile
+            self.vertices_per_tile_ = vertices_per_tile
+            self.vertices_per_leaf_ = vertices_per_leaf
+            self.tile_indexes_ = (tix_t * num_tiles)()
+            self.tile_vertices_ = (space_t * total_tile_size)()
+            self.leaf_vertices_ = (space_t * total_leaf_size)()
+
+            tv_count = 0
+            lv_count = 0
+            for i, tile_index in enumerate(t[0]):
+                self.tile_indexes_[i] = tile_index
+                for t_vertices in t[1][i]:
+                    for coord in t_vertices:
+                        self.tile_vertices_[tv_count] = coord
+                        tv_count += 1
+                for leaves in t[2][i]:
+                    for l_vertices in leaves:
+                        for coord in l_vertices:
+                            self.leaf_vertices_[lv_count] = coord
+                            lv_count += 1
+
+            if tv_count != total_tile_size or lv_count != total_leaf_size:
+                raise ValueError("Error during grid vertex conversion")
+
+        except Exception as e:
+            self.dimensions_ = 0
+            self.num_tiles_ = 0
+            self.leaves_per_tile_ = 0
+            self.vertices_per_tile_ = 0
+            self.vertices_per_leaf_ = 0
+            self.tile_indexes_ = None
+            self.tile_vertices_ = None
+            self.leaf_vertices_ = None
+            raise e
+
+    def to_tuple(self) -> typing.Tuple[
+        typing.Sequence[int],
+        typing.Sequence[typing.Sequence[typing.Sequence[float]]],
+        typing.Sequence[typing.Sequence[typing.Sequence[typing.Sequence[float]]]],
+    ]:
+        total_tile_size = self.num_tiles_ * self.vertices_per_tile_ * self.dimensions_
+        total_leaf_size = (
+            self.num_tiles_
+            * self.leaves_per_tile_
+            * self.vertices_per_leaf_
+            * self.dimensions_
+        )
+
+        if (0 < total_leaf_size) != (0 < total_tile_size):
+            raise ValueError("Corrupted GridViewStruct")
+
+        elif total_tile_size < 1:
+            if (
+                bool(self.tile_indexes_)
+                or bool(self.tile_vertices_)
+                or bool(self.leaf_vertices_)
+            ):
+                raise ValueError("Corrupted GridViewStruct")
+            return [], [], []
+
+        elif not (
+            bool(self.tile_indexes_)
+            and bool(self.tile_vertices_)
+            and bool(self.leaf_vertices_)
+        ):
+            raise ValueError("Corrupted GridViewStruct")
+
+        t_indexes = [0] * self.num_tiles_
+        t_vertices = [[]] * self.num_tiles_
+        l_vertices = [[]] * self.num_tiles_
+
+        tv_count = 0
+        lv_count = 0
+        for t in range(self.num_tiles_):
+            t_indexes[t] = self.tile_indexes_[t]
+            t_vertices[t] = [[]] * self.vertices_per_tile_
+            for v in range(self.vertices_per_tile_):
+                t_vertices[t][v] = [0] * self.dimensions_
+                for c in range(self.dimensions_):
+                    t_vertices[t][v][c] = self.tile_vertices_[tv_count]
+                    tv_count += 1
+            l_vertices[t] = [[]] * self.leaves_per_tile_
+            for l in range(self.leaves_per_tile_):
+                l_vertices[t][l] = [[]] * self.vertices_per_leaf_
+                for v in range(self.vertices_per_leaf_):
+                    l_vertices[t][l][v] = [0] * self.dimensions_
+                    for c in range(self.dimensions_):
+                        l_vertices[t][l][v][c] = self.leaf_vertices_[lv_count]
+                        lv_count += 1
+
+        if tv_count != total_tile_size or lv_count != total_leaf_size:
+            raise ValueError("Error during grid vertex conversion")
+
+        return t_indexes, t_vertices, l_vertices
+
+    def to_np_data(self) -> tuple:
+        if NP is None:
+            raise RuntimeError("Cannot create node views without Numpy")
+
+        total_tile_size = self.num_tiles_ * self.vertices_per_tile_ * self.dimensions_
+        total_leaf_size = (
+            self.num_tiles_
+            * self.leaves_per_tile_
+            * self.vertices_per_leaf_
+            * self.dimensions_
+        )
+
+        if (0 < total_leaf_size) != (0 < total_tile_size):
+            raise ValueError("Corrupted GridViewStruct")
+
+        elif total_tile_size < 1:
+            if (
+                bool(self.tile_indexes_)
+                or bool(self.tile_vertices_)
+                or bool(self.leaf_vertices_)
+            ):
+                raise ValueError("Corrupted GridViewStruct")
+            return NP.empty((0,)), NP.empty((0,)), NP.empty((0,))
+
+        elif not (
+            bool(self.tile_indexes_)
+            and bool(self.tile_vertices_)
+            and bool(self.leaf_vertices_)
+        ):
+            raise ValueError("Corrupted GridViewStruct")
+
+        return (
+            NP.ctypeslib.as_array(self.tile_indexes_, (self.num_tiles_,)),
+            NP.ctypeslib.as_array(self.tile_vertices_, (total_tile_size,)).reshape(
+                (self.num_tiles_, self.vertices_per_tile_, self.dimensions_), copy=False
+            ),
+            NP.ctypeslib.as_array(self.leaf_vertices_, (total_leaf_size,)).reshape(
+                (
+                    self.num_tiles_,
+                    self.leaves_per_tile_,
+                    self.vertices_per_leaf_,
+                    self.dimensions_,
+                ),
+                copy=False,
+            ),
+        )
+
+
 def pair_template(t0: type[CData], t1: type[CData]) -> type[ctypes.Structure]:
     class PairT(ctypes.Structure):
         _fields_ = [("first_", t0), ("second_", t1)]
@@ -97,6 +617,7 @@ def array_template(t: type[CData]) -> type[ctypes.Structure]:
             if size < 0:
                 raise ValueError("Incorrect resize size")
             self.size_ = ctypes.c_size_t(size)
+            self.array_ = None
             if size > 0:
                 self.array_ = (self.array_type * size)()
 
@@ -113,6 +634,7 @@ CharArray = array_template(ctypes.c_char)
 SpaceTArray = array_template(space_t)
 TileIdxArray = array_template(tix_t)
 AngleTArray = array_template(angle_t)
+NodeIdxArray = array_template(nix_t)
 
 NestedCharArray = array_template(CharArray)
 NestedSpaceTArray = array_template(SpaceTArray)
@@ -121,37 +643,18 @@ NestedTileIdxArray = array_template(TileIdxArray)
 TiledNodeSequencePairArray = pair_array_template(
     vp_t, pair_array_template(tix_t, pair_template(nix_t, nix_t))
 )
-NodeCoordPairArray = pair_array_template(
-    tix_t, pair_array_template(nix_t, array_template(space_t))
-)
-NestedNodeCoordPairArray = pair_array_template(tix_t, NodeCoordPairArray)
-GridTileVerticesPairArray = pair_array_template(
-    tix_t,
-    pair_template(NestedSpaceTArray, pair_array_template(tix_t, NestedSpaceTArray)),
-)
 
 DoubleArray = array_template(ctypes.c_double)
 RankTimerDataPairArray = pair_array_template(CharArray, ctypes.c_double)
 ThreadTimerDataPairArray = pair_array_template(CharArray, DoubleArray)
 RecordedTimesArrayPair = pair_template(RankTimerDataPairArray, ThreadTimerDataPairArray)
 
-
-class ConnectionInfoStruct(ctypes.Structure):
-    _fields_ = [
-        ("source_index_", conn_index_t),
-        ("target_index_", conn_index_t),
-        ("connection_weight_", conn_param_t),
-        ("connection_delay_", conn_param_t),
-    ]
-
-
-ConnectionInfoPartition = array_template(ConnectionInfoStruct)
-ConnectionInfoPairArray = pair_array_template(
+ConnectionViewPairArray = pair_array_template(
     vp_t,
-    array_template(ConnectionInfoPartition),
+    ConnectionViewStruct,
 )
-RemoteConnectionInfoPair = pair_template(
-    ConnectionInfoPairArray, ConnectionInfoPairArray
+RemoteConnectionViewPair = pair_template(
+    ConnectionViewPairArray, ConnectionViewPairArray
 )
 
 
@@ -163,29 +666,6 @@ def check_bool(b_val: ctypes.c_bool) -> None:
 def check_ptr(ptr: ctypes._Pointer) -> None:
     if not bool(ptr):
         raise ValueError("is nullptr")
-
-
-def safe_convert_to_c(
-    c_type: type[ctypes._SimpleCData], p_val: int | float | bool
-) -> ctypes._SimpleCData:
-    c_val = c_type(p_val)
-    if c_val.value != p_val:
-        raise ValueError("Py to C conversion error")
-    return c_val
-
-
-def safe_convert_to_py(
-    p_type: type[int | float | bool], c_val: ctypes._SimpleCData
-) -> int | float | bool:
-    p_val = p_type(c_val)
-    if p_val != c_val:
-        raise ValueError("C to Py conversion error")
-    return p_val
-
-
-c_data_to_py_int = lambda val: safe_convert_to_py(p_type=int, c_val=val)
-c_data_to_py_float = lambda val: safe_convert_to_py(p_type=float, c_val=val)
-c_data_to_py_bool = lambda val: safe_convert_to_py(p_type=bool, c_val=val)
 
 
 def str_to_carr(string: str) -> ctypes.Structure:
@@ -201,517 +681,127 @@ def str_to_carr(string: str) -> ctypes.Structure:
 
 
 def carr_to_str(carr: ctypes.Structure) -> str:
-    if carr.size_ < 2:
-        return str()
-    else:
+    string = ""
+    if 1 < carr.size_:
         check_ptr(carr.array_)
-        return (
+        string = (
             bytes()
             .join(carr.array_[i] for i in range(carr.size_))
             .decode("utf-8", "strict")
             .rstrip("\0")
         )
+    elif (carr.size_ == 1 and (not bool(carr.array_) or carr.array_[0] != b"\0")) or (
+        carr.size_ < 1 and bool(carr.array_)
+    ):
+        raise ValueError("Corrupted CharArray")
+    return string
 
 
-def str_col_to_nested_carr(str_col: typing.Collection[str]) -> ctypes.Structure:
+def str_seq_to_nested_carr(str_seq: typing.Sequence[str]) -> ctypes.Structure:
     nca = NestedCharArray()
-    nca.resize(len(str_col))
-    for i, string in enumerate(str_col):
+    nca.resize(len(str_seq))
+    for i, string in enumerate(str_seq):
         nca.array_[i] = str_to_carr(string)
     return nca
 
 
-def nested_carr_to_str_col(nested_carr: ctypes.Structure) -> typing.List[str]:
-    if nested_carr.size_ < 1:
-        return list()
-    else:
+def nested_carr_to_str_seq(nested_carr: ctypes.Structure) -> typing.Sequence[str]:
+    l = []
+    if 0 < nested_carr.size_:
         check_ptr(nested_carr.array_)
-        return [carr_to_str(nested_carr.array_[i]) for i in range(nested_carr.size_)]
+        l = [carr_to_str(nested_carr.array_[i]) for i in range(nested_carr.size_)]
+    elif bool(nested_carr.array_):
+        raise ValueError("Corrupted NestedCharray")
+    return l
 
 
-def num_col_to_num_arr(
-    num_arr_type: type[ctypes.Structure], num_col: typing.Collection[int | float]
+def num_seq_to_num_arr(
+    num_arr_type: type[ctypes.Structure],
+    num_seq: typing.Sequence[int] | typing.Sequence[float] | typing.Set[int],
 ) -> ctypes.Structure:
     arr = num_arr_type()
-    arr.resize(len(num_col))
-    for i, v in enumerate(num_col):
-        arr.array_[i] = safe_convert_to_c(arr.array_type, v)
+    arr.resize(len(num_seq))
+    for i, v in enumerate(num_seq):
+        arr.array_[i] = v
     return arr
 
 
-def num_arr_to_num_col(
-    num_type: type[int | float], num_arr: ctypes.Structure
-) -> typing.List[int | float]:
-    if num_arr.size_ < 1:
-        return list()
-    else:
+def num_arr_to_num_seq(
+    num_arr: ctypes.Structure,
+) -> typing.Sequence[int] | typing.Sequence[float]:
+    l = []
+    if 0 < num_arr.size_:
         check_ptr(num_arr.array_)
-        return [
-            safe_convert_to_py(num_type, num_arr.array_[i])
-            for i in range(num_arr.size_)
-        ]
+        l = [num_arr.array_[i] for i in range(num_arr.size_)]
+    elif bool(num_arr.array_):
+        raise ValueError("Corrupted numerical array")
+    return l
 
 
-def nested_num_col_to_nested_arr(
-    num_arr_type: type[ctypes.Structure],
+def nested_num_seq_to_nested_arr(
     nested_num_arr_type: type[ctypes.Structure],
-    nested_num_col: typing.Collection[typing.Collection[int | float]],
+    nested_num_seq: (
+        typing.Sequence[typing.Sequence[int]]
+        | typing.Sequence[typing.Sequence[float]]
+        | typing.Sequence[typing.Set[int]]
+    ),
 ) -> ctypes.Structure:
     na = nested_num_arr_type()
-    na.resize(len(nested_num_col))
-    for i, nit in enumerate(nested_num_col):
-        na.array_[i] = num_col_to_num_arr(num_arr_type, nit)
+    na.resize(len(nested_num_seq))
+    for i, num_seq in enumerate(nested_num_seq):
+        na.array_[i] = num_seq_to_num_arr(na.array_type, num_seq)
     return na
 
 
-def nested_num_arr_to_nested_num_col(
-    num_type: type[int | float],
+def nested_num_arr_to_nested_num_seq(
     nested_num_arr: ctypes.Structure,
-) -> typing.List[typing.List[int | float]]:
-    if nested_num_arr.size_ < 1:
-        return list()
-    else:
+) -> typing.Sequence[typing.Sequence[int]] | typing.Sequence[typing.Sequence[float]]:
+    l = []
+    if 0 < nested_num_arr.size_:
         check_ptr(nested_num_arr.array_)
-        return [
-            num_arr_to_num_col(num_type, nested_num_arr.array_[i])
+        l = [
+            num_arr_to_num_seq(nested_num_arr.array_[i])
             for i in range(nested_num_arr.size_)
         ]
-
-float_col_to_sta = lambda col: num_col_to_num_arr(num_arr_type=SpaceTArray, num_col=col)
-sta_to_float_col = lambda arr: num_arr_to_num_col(num_type=float, num_arr=arr)
-nested_float_col_to_nested_sta = lambda n_col: nested_num_col_to_nested_arr(
-    num_arr_type=SpaceTArray,
-    nested_num_arr_type=NestedSpaceTArray,
-    nested_num_col=n_col,
-)
-nested_sta_to_nested_float_col = lambda n_arr: nested_num_arr_to_nested_num_col(
-    num_type=float, nested_num_arr=n_arr
-)
-
-int_col_to_tia = lambda col: num_col_to_num_arr(num_arr_type=TileIdxArray, num_col=col)
-tia_to_int_col = lambda arr: num_arr_to_num_col(num_type=int, num_arr=arr)
-nested_int_col_to_nested_tia = lambda n_col: nested_num_col_to_nested_arr(
-    num_arr_type=TileIdxArray,
-    nested_num_arr_type=NestedTileIdxArray,
-    nested_num_col=n_col,
-)
-nested_tia_to_nested_int_col = lambda n_arr: nested_num_arr_to_nested_num_col(
-    num_type=int, nested_num_arr=n_arr
-)
-
-int_col_to_ata = lambda col: num_col_to_num_arr(num_arr_type=AngleTArray, num_col=col)
-ata_to_int_col = lambda arr: num_arr_to_num_col(num_type=int, num_arr=arr)
-
-float_col_to_da = lambda col: num_col_to_num_arr(num_arr_type=DoubleArray, num_col=col)
-da_to_float_col = lambda arr: num_arr_to_num_col(num_type=float, num_arr=arr)
-
-def dict_to_tiled_node_sequence_pair_array(
-    d: typing.Dict[
-        int,  # MPI rank
-        typing.Dict[
-            int,  # Tile index
-            typing.Tuple[int, int],  # First node in sequence, length of sequence
-        ],
-    ],
-) -> ctypes.Structure:  # TiledNodeSequencePairArray
-    tnspa = TiledNodeSequencePairArray()
-    tnspa.resize(len(d))
-    for r, (rank, tix_ns_map) in enumerate(d.items()):
-        rank_tns_parr = tnspa.array_[r]
-        rank_tns_parr.first_ = safe_convert_to_c(vp_t, rank)
-        rank_tns_parr.second_.resize(len(tix_ns_map))
-        for t, (tix, ns) in enumerate(tix_ns_map.items()):
-            tix_ns_pair = rank_tns_parr.second_.array_[t]
-            tix_ns_pair.first_ = safe_convert_to_c(tix_t, tix)
-            tix_ns_pair.second_.first_ = safe_convert_to_c(nix_t, ns[0])
-            tix_ns_pair.second_.second_ = safe_convert_to_c(nix_t, ns[1])
-
-    return tnspa
-
-
-def tiled_node_sequence_pair_array_to_dict(
-    tnspa: ctypes.Structure,  # TiledNodeSequencePairArray
-) -> typing.Dict[
-    int,  # MPI rank
-    typing.Dict[
-        int,  # Tile index
-        typing.Tuple[int, int],  # First node in sequence, length of sequence
-    ],
-]:
-    if tnspa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(tnspa.array_)
-        for r in range(tnspa.size_):
-            rank_tns_parr = tnspa.array_[r]
-            rank = c_data_to_py_int(rank_tns_parr.first_)
-            rank_dict = res[rank] = dict()
-            if rank_tns_parr.second_.size_ > 0:
-                check_ptr(rank_tns_parr.second_.array_)
-                for t in range(rank_tns_parr.second_.size_):
-                    tix_ns_pair = rank_tns_parr.second_.array_[t]
-                    tix = c_data_to_py_int(tix_ns_pair.first_)
-                    ns = (
-                        c_data_to_py_int(tix_ns_pair.second_.first_),
-                        c_data_to_py_int(tix_ns_pair.second_.second_),
-                    )
-                    rank_dict[tix] = ns
-
-                if len(rank_dict) != rank_tns_parr.second_.size_:
-                    raise ValueError("Corrupted tiled node sequence pair array")
-
-            elif bool(rank_tns_parr.second_.array_):
-                raise ValueError("Corrupted tiled node sequence pair array")
-
-        if len(res) != tnspa.size_:
-            raise ValueError("Corrupted tiled node sequence pair array")
-
-        return res
-
-
-def tuple_to_connection_info_struct(
-    tup: typing.Tuple[int, int, float, float],
-) -> ConnectionInfoStruct:
-    if len(tup) != 4:
-        raise ValueError("Incorrect tuple length for CIStruct")
-    cis = ConnectionInfoStruct()
-    cis.source_index_ = safe_convert_to_c(conn_index_t, tup[0])
-    cis.target_index_ = safe_convert_to_c(conn_index_t, tup[1])
-    cis.connection_weight_ = safe_convert_to_c(conn_param_t, tup[2])
-    cis.connection_delay_ = safe_convert_to_c(conn_param_t, tup[3])
-    return cis
-
-
-def connection_info_struct_to_tuple(cis: ConnectionInfoStruct) -> tuple:
-    tup = (
-        c_data_to_py_int(cis.source_index_),
-        c_data_to_py_int(cis.target_index_),
-        c_data_to_py_float(cis.connection_weight_),
-        c_data_to_py_float(cis.connection_delay_),
-    )
-    return tup
-
-
-def list_to_connection_info_partition(
-    l: typing.List[typing.Tuple[int, int, float, float]],
-) -> ctypes.Structure:  # ConnectionInfoPartition
-    cip = ConnectionInfoPartition()
-    cip.resize(len(l))
-    for i, tup in enumerate(l):
-        cip.array_[i] = tuple_to_connection_info_struct(tup)
-    return cip
-
-
-def connection_info_partition_to_list(
-    cip: ctypes.Structure,  # ConnectionInfoPartition
-) -> typing.List[typing.Tuple[int, int, float, float]]:
-    if cip.size_ < 1:
-        return []
-    else:
-        res = []
-        check_ptr(cip.array_)
-        for i in range(cip.size_):
-            res.append(connection_info_struct_to_tuple(cip.array_[i]))
-        return res
-
-
-def dict_to_connection_info_pair_array(
-    d: typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]],
-) -> ctypes.Structure:  # ConnectionInfoArray
-    cnnpa = ConnectionInfoPairArray()
-    cnnpa.resize(len(d))
-    for r, (rank, conn_collection) in enumerate(d.items()):
-        rank_conn_parr = cnnpa.array_[r]
-        rank_conn_parr.first_ = safe_convert_to_c(vp_t, rank)
-        rank_conn_parr.second_.resize(len(conn_collection))
-        for conn_idx, conn_partition in enumerate(conn_collection):
-            rank_conn_parr.second_.array_[conn_idx] = list_to_connection_info_partition(
-                conn_partition
-            )
-
-    return cnnpa
-
-
-def connection_info_pair_to_dict(
-    cnnpa: ctypes.Structure,  # ConnectionInfoArray
-) -> typing.Dict[int, typing.List[typing.List[typing.Tuple[int, int, float, float]]]]:
-    if cnnpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(cnnpa.array_)
-        for r in range(cnnpa.size_):
-            rank_conn_parr = cnnpa.array_[r]
-            rank = c_data_to_py_int(rank_conn_parr.first_)
-            conn_list = res[rank] = list()
-            if rank_conn_parr.second_.size_ > 0:
-                check_ptr(rank_conn_parr.second_.array_)
-                for partition_index in range(rank_conn_parr.second_.size_):
-                    conn_list.append(
-                        connection_info_partition_to_list(
-                            rank_conn_parr.second_.array_[partition_index]
-                        )
-                    )
-                if len(conn_list) != rank_conn_parr.second_.size_:
-                    raise ValueError("Corrupted connection pair array")
-
-            elif bool(rank_conn_parr.second_.array_):
-                raise ValueError("Corrupted connection pair array")
-
-        if len(res) != cnnpa.size_:
-            raise ValueError("Corrupted connection pair array")
-
-        return res
-
-
-def dict_to_node_coord_pair_array(
-    d: typing.Dict[
-        int, typing.Dict[int, typing.List[float]]
-    ],  # Tile index : Node index : Coordinates
-) -> ctypes.Structure:  # NodeCoordPairArray
-    ncpa = NodeCoordPairArray()
-    ncpa.resize(len(d))
-    for t, (tix, node_coord_map) in enumerate(d.items()):
-        tix_node_coord_parr = ncpa.array_[t]
-        tix_node_coord_parr.first_ = safe_convert_to_c(tix_t, tix)
-        tix_node_coord_parr.second_.resize(len(node_coord_map))
-        for n, (node, coord_list) in enumerate(node_coord_map.items()):
-            node_coord_pair = tix_node_coord_parr.second_.array_[n]
-            node_coord_pair.first_ = safe_convert_to_c(nix_t, node)
-            node_coord_pair.second_.resize(len(coord_list))
-            for c, coord in enumerate(coord_list):
-                node_coord_pair.second_.array_[c] = safe_convert_to_c(space_t, coord)
-
-    return ncpa
-
-
-def node_coord_pair_array_to_dict(
-    ncpa: ctypes.Structure,  # NodeCoordPairArray
-) -> typing.Dict[
-    int, typing.Dict[int, typing.List[float]]  # Tile index : Node index : Coordinates
-]:
-    if ncpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(ncpa.array_)
-        for t in range(ncpa.size_):
-            tix_node_coord_parr = ncpa.array_[t]
-            tix = c_data_to_py_int(tix_node_coord_parr.first_)
-            tile_dict = res[tix] = dict()
-            if tix_node_coord_parr.second_.size_ > 0:
-                check_ptr(tix_node_coord_parr.second_.array_)
-                for n in range(tix_node_coord_parr.second_.size_):
-                    node_coord_pair = tix_node_coord_parr.second_.array_[n]
-                    nix = c_data_to_py_int(node_coord_pair.first_)
-                    if node_coord_pair.second_.size_ > 0:
-                        check_ptr(node_coord_pair.second_.array_)
-                        coord = [
-                            c_data_to_py_float(node_coord_pair.second_.array_[c])
-                            for c in range(node_coord_pair.second_.size_)
-                        ]
-                        tile_dict[nix] = coord
-                    elif bool(node_coord_pair.second_.array_):
-                        raise ValueError("Corrupted node coord pair array")
-
-                if len(tile_dict) != tix_node_coord_parr.second_.size_:
-                    raise ValueError("Corrupted node coord pair array")
-
-            elif bool(tix_node_coord_parr.second_.array_):
-                raise ValueError("Corrupted node coord pair array")
-
-        if len(res) != ncpa.size_:
-            raise ValueError("Corrupted node coord pair array")
-
-        return res
-
-
-def dict_to_nested_node_coord_pair_array(
-    d: typing.Dict[
-        int, typing.Dict[int, typing.Dict[int, typing.List[float]]]
-    ],  # Tile index : Leaf index : Node index : Coordinates
-) -> ctypes.Structure:  # NodeCoordPairArray
-    nncpa = NestedNodeCoordPairArray()
-    nncpa.resize(len(d))
-    for t, (tix, leaf_node_coord_map) in enumerate(d.items()):
-        tix_leaf_node_coord_parr = nncpa.array_[t]
-        tix_leaf_node_coord_parr.first_ = safe_convert_to_c(tix_t, tix)
-        tix_leaf_node_coord_parr.second_ = dict_to_node_coord_pair_array(
-            leaf_node_coord_map
-        )
-
-    return nncpa
-
-
-def nested_node_coord_pair_array_to_dict(
-    nncpa: ctypes.Structure,  # NestedNodeCoordPairArray
-) -> typing.Dict[
-    int,  # Tile index
-    typing.Dict[
-        int,  # Leaf index
-        typing.Dict[int, typing.List[float]],  # Node index : Coordinates
-    ],
-]:
-    if nncpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(nncpa.array_)
-        for t in range(nncpa.size_):
-            tix_leaf_node_coord_parr = nncpa.array_[t]
-            tix = c_data_to_py_int(tix_leaf_node_coord_parr.first_)
-            res[tix] = node_coord_pair_array_to_dict(tix_leaf_node_coord_parr.second_)
-
-        if len(res) != nncpa.size_:
-            raise ValueError("Corrupted node coord pair array")
-
-        return res
-
-
-def dict_to_grid_tile_vertices_pair_array(
-    d: typing.Dict[
-        int,  # Tile index
-        typing.Tuple[
-            typing.List[typing.List[float]],  # Tile vertices
-            typing.Dict[
-                int,  # Sub tile index
-                typing.List[typing.List[float]],  # Sub tile vertices
-            ],
-        ],
-    ],
-) -> ctypes.Structure:
-    gtvpa = GridTileVerticesPairArray()
-    gtvpa.resize(len(d))
-    for i, (tix, vst_tuple) in enumerate(d.items()):
-        tile_vstp_parr = gtvpa.array_[i]
-        tile_vstp_parr.first_ = safe_convert_to_c(tix_t, tix)
-        tile_vstp_parr.second_.first_ = nested_float_col_to_nested_sta(vst_tuple[0])
-        tile_vstp_parr.second_.second_.resize(len(vst_tuple[1]))
-        for i, (stix, st_vertices) in enumerate(vst_tuple[1].items()):
-            sub_tile_vertices_parr = tile_vstp_parr.second_.second_.array_[i]
-            sub_tile_vertices_parr.first_ = safe_convert_to_c(tix_t, stix)
-            sub_tile_vertices_parr.second_ = nested_float_col_to_nested_sta(st_vertices)
-    return gtvpa
-
-
-def grid_tile_vertices_pair_array_to_dict(
-    gtvpa: ctypes.Structure,  # GridTileVerticesPairArray
-) -> typing.Dict[
-    int,  # Tile index
-    typing.Tuple[
-        typing.List[typing.List[float]],  # Tile vertices
-        typing.Dict[
-            int,  # Sub tile index
-            typing.List[typing.List[float]],  # Sub tile vertices
-        ],
-    ],
-]:
-    if gtvpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(gtvpa.array_)
-        for i in range(gtvpa.size_):
-            tile_vstp_parr = gtvpa.array_[i]
-            tix = c_data_to_py_int(tile_vstp_parr.first_)
-            t_vertices = nested_sta_to_nested_float_col(tile_vstp_parr.second_.first_)
-            st_dict = dict()
-            if tile_vstp_parr.second_.second_.size_ > 0:
-                check_ptr(tile_vstp_parr.second_.second_.array_)
-                for j in range(tile_vstp_parr.second_.second_.size_):
-                    sub_tile_vertices_parr = tile_vstp_parr.second_.second_.array_[j]
-                    stix = c_data_to_py_int(sub_tile_vertices_parr.first_)
-                    st_dict[stix] = nested_sta_to_nested_float_col(
-                        sub_tile_vertices_parr.second_
-                    )
-
-                if len(st_dict) != tile_vstp_parr.second_.second_.size_:
-                    raise ValueError("Corrupted grid sub tile vertices array")
-
-            res[tix] = (t_vertices, st_dict)
-
-        if len(res) != gtvpa.size_:
-            raise ValueError("Corrupted grid tile vertices array")
-
-        return res
-
-
-def dict_to_rank_timer_data_pair_array(
-    d: typing.Dict[str, float],  # Timer name : Time
-) -> ctypes.Structure:  # RankTimerDataPairArray
-    rtdpa = RankTimerDataPairArray()
-    rtdpa.resize(len(d))
-    for i, (timer_name, time) in enumerate(d.items()):
-        td = rtdpa.array_[i]
-        td.first_ = str_to_carr(timer_name)
-        td.second_ = safe_convert_to_c(ctypes.c_double, time)
-    return rtdpa
-
-
-def rank_timer_data_pair_array_to_dict(
-    rtdpa: ctypes.Structure,  # RankTimerDataPairArray
-) -> typing.Dict[str, float]:  # Timer name : Time
-    if rtdpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(rtdpa.array_)
-        for i in range(rtdpa.size_):
-            td = rtdpa.array_[i]
-            timer_name = carr_to_str(td.first_)
-            timer_time = c_data_to_py_float(td.second_)
-            res[timer_name] = timer_time
-
-        if len(res) != rtdpa.size_:
-            raise ValueError("Corrupted rank timer data pair array")
-
-        return res
-
-
-def dict_to_thread_timer_data_pair_array(
-    d: typing.Dict[str, typing.List[float]],  # Timer name : Time
-) -> ctypes.Structure:  # TimerDataPairArray
-    ttdpa = ThreadTimerDataPairArray()
-    ttdpa.resize(len(d))
-    for i, (timer_name, times) in enumerate(d.items()):
-        td = ttdpa.array_[i]
-        td.first_ = str_to_carr(timer_name)
-        td.second_ = float_col_to_da(times)
-    return ttdpa
-
-
-def thread_timer_data_pair_array_to_dict(
-    rtdpa: ctypes.Structure,  # TimerDataPairArray
-) -> typing.Dict[str, float]:  # Timer name : Time
-    if rtdpa.size_ < 1:
-        return dict()
-    else:
-        res = dict()
-        check_ptr(rtdpa.array_)
-        for i in range(rtdpa.size_):
-            td = rtdpa.array_[i]
-            timer_name = carr_to_str(td.first_)
-            timer_time = da_to_float_col(td.second_)
-            res[timer_name] = timer_time
-
-        if len(res) != rtdpa.size_:
-            raise ValueError("Corrupted rank timer data pair array")
-
-        return res
+    elif bool(nested_num_arr.array_):
+        raise ValueError("Corrupted nested numerical array")
+    return l
 
 
 _CONVERTERS = {
-    mult_t: (c_data_to_py_int, lambda val: safe_convert_to_c(c_type=mult_t, p_val=val)),
+    count_t: (
+        int,
+        count_t,
+    ),
     ctypes.c_bool: (
-        c_data_to_py_bool,
-        lambda val: safe_convert_to_c(c_type=ctypes.c_bool, p_val=val),
+        bool,
+        ctypes.c_bool,
     ),
     CharArray: (carr_to_str, str_to_carr),
-    NestedCharArray: (nested_carr_to_str_col, str_col_to_nested_carr),
-    SpaceTArray: (sta_to_float_col, float_col_to_sta),
-    NestedSpaceTArray: (nested_sta_to_nested_float_col, nested_float_col_to_nested_sta),
+    NestedCharArray: (nested_carr_to_str_seq, str_seq_to_nested_carr),
+    SpaceTArray: (num_arr_to_num_seq, lambda seq: num_seq_to_num_arr(SpaceTArray, seq)),
+    NestedSpaceTArray: (
+        nested_num_arr_to_nested_num_seq,
+        lambda nested_seq: nested_num_seq_to_nested_arr(NestedSpaceTArray, nested_seq),
+    ),
+    TileIdxArray: (
+        num_arr_to_num_seq,
+        lambda seq: num_seq_to_num_arr(TileIdxArray, seq),
+    ),
+    NestedTileIdxArray: (
+        nested_num_arr_to_nested_num_seq,
+        lambda nested_seq: nested_num_seq_to_nested_arr(NestedTileIdxArray, nested_seq),
+    ),
+    AngleTArray: (num_arr_to_num_seq, lambda seq: num_seq_to_num_arr(AngleTArray, seq)),
 }
+
+_GPS_FIELDS = (
+    ("grid_origin", SpaceTArray, lambda: tuple()),
+    ("grid_dimensions", TileIdxArray, lambda: tuple()),
+    ("tile_type", CharArray, lambda: ""),
+    ("tile_side_lengths", SpaceTArray, lambda: tuple()),
+    ("tile_angular_offsets", AngleTArray, lambda: tuple()),
+)
 
 _MPS_FIELDS = (
     ("mask_blueprint_name", CharArray, lambda: ""),
@@ -730,11 +820,10 @@ _MPS_FIELDS = (
 _CPS_FIELDS = (
     ("edge_wrap", ctypes.c_bool, lambda: False),
     ("only_neighborhood", ctypes.c_bool, lambda: False),
-    ("inverted_conn_rule", ctypes.c_bool, lambda: False),
     ("allow_multiplicity", ctypes.c_bool, lambda: False),
     ("allow_self_connections", ctypes.c_bool, lambda: False),
     ("partition_connections_by_source", ctypes.c_bool, lambda: False),
-    ("connection_counts", mult_t, lambda: 0),
+    ("connection_counts", count_t, lambda: 0),
     ("conn_gen_name", CharArray, lambda: ""),
     ("weight_df_name", CharArray, lambda: ""),
     ("weight_df_params", SpaceTArray, lambda: tuple()),
@@ -758,7 +847,7 @@ def io_struct_template(
         _fields_ = [(field[0], field[1]) for field in field_map]
         _fmp = field_map
 
-        def to_dict(self):
+        def to_dict(self) -> dict:
             res = dict()
             for name, type, _ in self._fmp:
                 try:
@@ -767,7 +856,7 @@ def io_struct_template(
                     raise KeyError("Unknown field in structure")
             return res
 
-        def from_dict(self, d: dict):
+        def from_dict(self, d: dict) -> None:
             for name, type, dfg in self._fmp:
                 try:
                     if name in d:
@@ -783,8 +872,207 @@ def io_struct_template(
     return IOStruct
 
 
+GPStruct = io_struct_template(_GPS_FIELDS)
 MPStruct = io_struct_template(_MPS_FIELDS)
 CPStruct = io_struct_template(_CPS_FIELDS)
+
+
+def dict_to_connection_view_pair_array(
+    d: typing.Mapping[
+        int,
+        typing.Sequence[
+            typing.Tuple[
+                typing.Sequence[int],
+                typing.Sequence[int],
+                typing.Sequence[float],
+                typing.Sequence[float],
+            ]
+        ],
+    ],
+) -> ctypes.Structure:  # ConnectionInfoPairArray
+    cvpa = ConnectionViewPairArray()
+    cvpa.resize(len(d))
+    for r, (rank, conn_collection) in enumerate(d.items()):
+        rank_conn_parr = cvpa.array_[r]
+        rank_conn_parr.first_ = rank
+        rank_conn_parr.second_.from_tuple(conn_collection)
+
+    return cvpa
+
+
+def connection_view_pair_array_to_dict(
+    cvpa: ctypes.Structure,  # ConnectionViewPairArray
+) -> typing.Dict[
+    int,
+    typing.Sequence[
+        typing.Tuple[
+            typing.Sequence[int],
+            typing.Sequence[int],
+            typing.Sequence[float],
+            typing.Sequence[float],
+        ]
+    ],
+]:
+    res = dict()
+    if 0 < cvpa.size_:
+        check_ptr(cvpa.array_)
+        for r in range(cvpa.size_):
+            rank_cvs = cvpa.array_[r]
+            res[rank_cvs.first_] = rank_cvs.second_.to_tuple()
+
+        if len(res) != cvpa.size_:
+            raise ValueError("Corrupted connection info pair array")
+
+    elif bool(cvpa.array_):
+        raise ValueError("Corrupted connection info pair array")
+
+    return res
+
+
+def connection_view_pair_array_to_np_dict(
+    cvpa: ctypes.Structure,  # ConnectionInfoPairArray
+) -> typing.Dict[int, typing.Sequence[tuple]]:
+    res = dict()
+    if 0 < cvpa.size_:
+        check_ptr(cvpa.array_)
+        for r in range(cvpa.size_):
+            rank_cvs = cvpa.array_[r]
+            res[rank_cvs.first_] = rank_cvs.second_.to_np_data()
+
+        if len(res) != cvpa.size_:
+            raise ValueError("Corrupted connection info pair array")
+
+    elif bool(cvpa.array_):
+        raise ValueError("Corrupted connection info pair array")
+
+    return res
+
+
+def dict_to_tiled_node_sequence_pair_array(
+    d: typing.Mapping[
+        int,  # MPI rank
+        typing.Mapping[
+            int,  # Tile index
+            typing.Tuple[int, int],  # First node in sequence, length of sequence
+        ],
+    ],
+) -> ctypes.Structure:  # TiledNodeSequencePairArray
+    tnspa = TiledNodeSequencePairArray()
+    tnspa.resize(len(d))
+    for r, (rank, tix_ns_map) in enumerate(d.items()):
+        rank_tns_parr = tnspa.array_[r]
+        rank_tns_parr.first_ = rank
+        rank_tns_parr.second_.resize(len(tix_ns_map))
+        for t, (tix, ns) in enumerate(tix_ns_map.items()):
+            tix_ns_pair = rank_tns_parr.second_.array_[t]
+            tix_ns_pair.first_ = tix
+            tix_ns_pair.second_.first_ = ns[0]
+            tix_ns_pair.second_.second_ = ns[1]
+
+    return tnspa
+
+
+def tiled_node_sequence_pair_array_to_dict(
+    tnspa: ctypes.Structure,  # TiledNodeSequencePairArray
+) -> typing.Mapping[
+    int,  # MPI rank
+    typing.Mapping[
+        int,  # Tile index
+        typing.Tuple[int, int],  # First node in sequence, length of sequence
+    ],
+]:
+    res = dict()
+    if 0 < tnspa.size_:
+        check_ptr(tnspa.array_)
+        for r in range(tnspa.size_):
+            rank_tns_parr = tnspa.array_[r]
+            if 0 < rank_tns_parr.second_.size_:
+                check_ptr(rank_tns_parr.second_.array_)
+                rank_dict = res[rank_tns_parr.first_] = dict()
+                for t in range(rank_tns_parr.second_.size_):
+                    tix_ns_pair = rank_tns_parr.second_.array_[t]
+                    rank_dict[tix_ns_pair.first_] = (
+                        tix_ns_pair.second_.first_,
+                        tix_ns_pair.second_.second_,
+                    )
+
+                if len(rank_dict) != rank_tns_parr.second_.size_:
+                    raise ValueError("Corrupted tiled node sequence pair array")
+
+            elif bool(rank_tns_parr.second_.array_):
+                raise ValueError("Corrupted tiled node sequence pair array")
+
+        if len(res) != tnspa.size_:
+            raise ValueError("Corrupted rank tiled node sequence pair array")
+
+    elif bool(tnspa.array_):
+        raise ValueError("Corrupted rank tiled node sequence pair array")
+
+    return res
+
+
+def dict_to_rank_timer_data_pair_array(
+    d: typing.Mapping[str, float],  # Timer name : Time
+) -> ctypes.Structure:  # RankTimerDataPairArray
+    rtdpa = RankTimerDataPairArray()
+    rtdpa.resize(len(d))
+    for i, (timer_name, time) in enumerate(d.items()):
+        td = rtdpa.array_[i]
+        td.first_ = str_to_carr(timer_name)
+        td.second_ = time
+
+    return rtdpa
+
+
+def rank_timer_data_pair_array_to_dict(
+    rtdpa: ctypes.Structure,  # RankTimerDataPairArray
+) -> typing.Dict[str, float]:  # Timer name : Time
+    res = dict()
+    if 0 < rtdpa.size_:
+        check_ptr(rtdpa.array_)
+        for i in range(rtdpa.size_):
+            td = rtdpa.array_[i]
+            res[carr_to_str(td.first_)] = td.second_
+
+        if len(res) != rtdpa.size_:
+            raise ValueError("Corrupted rank timer data pair array")
+
+    elif bool(rtdpa.array_):
+        raise ValueError("Corrupted rank timer data pair array")
+
+    return res
+
+
+def dict_to_thread_timer_data_pair_array(
+    d: typing.Mapping[str, typing.Sequence[float]],  # Timer name : Time
+) -> ctypes.Structure:  # TimerDataPairArray
+    ttdpa = ThreadTimerDataPairArray()
+    ttdpa.resize(len(d))
+    for i, (timer_name, times) in enumerate(d.items()):
+        td = ttdpa.array_[i]
+        td.first_ = str_to_carr(timer_name)
+        td.second_ = num_seq_to_num_arr(DoubleArray, times)
+
+    return ttdpa
+
+
+def thread_timer_data_pair_array_to_dict(
+    rtdpa: ctypes.Structure,  # TimerDataPairArray
+) -> typing.Dict[str, typing.Sequence[float]]:  # Timer name : Time
+    res = dict()
+    if 0 < rtdpa.size_:
+        check_ptr(rtdpa.array_)
+        for i in range(rtdpa.size_):
+            td = rtdpa.array_[i]
+            res[carr_to_str(td.first_)] = num_arr_to_num_seq(td.second_)
+
+        if len(res) != rtdpa.size_:
+            raise ValueError("Corrupted thread timer data pair array")
+
+    elif bool(rtdpa.array_):
+        raise ValueError("Corrupted thread timer data pair array")
+
+    return res
 
 
 def check_optional(opt: ctypes.Structure):
@@ -819,3 +1107,106 @@ def parse_distribution_mode(mode: str | int) -> ctypes.c_uint8:
             case _:
                 raise ValueError("Invalid distribution mode")
     raise TypeError("Invalid distribution mode argument")
+
+
+def simple_prime_factorization(n: int) -> typing.Generator[int, None, None]:
+    if n < 1:
+        raise ValueError("Cannot factorize negative or null values")
+
+    while n % 2 == 0:
+        yield 2
+        n //= 2
+
+    d = 3
+    while d * d <= n:
+        while n % d == 0:
+            yield d
+            n //= d
+        d += 2
+
+    if n > 1:
+        yield n
+
+
+def largest_m_factors(n: int, m: int) -> typing.Sequence[int]:
+    if m < 1:
+        raise ValueError("Invalid factor count")
+    factors = [1] * m
+    for i, f in enumerate(simple_prime_factorization(n)):
+        factors[i % m] *= f
+    return factors
+
+
+def compute_num_splits(
+    tile_type: str, num_nodes: int, num_tiles: int, expected_nodes_per_leaf: int
+) -> int:
+    if num_nodes < 1 or num_tiles < 1 or expected_nodes_per_leaf < 1:
+        raise ValueError("Cannot compute split numbers based on negative values")
+    match tile_type.lower():
+        case "rectangle":
+            return int(
+                max(
+                    math.floor(
+                        math.log(num_nodes / (expected_nodes_per_leaf * num_tiles))
+                        / math.log(4)
+                    ),
+                    0,
+                )
+            )
+        case "triangle":
+            return int(
+                max(
+                    math.floor(
+                        math.log(num_nodes / (expected_nodes_per_leaf * num_tiles))
+                        / math.log(2)
+                    ),
+                    0,
+                )
+            )
+        case "hexagon":
+            return int(
+                max(
+                    math.floor(
+                        math.log(num_nodes / (6 * expected_nodes_per_leaf * num_tiles))
+                        / math.log(2)
+                        + 1
+                    ),
+                    0,
+                )
+            )
+        case _:
+            raise ValueError("Incorrect tile type")
+
+
+def compute_tile_area(
+    tile_type: str, tile_side_lengths: typing.Sequence[float]
+) -> float:
+    num_sides = len(tile_side_lengths)
+    if num_sides < 1:
+        raise ValueError("Invalid number of side lengths")
+    product = lambda t: functools.reduce((lambda x, y: x * y), t, 1)
+    match (tile_type.lower()):
+        case "rectangle":
+            if 2 < num_sides:
+                raise ValueError("Invalid number of side lengths")
+            return (
+                product(tile_side_lengths)
+                if num_sides == 2
+                else tile_side_lengths[0] ** 2
+            )
+        case "triangle":
+            if 2 < num_sides:
+                raise ValueError("Invalid number of side lengths")
+            # Here we assume right angle triangle
+            return (
+                product(tile_side_lengths)
+                if num_sides == 2
+                else tile_side_lengths[0] ** 2
+            ) / 2
+        case "hexagon":
+            if 1 < num_sides:
+                raise ValueError("Invalid number of side lengths")
+            # Here we assume regular hexagon
+            return 1.5 * math.sqrt(3) * tile_side_lengths[0] ** 2
+        case _:
+            raise ValueError("Incorrect tile type")

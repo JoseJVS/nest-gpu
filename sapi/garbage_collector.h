@@ -33,16 +33,11 @@ namespace sapi
 class GC
 {
 public:
-    GC() = default;
-    GC( const GC& ) = delete;
-    GC( GC&& ) = default;
-    ~GC() = default;
-
     template < typename T >
     T* make_collected();
 
     template < typename T >
-    T* make_collected( const std::size_t& size );
+    T* make_collected( const std::size_t size );
 
     template < typename T >
     void collect( std::unique_ptr< T >&& ptr );
@@ -50,42 +45,36 @@ public:
     void free_gc();
 
 protected:
-    struct AnyPtr
+    struct PtrConcept
     {
-        struct PtrConcept
-        {
-        };
+        virtual ~PtrConcept() noexcept = default;
+    };
 
+    template < typename T >
+    class PtrModel final : public PtrConcept
+    {
+    public:
+        PtrModel( std::unique_ptr< T >&& ptr ) noexcept
+            : ptr_( std::move( ptr ) )
+        {}
+
+    protected:
+        const std::unique_ptr< T > ptr_;
+    };
+
+    class AnyPtr
+    {
+    public:
         template < typename T >
-        struct PtrModel final : public PtrConcept
-        {
-            std::unique_ptr< T > ptr_;
-
-            PtrModel( std::unique_ptr< T >&& ptr )
-                : ptr_( std::move( ptr ) )
-            {
-            }
-
-            PtrModel() = delete;
-            PtrModel( const PtrModel& ) = delete;
-            PtrModel( PtrModel&& ) = default;
-            ~PtrModel() = default;
-        };
-
-        std::unique_ptr< PtrConcept > internal_ptr_;
-
-        template < typename T >
-        AnyPtr( std::unique_ptr< T >&& ap )
+        AnyPtr( std::unique_ptr< T >&& ptr ) noexcept
             : internal_ptr_(
-                std::make_unique< PtrModel< T > >( std::move( ap ) )
+                std::make_unique< PtrModel< T > >( std::move( ptr ) )
             )
-        {
-        }
+        {}
+        ~AnyPtr() noexcept = default;
 
-        AnyPtr() = delete;
-        AnyPtr( const AnyPtr& ) = delete;
-        AnyPtr( AnyPtr&& ) = default;
-        ~AnyPtr() = default;
+    protected:
+        const std::unique_ptr< PtrConcept > internal_ptr_;
     };
 
     std::forward_list< AnyPtr > gc_fl_;
@@ -105,7 +94,7 @@ GC::make_collected()
 
 template < typename T >
 inline T*
-GC::make_collected( const std::size_t& size )
+GC::make_collected( const std::size_t size )
 {
     if ( size < 1 )
         return static_cast< T* >( nullptr );

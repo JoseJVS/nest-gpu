@@ -23,84 +23,202 @@
 #ifndef CONNECTION_GENERATOR_H
 #define CONNECTION_GENERATOR_H
 
-#include "connection_methods.h"
+#include "numeric_functors.h"
+#include "connection_containers.h"
 
 
 namespace sapi
 {
-struct ConnectionGenerator final : public Cloneable< ConnectionGenerator >
+// Forward definition to mask.h
+template < typename CoordT >
+struct Mask;
+
+// Forward definition to link with type_erasure_helpers.h
+template < typename RT,
+    typename std::enable_if_t<
+    std::disjunction_v<
+    std::is_same< RT, uint32_t >,
+    std::is_same< RT, uint64_t >
+    >
+    , bool > b
+>
+class AnyRNG_T;
+typedef AnyRNG_T< rng_bits_t, true > AnyRNG;
+
+// Forward definition to connection_methods.h
+template < typename CoordT, bool allow_self_connections, bool allow_multiplicity >
+count_t generate_connections(
+    AnyRNG& rng,
+    ProceduralConnectivityBlocks& proc_block,
+    ConnectionTask< CoordT >& task,
+    const Mask< CoordT >& mask,
+    const NFCollection& functors,
+    const count_t connection_counts,
+    const CONNECTION_METHOD method
+);
+
+
+struct ConnectionGenerator
 {
-    CONNECTION_METHOD cm_ = CONNECTION_METHOD::NULL_CM;
-    mult_t connection_counts_ = 0;
-    NFCollection cfc_;
+    bool partition_connections_by_source_ = false;
+    bool allow_self_connections_ = false;
+    bool allow_multiplicity_ = false;
+    CONNECTION_METHOD method_ = CONNECTION_METHOD::NULL_CM;
+    count_t connection_counts_ = 0;
+    NFCollection numeric_functors_;
 
-    ConnectionGenerator() = default;
-    ConnectionGenerator( const ConnectionGenerator& ) = default;
-    ConnectionGenerator( ConnectionGenerator&& ) = default;
+    bool check_parameters() const;
 
-    ConnectionGenerator( const CONNECTION_METHOD& cm )
-        : cm_( cm )
-    {
-    }
-
-    ConnectionGenerator& operator=( ConnectionGenerator&& );
-
-    std::unique_ptr< ConnectionGenerator >
-        clone() const override;
+    bool sort_by_pool_indexes() const;
 
     template < typename CoordT >
-    void compute_connections(
-        TileConnectionInfo& tci,
-        std::forward_list< ConnectionInfo >& conn_list,
-        ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
+    count_t generate_connections(
         AnyRNG& rng,
-        const bool& allow_multiplicity,
-        const bool& allow_self_connections
+        ProceduralConnectivityBlocks& proc_block,
+        ConnectionTask< CoordT >& task,
+        const Mask< CoordT >& mask,
+        const bool generate_remote_connections
     ) const;
 };
 
 
-inline ConnectionGenerator&
-ConnectionGenerator::operator=( ConnectionGenerator&& cg )
+inline bool ConnectionGenerator::check_parameters() const
 {
-    cm_ = cg.cm_;
-    connection_counts_ = cg.connection_counts_;
-    cfc_ = std::move( cg.cfc_ );
+    if (
+        !numeric_functors_.weight_functor_.is_initialized()
+        || !numeric_functors_.delay_functor_.is_initialized()
+        )
+        return false;
 
-    cg.cm_ = CONNECTION_METHOD::NULL_CM;
+    switch ( method_ )
+    {
+    case CONNECTION_METHOD::PAIRWISE_BERNOULLI:
+        return numeric_functors_.probability_functor_.is_initialized();
 
-    return *this;
+    case CONNECTION_METHOD::PAIRWISE_POISSON:
+        return numeric_functors_.probability_functor_.is_initialized();
+
+    case CONNECTION_METHOD::FIXED_IN_DEGREE:
+        return 0 < connection_counts_;
+
+    case CONNECTION_METHOD::FIXED_OUT_DEGREE:
+        return 0 < connection_counts_;
+
+    default:
+        return false;
+    }
 }
 
 
-inline std::unique_ptr< ConnectionGenerator >
-ConnectionGenerator::clone() const
+inline bool ConnectionGenerator::sort_by_pool_indexes() const
 {
-    return std::make_unique< ConnectionGenerator >( *this );
+    return method_ == CONNECTION_METHOD::FIXED_IN_DEGREE;
 }
 
 
 template < typename CoordT >
-inline void ConnectionGenerator::compute_connections(
-    TileConnectionInfo& tci,
-    std::forward_list< ConnectionInfo >& conn_list,
-    ConsolidatedNodeDisplacementMap< CoordT >& displacement_map,
+count_t ConnectionGenerator::generate_connections(
     AnyRNG& rng,
-    const bool& allow_multiplicity,
-    const bool& allow_self_connections
+    ProceduralConnectivityBlocks& proc_block,
+    ConnectionTask< CoordT >& task,
+    const Mask< CoordT >& mask,
+    const bool generate_remote_connections
 ) const
 {
-    sapi::compute_connections(
-        tci,
-        conn_list,
-        displacement_map,
-        rng,
-        cfc_,
-        connection_counts_,
-        allow_multiplicity,
-        allow_self_connections,
-        cm_
-    );
+    switch (
+        ( generate_remote_connections << 0 )
+        + ( allow_self_connections_ << 1 )
+        + ( allow_multiplicity_ << 2 )
+        )
+    {
+    case 1:
+        return sapi::generate_connections< CoordT, true, false >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 2:
+        return sapi::generate_connections< CoordT, true, false >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 3:
+        return sapi::generate_connections< CoordT, true, false >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 7:
+        return sapi::generate_connections< CoordT, true, true >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 6:
+        return sapi::generate_connections< CoordT, true, true >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 5:
+        return sapi::generate_connections< CoordT, true, true >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    case 4:
+        return sapi::generate_connections< CoordT, false, true >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+
+    default:
+        return sapi::generate_connections< CoordT, false, false >(
+            rng,
+            proc_block,
+            task,
+            mask,
+            numeric_functors_,
+            connection_counts_,
+            method_
+        );
+    }
 }
 }
 

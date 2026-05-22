@@ -24,9 +24,11 @@
 #define CONNECTION_CONTAINERS_H
 
 #include <map>
+#include <deque>
 #include <tuple>
 #include <vector>
 #include <limits>
+#include <algorithm>
 #include <forward_list>
 #include <unordered_map>
 
@@ -35,104 +37,227 @@
 
 namespace sapi
 {
-typedef std::tuple<
-    conn_index_t, // source
-    conn_index_t, // target
-    conn_param_t, // weight
-    conn_param_t, // delay
-    mult_t        // multiplicity
-> ConnectionInfo;
+struct ConnectionInfo
+{
+    conn_index_t index_;
+    conn_param_t weight_;
+    conn_param_t delay_;
+
+    bool operator==( const ConnectionInfo& ) const;
+};
+
+
+inline ConnectionInfo construct_connection_info(
+    const conn_index_t index,
+    const conn_param_t weight,
+    const conn_param_t delay
+)
+{
+    ConnectionInfo ci;
+    ci.index_ = index;
+    ci.weight_ = weight;
+    ci.delay_ = delay;
+    return ci;
+}
+
+
+inline bool ConnectionInfo::operator==( const ConnectionInfo& ci ) const
+{
+    return index_ == ci.index_ && weight_ == ci.weight_ && delay_ == ci.delay_;
+}
+
+
+typedef std::vector< std::pair< conn_param_t, std::deque< ConnectionInfo > > >
+ProceduralConnectivityBlocks;
+
+
+struct ConnectionBounds
+{
+    conn_index_t first_source_index_ = std::numeric_limits< conn_index_t >::max();
+    conn_index_t last_source_index_ = 0;
+    conn_index_t first_target_index_ = std::numeric_limits< conn_index_t >::max();
+    conn_index_t last_target_index_ = 0;
+
+    void update_bounds( const ConnectionBounds& );
+    void update_first_last_source( const conn_index_t index );
+    void update_first_last_target( const conn_index_t index );
+};
+
+
+inline void ConnectionBounds::update_bounds( const ConnectionBounds& cb )
+{
+    first_source_index_ = std::min( first_source_index_, cb.first_source_index_ );
+    last_source_index_ = std::max( last_source_index_, cb.last_source_index_ );
+    first_target_index_ = std::min( first_target_index_, cb.first_target_index_ );
+    last_target_index_ = std::max( last_target_index_, cb.last_target_index_ );
+}
+
+
+inline void ConnectionBounds::update_first_last_source( const conn_index_t index )
+{
+    first_source_index_ = std::min( index, first_source_index_ );
+    last_source_index_ = std::max( index, last_source_index_ );
+}
+
+
+inline void ConnectionBounds::update_first_last_target( const conn_index_t index )
+{
+    first_target_index_ = std::min( index, first_target_index_ );
+    last_target_index_ = std::max( index, last_target_index_ );
+}
 
 
 struct ConnectionVectors
 {
     count_t sizes_ = 0;
-    conn_index_t first_source_index_ = std::numeric_limits< conn_index_t >::max();
-    conn_index_t last_source_index_ = 0;
-    conn_index_t first_target_index_ = std::numeric_limits< conn_index_t >::max();
-    conn_index_t last_target_index_ = 0;
+    ConnectionBounds bounds_;
 
     std::vector< conn_index_t > connection_sources_;
     std::vector< conn_index_t > connection_targets_;
     std::vector< conn_param_t > connection_weights_;
     std::vector< conn_param_t > connection_delays_;
 
-    ConnectionVectors() = default;
+    ConnectionVectors() noexcept = default;
     ConnectionVectors( const ConnectionVectors& ) = delete;
-    ConnectionVectors( ConnectionVectors&& ) = default;
-    ~ConnectionVectors() = default;
+    ConnectionVectors( ConnectionVectors&& ) noexcept = default;
+    ~ConnectionVectors() noexcept = default;
 
-    void prepare_vectors( const count_t& size );
+    ConnectionVectors& operator=( const ConnectionVectors& ) = delete;
+    ConnectionVectors& operator=( ConnectionVectors&& ) = delete;
 
-    void update_first_last_source( const conn_index_t& );
-    void update_first_last_target( const conn_index_t& );
-};
+    void prepare_vectors( const count_t size );
 
-
-inline void ConnectionVectors::update_first_last_source( const conn_index_t& idx )
-{
-    first_source_index_ = idx < first_source_index_
-        ? idx
-        : first_source_index_;
-    last_source_index_ = last_source_index_ < idx
-        ? idx
-        : last_source_index_;
-}
-
-
-inline void ConnectionVectors::update_first_last_target( const conn_index_t& idx )
-{
-    first_target_index_ = idx < first_target_index_
-        ? idx
-        : first_target_index_;
-    last_target_index_ = last_target_index_ < idx
-        ? idx
-        : last_target_index_;
-}
-
-
-// Maps are aggregated by driver tile/node
-struct TileConnectionInfo
-{
-    count_t total_generated_connections_ = 0;
-
-    std::forward_list< std::forward_list< ConnectionInfo > > procedural_connection_list_;
-
-    std::vector< ConnectionVectors > partitioned_connection_vectors_;
-
-    TileConnectionInfo() = default;
-    TileConnectionInfo( const TileConnectionInfo& ) = delete;
-    TileConnectionInfo( TileConnectionInfo&& ) = default;
-    ~TileConnectionInfo() = default;
-
-    bool operator==( const TileConnectionInfo& tci ) const
-    {
-        return build_connection_map() == tci.build_connection_map();
-    }
-
-    std::map< conn_index_t,
-        std::map< conn_index_t,
-        std::tuple< conn_param_t, conn_param_t, mult_t > > >
-        build_connection_map() const;
+    void copy_from_procedural_connections(
+        std::vector< ProceduralConnectivityBlocks >& procedural_connections,
+        const count_t total_procedural_connections,
+        const bool inverted_pivot
+    );
 };
 
 
 struct RankConnectionInfo
 {
-    std::unordered_map< vp_t, TileConnectionInfo > outgoing_connections_;
-    std::unordered_map< vp_t, TileConnectionInfo > incoming_connections_;
+    bool sort_by_pool_indexes_ = false;
+    bool partition_connections_by_source_ = false;
+    count_t total_generated_connections_ = 0;
 
-    RankConnectionInfo() = default;
+    std::vector< ProceduralConnectivityBlocks >
+        procedural_connections_;
+
+    std::vector< ConnectionVectors > partitioned_connections_;
+
+    RankConnectionInfo() noexcept = default;
     RankConnectionInfo( const RankConnectionInfo& ) = delete;
-    RankConnectionInfo( RankConnectionInfo&& rci ) = default;
-    ~RankConnectionInfo() = default;
+    RankConnectionInfo( RankConnectionInfo&& ) noexcept = default;
+    ~RankConnectionInfo() noexcept = default;
 
-    bool operator==( const RankConnectionInfo& rci ) const
-    {
-        return outgoing_connections_ == rci.outgoing_connections_
-            && incoming_connections_ == rci.incoming_connections_;
-    }
+    RankConnectionInfo& operator=( const RankConnectionInfo& ) = delete;
+    RankConnectionInfo& operator=( RankConnectionInfo&& ) = delete;
+
+    bool operator==( const RankConnectionInfo& ) const;
+
+    std::unordered_multimap< combined_idx_t, combined_idx_t >
+        build_connection_map() const;
+
+    void consolidate_connection_map();
 };
+
+
+inline bool RankConnectionInfo::operator==(
+    const RankConnectionInfo& tci
+    ) const
+{
+    return build_connection_map() == tci.build_connection_map();
+}
+
+
+struct DistributedConnectionInfo
+{
+    std::unordered_map< vp_t, RankConnectionInfo > outgoing_connections_;
+    std::unordered_map< vp_t, RankConnectionInfo > incoming_connections_;
+
+    DistributedConnectionInfo() noexcept = default;
+    DistributedConnectionInfo( const DistributedConnectionInfo& ) = delete;
+    DistributedConnectionInfo( DistributedConnectionInfo&& rci ) noexcept = default;
+    ~DistributedConnectionInfo() noexcept = default;
+
+    DistributedConnectionInfo& operator=( const DistributedConnectionInfo& ) = delete;
+    DistributedConnectionInfo& operator=( DistributedConnectionInfo&& ) = delete;
+
+    bool operator==( const DistributedConnectionInfo& ) const;
+};
+
+
+inline bool DistributedConnectionInfo::operator==(
+    const DistributedConnectionInfo& rci
+    ) const
+{
+    return outgoing_connections_ == rci.outgoing_connections_
+        && incoming_connections_ == rci.incoming_connections_;
+}
+
+
+template < typename CoordT >
+using CoordDataVector = std::vector< const std::pair< nodeidx_t, CoordT >* >;
+
+
+template < typename CoordT >
+struct PossibleConnections
+{
+    count_t used_displacements_;
+    const std::vector< CoordT >* image_displacements_;
+    const CoordDataVector< CoordT >* possible_pairs_;
+};
+
+
+template < typename CoordT >
+inline PossibleConnections< CoordT > construct_possible_connections(
+    const count_t used_displacements,
+    const std::vector< CoordT >* const image_displacements,
+    const CoordDataVector< CoordT >* const possible_pairs
+)
+{
+    PossibleConnections< CoordT > cp;
+    cp.used_displacements_ = used_displacements;
+    cp.image_displacements_ = image_displacements;
+    cp.possible_pairs_ = possible_pairs;
+    return cp;
+}
+
+
+template < typename CoordT >
+struct ConnectionTask
+{
+    count_t total_possible_combinations_ = 0;
+    const CoordDataVector< CoordT >* const pivot_vector_;
+    // Sorted for reproducibility
+    std::map< combined_idx_t, PossibleConnections< CoordT > > possible_combinations_;
+
+    ConnectionTask() = delete;
+    ConnectionTask( const ConnectionTask& ) = delete;
+    ConnectionTask( ConnectionTask&& ) noexcept = default;
+    ~ConnectionTask() noexcept = default;
+
+    ConnectionTask( const CoordDataVector< CoordT >* const pivot_vector ) noexcept;
+
+    ConnectionTask& operator=( const ConnectionTask& ) = delete;
+    ConnectionTask& operator=( ConnectionTask&& ) = delete;
+};
+
+
+template < typename CoordT >
+ConnectionTask< CoordT >::ConnectionTask(
+    const CoordDataVector< CoordT >* const pivot_vector
+) noexcept
+    : pivot_vector_( pivot_vector )
+{}
+
+
+template < typename CoordT >
+using TaskMap = std::unordered_map< combined_idx_t, ConnectionTask< CoordT >* >;
+
+template < typename CoordT >
+using TaskQueue = std::deque< std::pair< combined_idx_t, ConnectionTask< CoordT > > >;
 }
 
 

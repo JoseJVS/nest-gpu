@@ -62,20 +62,8 @@ template < typename CoordT >
 using GridPositionParity = std::array< bool, CoordT::D >;
 
 
-constexpr bool positiveTix( const tileidx_t& v )
-{
-    return 0 < v;
-}
-
-
-constexpr bool evenTix( const tileidx_t& v )
-{
-    return !( v % 2 );
-}
-
-
 template < typename T >
-constexpr T position_to_index(
+constexpr inline T position_to_index(
     const std::array< T, 2 >& grid_position,
     const std::array< T, 2 >& grid_dimensions
 )
@@ -85,7 +73,7 @@ constexpr T position_to_index(
 
 
 template < typename T >
-constexpr T position_to_index(
+constexpr inline T position_to_index(
     const std::array< T, 3 >& grid_position,
     const std::array< T, 3 >& grid_dimensions
 )
@@ -96,10 +84,10 @@ constexpr T position_to_index(
 }
 
 
-constexpr std::pair< tileidx_t, bool > edge_wrapped_shift(
-    const tileidx_t& origin,
-    const tileidx_t& shift,
-    const tileidx_t& upper_edge
+constexpr inline std::pair< tileidx_t, bool > edge_wrapped_shift(
+    const tileidx_t origin,
+    const tileidx_t shift,
+    const tileidx_t upper_edge
 )
 {
     assert( 0 <= origin && origin < upper_edge );

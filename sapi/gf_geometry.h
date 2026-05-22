@@ -44,28 +44,24 @@ struct CachedTileCreator;
 
 
 void initialize_soc_2D(
-    std::vector< Coord2D >&,
-    std::vector< space_t >&,
-    const std::vector< space_t >&,
-    const angle_t&
+    ShiftedOriginCreator< Coord2D >& soc,
+    const std::vector< space_t >& side_lengths,
+    const angle_t angular_offset
 );
 
 
 void initialize_hexagonal_soc(
-    std::vector< Coord2D >&,
-    std::vector< space_t >&,
-    const std::vector< space_t >&,
-    const angle_t&
+    ShiftedOriginCreator< Coord2D >& soc,
+    const std::vector< space_t >& side_lengths,
+    const angle_t angular_offset
 );
 
 
 template < typename CoordT >
-inline void initialize_soc(
-    std::vector< CoordT >& helper_vectors,
-    std::vector< space_t >& helper_scalars,
+void initialize_soc(
+    ShiftedOriginCreator< CoordT >& soc,
     const std::vector< space_t >& side_lengths,
-    const std::vector< angle_t >& angular_offsets,
-    const TILE_SHAPE& shape
+    const std::vector< angle_t >& angular_offsets
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -74,7 +70,7 @@ inline void initialize_soc(
             throw std::invalid_argument( "Invalid offsets for tile 2D" );
         const auto lengths = side_lengths.size();
 
-        switch ( shape )
+        switch ( soc.shape_ )
         {
         case TILE_SHAPE::RECTANGLE:
         {
@@ -82,8 +78,7 @@ inline void initialize_soc(
                 throw std::invalid_argument( "Invalid rectangle length vector" );
 
             initialize_soc_2D(
-                helper_vectors,
-                helper_scalars,
+                soc,
                 side_lengths,
                 angular_offsets.empty()
                 ? 0
@@ -99,8 +94,7 @@ inline void initialize_soc(
                 throw std::invalid_argument( "Invalid triangle length vector" );
 
             initialize_soc_2D(
-                helper_vectors,
-                helper_scalars,
+                soc,
                 side_lengths,
                 angular_offsets.empty()
                 ? 0
@@ -116,8 +110,7 @@ inline void initialize_soc(
                 throw std::invalid_argument( "Invalid hexagon length vector" );
 
             initialize_hexagonal_soc(
-                helper_vectors,
-                helper_scalars,
+                soc,
                 side_lengths,
                 angular_offsets.empty()
                 ? 0
@@ -139,34 +132,34 @@ inline void initialize_soc(
 
 
 Coord2D create_shifted_rectangular_origin(
-    const ShiftedOriginCreator< Coord2D >&,
-    const Coord2D&,
-    const GridPosition< Coord2D >&
+    const Coord2D& grid_origin,
+    const GridPosition< Coord2D >& grid_position,
+    const ShiftedOriginCreator< Coord2D >& soc
 );
 
 
 Coord2D create_shifted_triangular_origin(
-    const ShiftedOriginCreator< Coord2D >&,
-    const Coord2D&,
-    const GridPosition< Coord2D >&,
-    const GridPositionParity< Coord2D >&
+    const Coord2D& grid_origin,
+    const GridPosition< Coord2D >& grid_position,
+    const GridPositionParity< Coord2D >& grid_position_parity,
+    const ShiftedOriginCreator< Coord2D >& soc
 );
 
 
 Coord2D create_shifted_hexagonal_origin(
-    const ShiftedOriginCreator< Coord2D >&,
-    const Coord2D&,
-    const GridPosition< Coord2D >&,
-    const GridPositionParity< Coord2D >&
+    const Coord2D& grid_origin,
+    const GridPosition< Coord2D >& grid_position,
+    const GridPositionParity< Coord2D >& grid_position_parity,
+    const ShiftedOriginCreator< Coord2D >& soc
 );
 
 
 template < typename CoordT >
-inline CoordT create_shifted_origin(
-    const ShiftedOriginCreator< CoordT >& soc,
+CoordT create_shifted_origin(
     const CoordT& grid_origin,
-    const GridPosition< CoordT >& gp,
-    const GridPositionParity< CoordT >& gpp
+    const GridPosition< CoordT >& grid_position,
+    const GridPositionParity< CoordT >& grid_position_parity,
+    const ShiftedOriginCreator< CoordT >& soc
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -175,25 +168,25 @@ inline CoordT create_shifted_origin(
         {
         case TILE_SHAPE::RECTANGLE:
             return create_shifted_rectangular_origin(
-                soc,
                 grid_origin,
-                gp
+                grid_position,
+                soc
             );
 
         case TILE_SHAPE::TRIANGLE:
             return create_shifted_triangular_origin(
-                soc,
                 grid_origin,
-                gp,
-                gpp
+                grid_position,
+                grid_position_parity,
+                soc
             );
 
         case TILE_SHAPE::HEXAGON:
             return create_shifted_hexagonal_origin(
-                soc,
                 grid_origin,
-                gp,
-                gpp
+                grid_position,
+                grid_position_parity,
+                soc
             );
 
         default:
@@ -208,122 +201,124 @@ inline CoordT create_shifted_origin(
 
 
 void initialize_rectangular_ctc(
-    std::vector< space_t >&,
-    std::vector< angle_t >&,
-    const std::vector< space_t >&,
-    const angle_t&
+    CachedTileCreator< Coord2D >& ctc,
+    const std::vector< space_t >& side_lengths,
+    const angle_t angular_offset
 );
 
 
 void initialize_triangular_ctc(
-    std::vector< space_t >&,
-    std::vector< angle_t >&,
-    const std::vector< space_t >&,
-    const angle_t&
+    CachedTileCreator< Coord2D >& ctc,
+    const std::vector< space_t >& side_lengths,
+    const angle_t angular_offset
 );
 
 
 void initialize_hexagonal_ctc(
-    std::vector< space_t >&,
-    std::vector< angle_t >&,
-    const std::vector< space_t >&,
-    const angle_t&
+    CachedTileCreator< Coord2D >& ctc,
+    const std::vector< space_t >& side_lengths,
+    const angle_t angular_offset
 );
 
 
-inline void initialize_ctc(
-    std::vector< space_t >& side_lengths_,
-    std::vector< angle_t >& angular_offsets_,
+template < typename CoordT >
+void initialize_ctc(
+    CachedTileCreator< CoordT >& ctc,
     const std::vector< space_t >& side_lengths,
-    const std::vector< angle_t >& angular_offsets,
-    const TILE_SHAPE& shape
+    const std::vector< angle_t >& angular_offsets
 )
 {
-    if ( 1 < angular_offsets.size() )
-        throw std::invalid_argument( "Invalid offsets for tile 2D" );
     const auto lengths = side_lengths.size();
+    const auto rotations = angular_offsets.size();
 
-    switch ( shape )
+    if constexpr ( std::is_same_v< CoordT, Coord2D > )
     {
-    case TILE_SHAPE::RECTANGLE:
-    {
-        if ( lengths < 1 || 2 < lengths )
-            throw std::invalid_argument( "Invalid rectangle length vector" );
+        if ( 1 < rotations )
+            throw std::invalid_argument( "Invalid offsets for tile 2D" );
 
-        initialize_rectangular_ctc(
-            side_lengths_,
-            angular_offsets_,
-            side_lengths,
-            angular_offsets.empty()
-            ? 0
-            : angular_offsets[ 0 ]
-        );
+        switch ( ctc.shape_ )
+        {
+        case TILE_SHAPE::RECTANGLE:
+        {
+            if ( lengths < 1 || 2 < lengths )
+                throw std::invalid_argument( "Invalid rectangle length vector" );
 
-        break;
+            initialize_rectangular_ctc(
+                ctc,
+                side_lengths,
+                angular_offsets.empty()
+                ? 0
+                : angular_offsets[ 0 ]
+            );
+
+            break;
+        }
+
+        case TILE_SHAPE::TRIANGLE:
+        {
+            if ( lengths < 1 || 2 < lengths )
+                throw std::invalid_argument( "Invalid triangle length vector" );
+
+            initialize_triangular_ctc(
+                ctc,
+                side_lengths,
+                angular_offsets.empty()
+                ? 0
+                : angular_offsets[ 0 ]
+            );
+
+            break;
+        }
+
+        case TILE_SHAPE::HEXAGON:
+        {
+            if ( lengths != 1 )
+                throw std::invalid_argument( "Invalid hexagon length vector" );
+
+            initialize_hexagonal_ctc(
+                ctc,
+                side_lengths,
+                angular_offsets.empty()
+                ? 0
+                : angular_offsets[ 0 ]
+            );
+
+            break;
+        }
+
+        default:
+            throw std::invalid_argument( "Invalid tile shape" );
+        }
     }
-
-    case TILE_SHAPE::TRIANGLE:
+    else
     {
-        if ( lengths < 1 || 2 < lengths )
-            throw std::invalid_argument( "Invalid triangle length vector" );
-
-        initialize_triangular_ctc(
-            side_lengths_,
-            angular_offsets_,
-            side_lengths,
-            angular_offsets.empty()
-            ? 0
-            : angular_offsets[ 0 ]
-        );
-
-        break;
-    }
-
-    case TILE_SHAPE::HEXAGON:
-    {
-        if ( lengths != 1 )
-            throw std::invalid_argument( "Invalid hexagon length vector" );
-
-        initialize_hexagonal_ctc(
-            side_lengths_,
-            angular_offsets_,
-            side_lengths,
-            angular_offsets.empty()
-            ? 0
-            : angular_offsets[ 0 ]
-        );
-
-        break;
-    }
-
-    default:
-        throw std::invalid_argument( "Invalid tile shape" );
+        throw std::runtime_error( "3D implementation not available yet" );
     }
 }
 
 
 bool check_rectangular_dimensions(
-    const CachedTileCreator< Coord2D >&,
-    const GridPosition< Coord2D >&
+    const GridPosition< Coord2D >& grid_dimensions,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 bool check_triangular_dimensions(
-    const CachedTileCreator< Coord2D >&,
-    const GridPosition< Coord2D >&
+    const GridPosition< Coord2D >& grid_dimensions,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 bool check_hexagonal_dimensions(
-    const CachedTileCreator< Coord2D >&,
-    const GridPosition< Coord2D >&
+    const GridPosition< Coord2D >& grid_dimensions,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 template < typename CoordT >
-inline bool check_dimensions(
-    const CachedTileCreator< CoordT >& ctc,
-    const GridPosition< CoordT >& grid_dimensions
+bool check_dimensions(
+    const GridPosition< CoordT >& grid_dimensions,
+    const CachedTileCreator< CoordT >& ctc
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -332,20 +327,20 @@ inline bool check_dimensions(
         {
         case TILE_SHAPE::RECTANGLE:
             return check_rectangular_dimensions(
-                ctc,
-                grid_dimensions
+                grid_dimensions,
+                ctc
             );
 
         case TILE_SHAPE::TRIANGLE:
             return check_triangular_dimensions(
-                ctc,
-                grid_dimensions
+                grid_dimensions,
+                ctc
             );
 
         case TILE_SHAPE::HEXAGON:
             return check_hexagonal_dimensions(
-                ctc,
-                grid_dimensions
+                grid_dimensions,
+                ctc
             );
 
         default:
@@ -360,29 +355,29 @@ inline bool check_dimensions(
 
 
 Tile< Coord2D > create_rectangle(
-    const CachedTileCreator< Coord2D >&,
-    const Coord2D&
+    const Coord2D& tile_origin,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 Tile< Coord2D > create_triangle(
-    const CachedTileCreator< Coord2D >&,
-    const Coord2D&,
-    const GridPositionParity< Coord2D >&
+    const Coord2D& tile_origin,
+    const GridPositionParity< Coord2D >& grid_position_parity,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 Tile< Coord2D > create_hexagon(
-    const CachedTileCreator< Coord2D >&,
-    const Coord2D&
+    const Coord2D& tile_origin,
+    const CachedTileCreator< Coord2D >& ctc
 );
 
 
 template < typename CoordT >
-inline Tile< CoordT > create_tile(
-    const CachedTileCreator< CoordT >& ctc,
+Tile< CoordT > create_tile(
     const CoordT& tile_origin,
-    const GridPositionParity< CoordT >& gpp
+    const GridPositionParity< CoordT >& grid_position_parity,
+    const CachedTileCreator< CoordT >& ctc
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
@@ -391,21 +386,21 @@ inline Tile< CoordT > create_tile(
         {
         case TILE_SHAPE::RECTANGLE:
             return create_rectangle(
-                ctc,
-                tile_origin
+                tile_origin,
+                ctc
             );
 
         case TILE_SHAPE::TRIANGLE:
             return create_triangle(
-                ctc,
                 tile_origin,
-                gpp
+                grid_position_parity,
+                ctc
             );
 
         case TILE_SHAPE::HEXAGON:
             return create_hexagon(
-                ctc,
-                tile_origin
+                tile_origin,
+                ctc
             );
 
         default:

@@ -36,18 +36,10 @@
 
 namespace sapi
 {
-template < typename T >
-struct Cloneable
-{
-    virtual ~Cloneable() = default;
-    virtual std::unique_ptr< T > clone() const = 0;
-};
-
-
 template < typename RT >
 struct StateLessCreator
 {
-    virtual ~StateLessCreator() = default;
+    virtual ~StateLessCreator() noexcept = default;
 
     virtual RT create() const;
 
@@ -102,46 +94,68 @@ inline RT StateLessCreator< RT >::create(
 
 
 template < typename RT >
-struct RNGConcept : public Cloneable< RNGConcept< RT > >
+struct RNGConcept
 {
-    virtual void seed( const std::initializer_list< uint32_t >& ) = 0;
+    virtual ~RNGConcept() noexcept = default;
+    virtual std::unique_ptr< RNGConcept< RT > > clone() const noexcept = 0;
+    virtual void seed( const std::initializer_list< rng_seed_t >& seeds ) = 0;
     virtual RT operator()() = 0;
 };
 
 
-template < typename RT, typename RNG >
-struct RNGModel final : public RNGConcept< RT >
+template < typename RNG,
+    typename std::enable_if_t<
+    std::is_nothrow_copy_constructible_v< RNG >,
+    bool > = true
+>
+class RNGModel final : public RNGConcept< typename RNG::result_type >
 {
+public:
+    using result_type = typename RNG::result_type;
+
+    RNGModel( RNG ) noexcept;
+
+    // Defined in rng_creators.cpp
+    void seed( const std::initializer_list< rng_seed_t >& seeds ) override;
+
+    result_type operator()() override;
+
+    std::unique_ptr< RNGConcept< result_type > > clone() const noexcept override;
+
+protected:
     RNG engine_;
-
-    RNGModel( RNG );
-
-    // Defined in random_manager.cpp
-    void seed( const std::initializer_list< uint32_t >& ) override;
-
-    RT operator()() override;
-
-    std::unique_ptr< RNGConcept< RT > > clone() const override;
 };
 
 
-template < typename RT, typename RNG >
-RNGModel< RT, RNG >::RNGModel( RNG engine )
+template < typename RNG,
+    typename std::enable_if_t<
+    std::is_nothrow_copy_constructible_v< RNG >,
+    bool > b
+>
+RNGModel< RNG, b >::RNGModel( RNG engine ) noexcept
     : engine_( engine )
-{
-}
+{}
 
 
-template < typename RT, typename RNG >
-inline RT RNGModel< RT, RNG >::operator()()
+template < typename RNG,
+    typename std::enable_if_t<
+    std::is_nothrow_copy_constructible_v< RNG >,
+    bool > b
+>
+inline typename RNG::result_type
+RNGModel< RNG, b >::operator()()
 {
     return engine_();
 }
 
 
-template < typename RT, typename RNG >
-inline std::unique_ptr< RNGConcept< RT > >
-RNGModel< RT, RNG >::clone() const
+template < typename RNG,
+    typename std::enable_if_t<
+    std::is_nothrow_copy_constructible_v< RNG >,
+    bool > b
+>
+inline std::unique_ptr< RNGConcept< typename RNG::result_type > >
+RNGModel< RNG, b >::clone() const noexcept
 {
     return std::make_unique< RNGModel >( engine_ );
 }
@@ -155,33 +169,37 @@ template < typename RT,
     >
     , bool > = true
 >
-class AnyRNG_T final : public Cloneable < AnyRNG_T< RT > >
+class AnyRNG_T
 {
 public:
     using result_type = RT;
 
+    template < typename RNG,
+        std::enable_if_t<
+        std::is_same_v< typename RNG::result_type, RT >,
+        bool > = true
+    >
+    AnyRNG_T( RNG ) noexcept;
+
     AnyRNG_T() = delete;
-    AnyRNG_T( const AnyRNG_T& ) = delete;
+    AnyRNG_T( const AnyRNG_T& ) noexcept;
     AnyRNG_T( AnyRNG_T&& ) = default;
+    ~AnyRNG_T() noexcept = default;
 
-    template < typename RNG >
-    AnyRNG_T( RNG );
-
-    AnyRNG_T( std::unique_ptr< RNGConcept< RT > >&& );
+    AnyRNG_T& operator=( const AnyRNG_T& ) = delete;
+    AnyRNG_T& operator=( AnyRNG_T&& ) = delete;
 
     constexpr static RT min();
 
     constexpr static RT max();
 
-    void seed( const std::initializer_list< uint32_t >& );
+    void seed( const std::initializer_list< rng_seed_t >& seeds );
 
     RT operator()();
 
-    std::unique_ptr< AnyRNG_T > clone() const override;
-
 protected:
-    std::unique_ptr< RNGConcept< RT > > rng_;
-    RNGConcept< RT >* ptr_;
+    const std::unique_ptr< RNGConcept< RT > > rng_;
+    RNGConcept< RT >* const ptr_;
 };
 
 
@@ -193,12 +211,15 @@ template < typename RT,
     >
     , bool > b
 >
-template < typename RNG >
-AnyRNG_T< RT, b >::AnyRNG_T( RNG engine )
-    : rng_( std::make_unique< RNGModel< RT, RNG > >( engine ) )
+template < typename RNG,
+    std::enable_if_t<
+    std::is_same_v< typename RNG::result_type, RT >,
+    bool >
+>
+AnyRNG_T< RT, b >::AnyRNG_T( RNG engine ) noexcept
+    : rng_( std::make_unique< RNGModel< RNG > >( engine ) )
     , ptr_( rng_.get() )
-{
-}
+{}
 
 
 template < typename RT,
@@ -209,11 +230,10 @@ template < typename RT,
     >
     , bool > b
 >
-AnyRNG_T< RT, b >::AnyRNG_T( std::unique_ptr< RNGConcept< RT > >&& ptr )
-    : rng_( std::move( ptr ) )
+AnyRNG_T< RT, b >::AnyRNG_T( const AnyRNG_T& any_rng ) noexcept
+    : rng_( any_rng.ptr_->clone() )
     , ptr_( rng_.get() )
-{
-}
+{}
 
 
 template < typename RT,
@@ -224,7 +244,7 @@ template < typename RT,
     >
     , bool > b
 >
-constexpr RT AnyRNG_T< RT, b >::min()
+constexpr inline RT AnyRNG_T< RT, b >::min()
 {
     return 0;
 }
@@ -238,7 +258,7 @@ template < typename RT,
     >
     , bool > b
 >
-constexpr RT AnyRNG_T< RT, b >::max()
+constexpr inline RT AnyRNG_T< RT, b >::max()
 {
     return std::numeric_limits< RT >::max();
 }
@@ -253,10 +273,10 @@ template < typename RT,
     , bool > b
 >
 inline void AnyRNG_T< RT, b >::seed(
-    const std::initializer_list< uint32_t >& l
+    const std::initializer_list< rng_seed_t >& seeds
 )
 {
-    ptr_->seed( l );
+    ptr_->seed( seeds );
 }
 
 
@@ -271,21 +291,6 @@ template < typename RT,
 inline RT AnyRNG_T< RT, b >::operator()()
 {
     return ptr_->operator()();
-}
-
-
-template < typename RT,
-    typename std::enable_if_t<
-    std::disjunction_v<
-    std::is_same< RT, uint32_t >,
-    std::is_same< RT, uint64_t >
-    >
-    , bool > b
->
-inline std::unique_ptr< AnyRNG_T< RT, b > >
-AnyRNG_T< RT, b >::clone() const
-{
-    return std::make_unique< AnyRNG_T >( ptr_->clone() );
 }
 
 
