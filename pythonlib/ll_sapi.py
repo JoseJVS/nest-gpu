@@ -125,10 +125,22 @@ class NodesViewStruct(ctypes.Structure):
             self.indexes_ = (nix_t * indexes_length)()
             self.coordinates_ = (space_t * (indexes_length * dimensions_length))()
 
-            for i, index in enumerate(t[0]):
-                self.indexes_[i] = index
-            for c in range(dimensions_length * indexes_length):
-                self.coordinates_[c] = t[1][c // indexes_length][c % indexes_length]
+            c_count = 0
+            fill_once = True
+            for d in range(dimensions_length):
+                if fill_once:
+                    fill_once = False
+                    for i in range(indexes_length):
+                        self.indexes_[i] = t[0][i]
+                        self.coordinates_[c_count] = t[1][d][i]
+                        c_count += 1
+                else:
+                    for i in range(indexes_length):
+                        self.coordinates_[c_count] = t[1][d][i]
+                        c_count += 1
+
+            if c_count != dimensions_length * indexes_length:
+                raise ValueError("Error converting nodes coords from tuple")
 
         except Exception as e:
             self.dimensions_ = 0
@@ -155,15 +167,23 @@ class NodesViewStruct(ctypes.Structure):
         indexes = [0] * self.node_count_
         coordinates = [[]] * self.dimensions_
 
+        c_count = 0
+        fill_once = True
         for d in range(self.dimensions_):
             coordinates[d] = [0] * self.node_count_
+            if fill_once:
+                fill_once = False
+                for n in range(self.node_count_):
+                    indexes[n] = self.indexes_[n]
+                    coordinates[d][n] = self.coordinates_[c_count]
+                    c_count += 1
+            else:
+                for n in range(self.node_count_):
+                    coordinates[d][n] = self.coordinates_[c_count]
+                    c_count += 1
 
-        for i in range(self.node_count_):
-            indexes[i] = self.indexes_[i]
-        for c in range(self.dimensions_ * self.node_count_):
-            coordinates[c // self.node_count_][c % self.node_count_] = (
-                self.coordinates_[c]
-            )
+        if c_count != self.dimensions_ * self.node_count_:
+            raise ValueError("Error converting nodes coords to tuple")
 
         return indexes, coordinates
 
