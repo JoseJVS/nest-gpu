@@ -151,8 +151,8 @@ class NodesViewStruct(ctypes.Structure):
             raise e
 
     def to_tuple(self) -> typing.Tuple[
-        typing.Sequence[int],
-        typing.Sequence[typing.Sequence[float]],
+        typing.List[int],
+        typing.List[typing.List[float]],
     ]:
         if (0 < self.node_count_) != (0 < self.dimensions_):
             raise ValueError("Corrupted NodesViewStruct")
@@ -259,7 +259,7 @@ class PositionViewStruct(ctypes.Structure):
             self.coordinates_ = None
             raise e
 
-    def to_tuple(self) -> typing.Sequence[typing.Sequence[float]]:
+    def to_tuple(self) -> typing.List[typing.List[float]]:
         if self.dimensions_ < 2 or 3 < self.dimensions_:
             raise ValueError("Corrupted PositionViewStruct")
 
@@ -365,12 +365,12 @@ class ConnectionViewStruct(ctypes.Structure):
             self.delays_ = None
             raise e
 
-    def to_tuple(self) -> typing.Sequence[
+    def to_tuple(self) -> typing.List[
         typing.Tuple[
-            typing.Sequence[int],
-            typing.Sequence[int],
-            typing.Sequence[float],
-            typing.Sequence[float],
+            typing.List[int],
+            typing.List[int],
+            typing.List[float],
+            typing.List[float],
         ]
     ]:
         if self.num_partitions_ < 1:
@@ -428,7 +428,7 @@ class ConnectionViewStruct(ctypes.Structure):
 
         return res
 
-    def to_np_data(self) -> typing.Sequence[tuple]:
+    def to_np_data(self) -> typing.List[tuple]:
         if NP is None:
             raise RuntimeError("Cannot create connection views without Numpy")
 
@@ -579,9 +579,9 @@ class GridViewStruct(ctypes.Structure):
             raise e
 
     def to_tuple(self) -> typing.Tuple[
-        typing.Sequence[int],
-        typing.Sequence[typing.Sequence[typing.Sequence[float]]],
-        typing.Sequence[typing.Sequence[typing.Sequence[typing.Sequence[float]]]],
+        typing.List[int],
+        typing.List[typing.List[typing.List[float]]],
+        typing.List[typing.List[typing.List[typing.List[float]]]],
     ]:
         total_tile_size = self.num_tiles_ * self.vertices_per_tile_ * self.dimensions_
         total_leaf_size = (
@@ -803,7 +803,7 @@ def str_seq_to_nested_carr(str_seq: typing.Sequence[str]) -> ctypes.Structure:
     return nca
 
 
-def nested_carr_to_str_seq(nested_carr: ctypes.Structure) -> typing.Sequence[str]:
+def nested_carr_to_str_seq(nested_carr: ctypes.Structure) -> typing.List[str]:
     l = []
     if 0 < nested_carr.size_:
         check_ptr(nested_carr.array_)
@@ -826,7 +826,7 @@ def num_seq_to_num_arr(
 
 def num_arr_to_num_seq(
     num_arr: ctypes.Structure,
-) -> typing.Sequence[int] | typing.Sequence[float]:
+) -> typing.List[int] | typing.List[float]:
     l = []
     if 0 < num_arr.size_:
         check_ptr(num_arr.array_)
@@ -853,7 +853,7 @@ def nested_num_seq_to_nested_arr(
 
 def nested_num_arr_to_nested_num_seq(
     nested_num_arr: ctypes.Structure,
-) -> typing.Sequence[typing.Sequence[int]] | typing.Sequence[typing.Sequence[float]]:
+) -> typing.List[typing.List[int] | typing.List[float]]:
     l = []
     if 0 < nested_num_arr.size_:
         check_ptr(nested_num_arr.array_)
@@ -1093,7 +1093,7 @@ def dict_to_parameter_name_pair_array(
 
 def parameter_name_pair_array_to_dict(
     pnpa: ctypes.Structure,  # ParameterNamesPairArray
-) -> typing.Mapping[str, typing.Sequence[str]]:
+) -> typing.Dict[str, typing.List[str]]:
     res = dict()
     if 0 < pnpa.size_:
         check_ptr(pnpa.array_)
@@ -1137,12 +1137,12 @@ def connection_view_pair_array_to_dict(
     cvpa: ctypes.Structure,  # ConnectionViewPairArray
 ) -> typing.Dict[
     int,
-    typing.Sequence[
+    typing.List[
         typing.Tuple[
-            typing.Sequence[int],
-            typing.Sequence[int],
-            typing.Sequence[float],
-            typing.Sequence[float],
+            typing.List[int],
+            typing.List[int],
+            typing.List[float],
+            typing.List[float],
         ]
     ],
 ]:
@@ -1164,7 +1164,7 @@ def connection_view_pair_array_to_dict(
 
 def connection_view_pair_array_to_np_dict(
     cvpa: ctypes.Structure,  # ConnectionInfoPairArray
-) -> typing.Dict[int, typing.Sequence[tuple]]:
+) -> typing.Dict[int, typing.List[tuple]]:
     res = dict()
     if 0 < cvpa.size_:
         check_ptr(cvpa.array_)
@@ -1207,9 +1207,9 @@ def dict_to_tiled_node_sequence_pair_array(
 
 def tiled_node_sequence_pair_array_to_dict(
     tnspa: ctypes.Structure,  # TiledNodeSequencePairArray
-) -> typing.Mapping[
+) -> typing.Dict[
     int,  # MPI rank
-    typing.Mapping[
+    typing.Dict[
         int,  # Tile index
         typing.Tuple[int, int],  # First node in sequence, length of sequence
     ],
@@ -1291,7 +1291,7 @@ def dict_to_thread_timer_data_pair_array(
 
 def thread_timer_data_pair_array_to_dict(
     rtdpa: ctypes.Structure,  # TimerDataPairArray
-) -> typing.Dict[str, typing.Sequence[float]]:  # Timer name : Time
+) -> typing.Dict[str, typing.List[float]]:  # Timer name : Time
     res = dict()
     if 0 < rtdpa.size_:
         check_ptr(rtdpa.array_)

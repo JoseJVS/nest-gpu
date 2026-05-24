@@ -3394,7 +3394,7 @@ _nestgpu.clear_spatial_connections.argtypes = (ctypes.c_size_t,)
 _nestgpu.clear_spatial_connections.restype = ctypes.c_bool
 
 
-def get_parameter_names() -> typing.Mapping[str, typing.Sequence[str]]:
+def get_parameter_names() -> typing.Dict[str, typing.List[str]]:
     ret = _nestgpu.get_parameter_names()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
@@ -3567,7 +3567,7 @@ def insert_positions_in_grid(
     positions: typing.Sequence[typing.Sequence[float]],
     num_ports: int = 1,
     status_dict: dict | None = None,
-) -> typing.Tuple[ll_sapi.SpatialNodeSeq, typing.Sequence[typing.Sequence[float]]]:
+) -> typing.Tuple[ll_sapi.SpatialNodeSeq, typing.List[typing.List[float]]]:
     num_pos = len(positions)
     if positions is None or num_pos < 1:
         raise ValueError("Cannot insert empty position collection")
@@ -3639,8 +3639,8 @@ def compute_spatial_connections(
 def get_positions(
     sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
 ) -> typing.Tuple[
-    typing.Sequence[int],
-    typing.Sequence[typing.Sequence[float]],
+    typing.List[int],
+    typing.List[typing.List[float]],
 ]:
     c_opt = ll_sapi.OptionalIndex()
     if sp_node_seq is not None:
@@ -3675,23 +3675,23 @@ def view_positions(
 def get_spatial_connections(conn_index: int) -> typing.Tuple[
     typing.Dict[
         int,
-        typing.Sequence[
+        typing.List[
             typing.Tuple[
-                typing.Sequence[int],
-                typing.Sequence[int],
-                typing.Sequence[float],
-                typing.Sequence[float],
+                typing.List[int],
+                typing.List[int],
+                typing.List[float],
+                typing.List[float],
             ]
         ],
     ],
     typing.Dict[
         int,
-        typing.Sequence[
+        typing.List[
             typing.Tuple[
-                typing.Sequence[int],
-                typing.Sequence[int],
-                typing.Sequence[float],
-                typing.Sequence[float],
+                typing.List[int],
+                typing.List[int],
+                typing.List[float],
+                typing.List[float],
             ]
         ],
     ],
@@ -3713,8 +3713,8 @@ def get_spatial_connections(conn_index: int) -> typing.Tuple[
 
 
 def view_spatial_connections(conn_index: int) -> typing.Tuple[
-    typing.Dict[int, typing.Sequence[tuple]],
-    typing.Dict[int, typing.Sequence[tuple]],
+    typing.Dict[int, typing.List[tuple]],
+    typing.Dict[int, typing.List[tuple]],
 ]:
     if conn_index < 0:
         raise ValueError("Invalid connection index")
@@ -3732,12 +3732,12 @@ def view_spatial_connections(conn_index: int) -> typing.Tuple[
     return res
 
 
-def get_grid_vertices() -> typing.Sequence[
+def get_grid_vertices() -> typing.List[
     typing.Tuple[
-        typing.Sequence[int],
-        typing.Sequence[int],
-        typing.Sequence[float],
-        typing.Sequence[float],
+        typing.List[int],
+        typing.List[int],
+        typing.List[float],
+        typing.List[float],
     ]
 ]:
     ret = _nestgpu.view_grid_vertices()
@@ -3749,7 +3749,7 @@ def get_grid_vertices() -> typing.Sequence[
     return gv
 
 
-def view_grid_vertices() -> typing.Sequence[tuple]:
+def view_grid_vertices() -> typing.List[tuple]:
     ret = _nestgpu.view_grid_vertices()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
@@ -3760,7 +3760,7 @@ def view_grid_vertices() -> typing.Sequence[tuple]:
 
 def get_distributed_node_sequences(
     sp_node_seq: ll_sapi.SpatialNodeSeq,
-) -> typing.Mapping[int, typing.Mapping[int, typing.Tuple[int, int]]]:
+) -> typing.Dict[int, typing.Dict[int, typing.Tuple[int, int]]]:
     ret = _nestgpu.get_distributed_node_sequences(
         ctypes.c_size_t(sp_node_seq.spatial_index)
     )
@@ -3771,7 +3771,7 @@ def get_distributed_node_sequences(
     return dtns
 
 
-def get_timer_data() -> typing.Mapping[str, float | typing.Sequence[float]]:
+def get_timer_data() -> typing.Dict[str, float | typing.List[float]]:
     ret = _nestgpu.get_timer_data()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
