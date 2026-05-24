@@ -130,9 +130,15 @@ struct CTCCreator final : public StateLessCreator< CachedTileCreator< CoordT > >
 
 void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< Coord2D > >& gscr )
 {
-    gscr.register_creator< RectangleGSCreator >( "Rectangle" );
-    gscr.register_creator< TriangleGSCreator >( "Triangle" );
-    gscr.register_creator< HexagonGSCreator >( "Hexagon" );
+    gscr.register_creator< RectangleGSCreator >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::RECTANGLE ) ]
+    );
+    gscr.register_creator< TriangleGSCreator >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::TRIANGLE ) ]
+    );
+    gscr.register_creator< HexagonGSCreator >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::HEXAGON ) ]
+    );
 }
 
 
@@ -144,9 +150,15 @@ void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< Coord3D
 
 void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord2D > >& socr )
 {
-    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::RECTANGLE > >( "Rectangle" );
-    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::TRIANGLE > >( "Triangle" );
-    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::HEXAGON > >( "Hexagon" );
+    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::RECTANGLE > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::RECTANGLE ) ]
+    );
+    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::TRIANGLE > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::TRIANGLE ) ]
+    );
+    socr.register_creator< SOCCreator< Coord2D, TILE_SHAPE::HEXAGON > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::HEXAGON ) ]
+    );
 }
 
 
@@ -158,9 +170,15 @@ void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord3D > >
 
 void initialize_ctc_registry( CreatorRegistry< CachedTileCreator< Coord2D > >& ctcr )
 {
-    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::RECTANGLE > >( "Rectangle" );
-    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::TRIANGLE > >( "Triangle" );
-    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::HEXAGON > >( "Hexagon" );
+    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::RECTANGLE > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::RECTANGLE ) ]
+    );
+    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::TRIANGLE > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::TRIANGLE ) ]
+    );
+    ctcr.register_creator< CTCCreator< Coord2D, TILE_SHAPE::HEXAGON > >(
+        TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::HEXAGON ) ]
+    );
 }
 
 

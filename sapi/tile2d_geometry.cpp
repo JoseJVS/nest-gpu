@@ -664,4 +664,47 @@ Coord2D project_point_to_2D_perimeter(
         vertices[ second ]
     );
 }
+
+
+Coord2D project_point_to_triangle_perimeter(
+    const Coord2D& coord,
+    const std::vector< Coord2D >& vertices,
+    const CircumscribedRadius< Coord2D >& c_radius
+)
+{
+    if ( almost_zero( distance2( coord, c_radius.origin_ ) ) )
+        return c_radius.origin_;
+
+    vertidx_t v_index = 0;
+    vertidx_t first = 0;
+    space_t d_first = std::numeric_limits< space_t >::max();
+    vertidx_t second = 0;
+    space_t d_second = std::numeric_limits< space_t >::max();
+    for ( const auto& vertex : vertices )
+    {
+        const auto d2 = distance2( coord, vertex );
+        if ( std::isless( d2, d_first ) )
+        {
+            second = first;
+            d_second = d_first;
+            first = v_index;
+            d_first = d2;
+        }
+        else if ( std::isless( d2, d_second ) )
+        {
+            second = v_index;
+            d_second = d2;
+        }
+        ++v_index;
+    }
+
+    if ( almost_zero( d_first ) )
+        return vertices[ first ];
+
+    return projection_coord< Coord2D, true >(
+        coord,
+        vertices[ first ],
+        vertices[ second ]
+    );
+}
 }

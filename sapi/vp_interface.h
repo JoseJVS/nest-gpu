@@ -138,6 +138,94 @@ inline vp_t get_thread_num()
     return 0;
 #endif
 }
+
+
+template < typename T >
+struct OmpLock
+{
+#ifdef HAVE_OMP
+    omp_lock_t lock_{};
+#else
+    T lock{};
+#endif
+
+    OmpLock() noexcept
+    {
+#ifdef HAVE_OMP
+        omp_init_lock( &lock_ );
+#endif
+    }
+
+    OmpLock( const OmpLock& ) = delete;
+    OmpLock( OmpLock&& ) noexcept = default;
+
+    ~OmpLock() noexcept
+    {
+#ifdef HAVE_OMP
+        omp_destroy_lock( &lock_ );
+#endif
+    }
+
+    OmpLock& operator=( const OmpLock& ) = delete;
+    OmpLock& operator=( OmpLock&& ) = delete;
+
+    void lock() noexcept;
+    bool try_lock() noexcept;
+    void unlock() noexcept;
+};
+
+
+template < typename T >
+inline void OmpLock< T >::lock() noexcept
+{
+#ifdef HAVE_OMP
+    omp_set_lock( &lock_ );
+#endif
+}
+
+
+template < typename T >
+inline bool OmpLock< T >::try_lock() noexcept
+{
+#ifdef HAVE_OMP
+    return omp_test_lock( &lock_ ) != 0;
+#else
+    return true;
+#endif
+}
+
+
+template < typename T >
+inline void OmpLock< T >::unlock() noexcept
+{
+#ifdef HAVE_OMP
+    omp_unset_lock( &lock_ );
+#endif
+}
+
+
+template < typename T >
+struct OmpLockGuard
+{
+    OmpLock< T >& lock_;
+
+    explicit OmpLockGuard( OmpLock< T >& l ) noexcept
+        : lock_( l )
+    {
+        lock_.lock();
+    }
+
+    OmpLockGuard( const OmpLockGuard& ) = delete;
+    OmpLockGuard( OmpLockGuard&& ) = delete;
+
+    OmpLockGuard& operator=( const OmpLockGuard& ) = delete;
+    OmpLockGuard& operator=( OmpLockGuard&& ) = delete;
+
+    ~OmpLockGuard() noexcept
+    {
+        lock_.unlock();
+    }
+};
 }
 
 

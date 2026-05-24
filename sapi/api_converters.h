@@ -265,7 +265,7 @@ nested_collection_to_nested_array(
 
 
 void make_view_from_indexed_node_coords(
-    NodesViewStruct& ncs,
+    NodesViewStruct& nvs,
     const IndexedNodeCoordinates& inc
 );
 
@@ -276,9 +276,29 @@ make_view_from_indexed_node_coords(
     GC& gc
 )
 {
-    const auto ncs = gc.make_collected< NodesViewStruct >();
-    make_view_from_indexed_node_coords( *ncs, inc );
-    return ncs;
+    const auto nvs = gc.make_collected< NodesViewStruct >();
+    make_view_from_indexed_node_coords( *nvs, inc );
+    return nvs;
+}
+
+
+void make_view_from_positions(
+    PositionViewStruct& pvs,
+    const dim_t dimensions,
+    const std::vector< space_t >& coordinates
+);
+
+
+inline PositionViewStruct*
+make_view_from_positions(
+    const dim_t dimensions,
+    const std::vector< space_t >& coordinates,
+    GC& gc
+)
+{
+    const auto pvs = gc.make_collected< PositionViewStruct >();
+    make_view_from_positions( *pvs, dimensions, coordinates );
+    return pvs;
 }
 
 
@@ -366,6 +386,12 @@ recorded_times_to_array_pair(
     );
     return ctimes;
 }
+
+
+void generate_param_name_pair_array(
+    ParameterNamesPairArray& pnpa,
+    GC& gc
+);
 
 
 GridParameters gpstruct_to_grid_params(

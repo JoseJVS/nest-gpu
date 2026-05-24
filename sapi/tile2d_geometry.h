@@ -176,6 +176,13 @@ Coord2D project_point_to_2D_perimeter(
     const Coord2D& coord,
     const std::vector< Coord2D >& vertices
 );
+
+
+Coord2D project_point_to_triangle_perimeter(
+    const Coord2D& coord,
+    const std::vector< Coord2D >& vertices,
+    const CircumscribedRadius< Coord2D >& c_radius
+);
 }
 
 

@@ -23,12 +23,10 @@
 #ifndef NODE_CONTAINERS_H
 #define NODE_CONTAINERS_H
 
-#include <list>
 #include <deque>
 #include <vector>
 #include <utility>
 #include <algorithm>
-#include <forward_list>
 #include <unordered_map>
 
 #include "sapi_config.h"
@@ -59,24 +57,22 @@ typedef std::unordered_map< vp_t, TileIdxNodeSequenceMap > DistributedTiledNodeS
 // the index of the node count is equal to either the rank or tile index.
 typedef std::vector< nodeidx_t > NodeCountVector;
 
-// List of individual mappings of tile index to corresponding node count.
+// Queue of individual mappings of tile index to corresponding node count.
 // As tiles owned by an individual rank may not have contiguous indexes,
 // node counts need to be paired with the corresponding tile index,
-// during node creation the list is iterated to instantiate nodes given their count.
-// List is preferred over a map as the iteration process goes over all indexes,
-// and no random access is necessary.
-typedef std::forward_list< std::pair< tileidx_t, nodeidx_t > > TileIdxNodeCountPairList;
+// during node creation the queue is iterated to instantiate nodes given their count.
+typedef std::deque< std::pair< tileidx_t, nodeidx_t > > TileIdxNodeCountPairs;
 
 // After instantiating node counts for each tile during global node sequence assignment,
-// each rank will hold a list of node counts per owned tile,
-// the index of each list corresponds to the rank of the owner.
-typedef std::vector< TileIdxNodeCountPairList > TileIdxNodeCountPairListVector;
+// each rank will hold a queue of node counts per owned tile,
+// the index of each queue corresponds to the rank of the owner.
+typedef std::vector< TileIdxNodeCountPairs > RankTileIdxNodeCountPairs;
 
-// Map of tile index to sized forward list of coordinates.
+// Map of tile index to sized forward queue of coordinates.
 // This map is procedurally generated when manually inserting coordinates
 // into the grid using bounding box tree filtering approach.
 template < typename CoordT >
-using TiledCoordMap = std::unordered_map< tileidx_t, std::list< CoordT > >;
+using TiledCoordMap = std::unordered_map< tileidx_t, std::deque< CoordT > >;
 
 // This container maps node indexes to coordinates.
 // A vector is instantiated for each tile position in a tile grid.

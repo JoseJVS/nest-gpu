@@ -40,11 +40,11 @@ get_distribution_mode( I&& mode )
 {
     switch ( mode )
     {
-    case 0:
+    case uint8_t( DISTRIBUTION_MODE::FREE ):
         return DISTRIBUTION_MODE::FREE;
-    case 1:
+    case uint8_t( DISTRIBUTION_MODE::SQUEEZED ):
         return DISTRIBUTION_MODE::SQUEEZED;
-    case 2:
+    case uint8_t( DISTRIBUTION_MODE::BALANCED ):
         return DISTRIBUTION_MODE::BALANCED;
     default:
         throw std::invalid_argument( "Invalid distribution mode" );
@@ -55,7 +55,7 @@ get_distribution_mode( I&& mode )
 template < bool balanced >
 void aggregate_tiled_node_count_by_rank(
     NodeCountVector& node_counts_per_rank,
-    TileIdxNodeCountPairListVector& tiled_node_counts_per_rank,
+    RankTileIdxNodeCountPairs& tiled_node_counts_per_rank,
     const tileidx_t tile_index,
     const nodeidx_t node_count_in_tile,
     const GridNeighborhood& grid_neighborhood,
@@ -86,7 +86,7 @@ void aggregate_tiled_node_count_by_rank(
         const auto count = *nc_it++;
         if ( count == 0 ) continue;
         node_counts_per_rank[ owner_rank ] += count;
-        tiled_node_counts_per_rank[ owner_rank ].emplace_front(
+        tiled_node_counts_per_rank[ owner_rank ].emplace_back(
             std::make_pair( tile_index, count )
         );
     }
@@ -103,7 +103,7 @@ template <
     typename CoordT,
     typename std::enable_if_t< std::is_integral_v< rcvref< I > >, bool > = true
 >
-std::pair< NodeCountVector, TileIdxNodeCountPairListVector >
+std::pair< NodeCountVector, RankTileIdxNodeCountPairs >
 distribute_node_counts_in_grid(
     const I num_nodes,
     const std::optional< std::set< tileidx_t > >& tile_set,
@@ -147,7 +147,7 @@ distribute_node_counts_in_grid(
         );
 
     NodeCountVector node_counts_per_rank( grid_neighborhood.num_processes_, 0 );
-    TileIdxNodeCountPairListVector tiled_node_counts_per_rank( grid_neighborhood.num_processes_ );
+    RankTileIdxNodeCountPairs tiled_node_counts_per_rank( grid_neighborhood.num_processes_ );
 
     if ( num_nodes == 0 )
         return std::make_pair(

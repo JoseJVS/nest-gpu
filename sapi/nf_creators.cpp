@@ -264,28 +264,64 @@ struct DistanceZDFCreator final : public StateLessCreator< DisplacementFunctor >
 
 void initialize_uf_registry( CreatorRegistry< UnaryFunctor >& ufr )
 {
-    ufr.register_creator< IdentityUFCreator >( "Identity" );
-    ufr.register_creator< MinUFCreator >( "Min" );
-    ufr.register_creator< MaxUFCreator >( "Max" );
-    ufr.register_creator< LowerBoundUFCreator >( "LowerBound" );
-    ufr.register_creator< UpperBoundUFCreator >( "UpperBound" );
-    ufr.register_creator< InverseUFCreator >( "Inverse" );
-    ufr.register_creator< FactorUFCreator >( "Factor" );
-    ufr.register_creator< OffsetUFCreator >( "Offset" );
-    ufr.register_creator< ExponentialUFCreator >( "Exponential" );
-    ufr.register_creator< GaussianUFCreator >( "Gaussian" );
+    ufr.register_creator< IdentityUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::IDENTITY ) ]
+    );
+    ufr.register_creator< MinUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::MIN ) ]
+    );
+    ufr.register_creator< MaxUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::MAX ) ]
+    );
+    ufr.register_creator< LowerBoundUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::LOWER_BOUND ) ]
+    );
+    ufr.register_creator< UpperBoundUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::UPPER_BOUND ) ]
+    );
+    ufr.register_creator< InverseUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::INVERSE ) ]
+    );
+    ufr.register_creator< FactorUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::FACTOR ) ]
+    );
+    ufr.register_creator< OffsetUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::OFFSET ) ]
+    );
+    ufr.register_creator< ExponentialUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::EXPONENTIAL ) ]
+    );
+    ufr.register_creator< GaussianUFCreator >(
+        UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::GAUSSIAN ) ]
+    );
 }
 
 
 void initialize_df_registry( CreatorRegistry< DisplacementFunctor >& dfr )
 {
-    dfr.register_creator< ConstantDFCreator >( "Constant" );
-    dfr.register_creator< DistanceDFCreator >( "Distance" );
-    dfr.register_creator< DisplacementXDFCreator >( "DisplacementX" );
-    dfr.register_creator< DisplacementYDFCreator >( "DisplacementY" );
-    dfr.register_creator< DisplacementZDFCreator >( "DisplacementZ" );
-    dfr.register_creator< DistanceXDFCreator >( "DistanceX" );
-    dfr.register_creator< DistanceYDFCreator >( "DistanceY" );
-    dfr.register_creator< DistanceZDFCreator >( "DistanceZ" );
+    dfr.register_creator< ConstantDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::CONSTANT ) ]
+    );
+    dfr.register_creator< DistanceDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISTANCE ) ]
+    );
+    dfr.register_creator< DisplacementXDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISPLACEMENT_X ) ]
+    );
+    dfr.register_creator< DisplacementYDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISPLACEMENT_Y ) ]
+    );
+    dfr.register_creator< DisplacementZDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISPLACEMENT_Z ) ]
+    );
+    dfr.register_creator< DistanceXDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISTANCE_X ) ]
+    );
+    dfr.register_creator< DistanceYDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISTANCE_Y ) ]
+    );
+    dfr.register_creator< DistanceZDFCreator >(
+        DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::DISTANCE_Z ) ]
+    );
 }
 }

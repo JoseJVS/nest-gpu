@@ -23,24 +23,44 @@
 #ifndef ENUM_STORE_H
 #define ENUM_STORE_H
 
+#include <cstdint>
+
+
 namespace sapi
 {
 enum class TILE_SHAPE : uint8_t
 {
-    NULL_TS,
     RECTANGLE,
     TRIANGLE,
-    HEXAGON
+    HEXAGON,
+    NULL_TS
 };
+
+
+constexpr static const char* const TILE_SHAPE_NAMES[ uint8_t( TILE_SHAPE::NULL_TS ) ] = {
+    "rectangle",
+    "triangle",
+    "hexagon"
+};
+
 
 enum class MASK_SHAPE : uint8_t
 {
-    NULL_MS,
     CIRCULAR,
     ELLIPTICAL,
     PARALLELOGRAM,
-    TRIANGULAR
+    TRIANGULAR,
+    NULL_MS
 };
+
+
+constexpr static const char* const MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::NULL_MS ) ] = {
+    "circular",
+    "elliptical",
+    "parallelogram",
+    "triangular"
+};
+
 
 enum class OVERLAP_LEVEL : uint8_t
 {
@@ -53,21 +73,38 @@ enum class DISTRIBUTION_MODE : uint8_t
 {
     FREE,
     SQUEEZED,
-    BALANCED
+    BALANCED,
+    NULL_DM
 };
+
+
+constexpr static const char* const DISTRIBUTION_MODE_NAMES[ uint8_t( DISTRIBUTION_MODE::NULL_DM ) ] = {
+    "free",
+    "squeezed",
+    "balanced"
+};
+
 
 enum class CONNECTION_METHOD : uint8_t
 {
-    NULL_CM,
     PAIRWISE_BERNOULLI,
     PAIRWISE_POISSON,
     FIXED_IN_DEGREE,
-    FIXED_OUT_DEGREE
+    FIXED_OUT_DEGREE,
+    NULL_CM
 };
+
+
+constexpr static const char* const CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::NULL_CM ) ] = {
+    "pairwise_bernoulli",
+    "pairwise_poisson",
+    "fixed_indegree",
+    "fixed_outdegree"
+};
+
 
 enum class UNARY_FUNCTION : uint8_t
 {
-    NULL_UF,
     IDENTITY,
     MIN,
     MAX,
@@ -77,12 +114,27 @@ enum class UNARY_FUNCTION : uint8_t
     FACTOR,
     OFFSET,
     EXPONENTIAL,
-    GAUSSIAN
+    GAUSSIAN,
+    NULL_UF
 };
+
+
+constexpr static const char* const UNARY_FUNCTION_NAMES[ uint8_t( UNARY_FUNCTION::NULL_UF ) ] = {
+    "identity",
+    "min",
+    "max",
+    "lower_bound",
+    "upper_bound",
+    "inverse",
+    "factor",
+    "offset",
+    "exponential",
+    "gaussian",
+};
+
 
 enum class DISPLACEMENT_FUNCTION : uint8_t
 {
-    NULL_DF,
     CONSTANT,
     DISTANCE,
     DISPLACEMENT_X,
@@ -90,7 +142,50 @@ enum class DISPLACEMENT_FUNCTION : uint8_t
     DISPLACEMENT_Z,
     DISTANCE_X,
     DISTANCE_Y,
-    DISTANCE_Z
+    DISTANCE_Z,
+    NULL_DF
+};
+
+
+constexpr static const char* const DISPLACEMENT_FUNCTION_NAMES[ uint8_t( DISPLACEMENT_FUNCTION::NULL_DF ) ] = {
+    "constant",
+    "distance",
+    "displacement_x",
+    "displacement_y",
+    "displacement_z",
+    "distance_x",
+    "distance_y",
+    "distance_z",
+};
+
+
+enum class RNG32 : uint8_t
+{
+    PCG,
+    FAKE,
+    NULL_RNG
+};
+
+
+constexpr static const char* const RNG_NAMES_32BIT[ uint8_t( RNG32::NULL_RNG ) ] = {
+    "pcg",
+    "fake"
+};
+
+
+enum class RNG64 : uint8_t
+{
+    PCG,
+    MT,
+    FAKE,
+    NULL_RNG
+};
+
+
+constexpr static const char* const RNG_NAMES_64BIT[ uint8_t( RNG64::NULL_RNG ) ] = {
+    "pcg",
+    "mersenne_twister"
+    "fake"
 };
 }
 

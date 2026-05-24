@@ -39,7 +39,6 @@ inline void wrapped_split_tile(
     const bool generate_total_leaves_vector
 )
 {
-    if ( tile.shape_ != TILE_SHAPE::NULL_TS )
 #pragma omp task default( none ) shared( tile )\
 firstprivate( num_splits, generate_total_leaves_vector )
         tile.split( num_splits, generate_total_leaves_vector );

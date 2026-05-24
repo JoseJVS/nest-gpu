@@ -53,7 +53,7 @@ constexpr static const uint8_t TOLERANCE = 2;
 constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
 
 // RNG constants
-constexpr static const char* const DEFAULT_RNG_TYPE_ = "PCG";
+constexpr static const char* const DEFAULT_RNG_TYPE_ = "pcg";
 constexpr static const rng_seed_t DEFAULT_BASE_SEED_ = 143202461;
 constexpr static const rng_seed_t RANK_SEEDER_ = 0xc229212d;
 constexpr static const rng_seed_t THREAD_SEEDER_ = 0x37722d5e;

@@ -23,7 +23,7 @@
 #ifndef MASK_H
 #define MASK_H
 
-#include <forward_list>
+#include <deque>
 #include <cassert>
 
 #include "mask_geometry.h"
@@ -74,7 +74,7 @@ struct Mask
         const Tile< CoordT >& tile
     ) const;
 
-    std::forward_list< const Tile< CoordT >* >
+    std::deque< const Tile< CoordT >* >
         get_overlapping_leaf_sub_tiles(
             const Tile< CoordT >& tile
         ) const;
@@ -219,15 +219,15 @@ OVERLAP_LEVEL Mask< CoordT >::tile_overlap(
 
 
 template < typename CoordT >
-std::forward_list< const Tile< CoordT >* >
+std::deque< const Tile< CoordT >* >
 Mask< CoordT >::get_overlapping_leaf_sub_tiles(
     const Tile< CoordT >& tile
 ) const
 {
     assert( has_c_radius_ );
 
-    std::forward_list< const Tile< CoordT >* > leaf_sub_tiles;
-    std::forward_list< const Tile< CoordT >* > temps{ &tile };
+    std::deque< const Tile< CoordT >* > leaf_sub_tiles;
+    std::deque< const Tile< CoordT >* > temps{ &tile };
     do
     {
         auto current = temps.front();
@@ -245,14 +245,14 @@ Mask< CoordT >::get_overlapping_leaf_sub_tiles(
         }
 
         // If there is only a partial overlap then we check into the sub-tiles
-        // if there are no sub-tiles then we add the current tile to our result list
+        // if there are no sub-tiles then we add the current tile to our result queue
         case OVERLAP_LEVEL::PARTIAL:
         {
             if ( !current->sub_tiles_.empty() )
                 for ( const auto& st : current->sub_tiles_ )
-                    temps.emplace_front( &st );
+                    temps.emplace_back( &st );
             else
-                leaf_sub_tiles.emplace_front( current );
+                leaf_sub_tiles.emplace_back( current );
 
             break;
         }

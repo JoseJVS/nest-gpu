@@ -350,17 +350,39 @@ generate_coords_in_tile(
 
 
 template < typename CoordT >
-inline CoordT project_point_to_surface(
+CoordT project_point_to_surface(
     const CoordT& coord,
-    const std::vector< CoordT >& vertices
+    const std::vector< CoordT >& vertices,
+    const CircumscribedRadius< CoordT >& c_radius,
+    const TILE_SHAPE shape
 )
 {
     if constexpr ( std::is_same_v< CoordT, Coord2D > )
     {
-        return project_point_to_2D_perimeter(
-            coord,
-            vertices
-        );
+        switch ( shape )
+        {
+        case TILE_SHAPE::RECTANGLE:
+            return project_point_to_2D_perimeter(
+                coord,
+                vertices
+            );
+
+        case TILE_SHAPE::HEXAGON:
+            return project_point_to_2D_perimeter(
+                coord,
+                vertices
+            );
+
+        case TILE_SHAPE::TRIANGLE:
+            return project_point_to_triangle_perimeter(
+                coord,
+                vertices,
+                c_radius
+            );
+
+        default:
+            throw std::invalid_argument( "Invalid tile shape" );
+        }
     }
     else
     {
@@ -381,7 +403,12 @@ std::vector< split_t > get_possible_sub_tile_branches(
 );
 
 
-std::string get_name( const TILE_SHAPE shape );
+split_t compute_minimal_splits(
+    const double expected_total_nodes,
+    const double total_tiles,
+    const double expected_nodes_per_leaf,
+    const TILE_SHAPE shape
+);
 }
 
 

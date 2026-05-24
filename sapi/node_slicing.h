@@ -49,15 +49,15 @@ class TAArray;
 
 
 template < typename CoordT >
-using IndexedNodeCoordList = std::list< const std::pair< nodeidx_t, CoordT >* >;
+using IndexedNodeCoords = std::deque< const std::pair< nodeidx_t, CoordT >* >;
 
 
 typedef DistributedTiledNodeSequenceMap::const_iterator DistTns_IT;
 typedef TileIdxNodeSequenceMap::const_iterator Tns_IT;
-typedef std::forward_list< std::pair< tileidx_t, std::optional< Tns_IT > > > TiledNodeSequenceList;
+typedef std::vector< std::pair< tileidx_t, std::optional< Tns_IT > > > TiledNodeSequences;
 
 
-TiledNodeSequenceList
+TiledNodeSequences
 get_optional_tiled_node_sequences(
     const std::optional< DistTns_IT >& opt_dist_tns_it,
     const GridNeighborhood& grid_neighborhood
@@ -65,13 +65,13 @@ get_optional_tiled_node_sequences(
 
 
 template < typename CoordT >
-std::forward_list< const Tile< CoordT >* >
+std::deque< const Tile< CoordT >* >
 inline get_optional_masked_sub_tiles(
     const Tile< CoordT >& tile,
     const MaskCollection< CoordT >* const mask_collection
 )
 {
-    std::forward_list< const Tile< CoordT >* > leaf_sub_tiles;
+    std::deque< const Tile< CoordT >* > leaf_sub_tiles;
 
     if ( mask_collection->has_source_mask() )
         leaf_sub_tiles = mask_collection->source_overlapping_leafs( tile );
@@ -84,7 +84,7 @@ inline get_optional_masked_sub_tiles(
 
 template < typename CoordT, bool ignore_mask >
 void check_insert_node_coord_pairs(
-    IndexedNodeCoordList< CoordT >& node_coord_pairs,
+    IndexedNodeCoords< CoordT >& node_coord_pairs,
     const IndexedCoordCollection< CoordT >& indexed_coord_col,
     const std::optional< Tns_IT > opt_tns_it,
     const Mask< CoordT >& mask
@@ -165,7 +165,7 @@ void check_insert_node_coord_pairs(
 
 
 template < typename CoordT >
-IndexedNodeCoordList< CoordT >
+std::deque< IndexedNodeCoords< CoordT > >
 slice_tiled_node_maps(
     const DistributedTiledNodeSequenceMap* const dist_tns,
     const TileGrid< CoordT >& tile_grid,
@@ -181,15 +181,14 @@ slice_tiled_node_maps(
         mc_array.is_initialized()
     );
 
-    IndexedNodeCoordList< CoordT > all_coords;
-    std::list< IndexedNodeCoordList< CoordT > > tiled_coords;
+    std::deque< IndexedNodeCoords< CoordT > > tiled_coords;
     std::optional< DistTns_IT > opt_dist_tns_it;
     if ( dist_tns != nullptr )
     {
         assert( !dist_tns->empty() );
         auto local_tile_seq_map_it = dist_tns->find( grid_neighborhood.local_rank_ );
         if ( local_tile_seq_map_it == dist_tns->end() )
-            return all_coords;
+            return tiled_coords;
 
         opt_dist_tns_it.emplace( local_tile_seq_map_it );
     }
@@ -248,10 +247,7 @@ firstprivate( leaf_coords, opt_tns_it, coord_map_it )
         }
     }
 
-    for ( auto& leaf_coords : tiled_coords )
-        all_coords.splice( all_coords.end(), leaf_coords );
-
-    return all_coords;
+    return tiled_coords;
 }
 }
 

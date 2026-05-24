@@ -68,6 +68,12 @@ struct GridParameters
     std::string tile_type_;
     std::vector< space_t > tile_side_lengths_;
     std::vector< angle_t > tile_angular_offsets_;
+
+    // Split parameters
+    bool compute_splits_ = false;
+    split_t num_splits_ = 0;
+    nodeidx_t expected_total_nodes_ = 0;
+    nodeidx_t expected_nodes_per_leaf_ = 0;
 };
 
 

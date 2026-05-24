@@ -29,7 +29,6 @@
 #include <vector>
 #include <limits>
 #include <algorithm>
-#include <forward_list>
 #include <unordered_map>
 
 #include "sapi_config.h"

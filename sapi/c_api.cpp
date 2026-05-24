@@ -37,6 +37,16 @@ CAPI::CAPI()
         init_omp( 1 );
         INIT_OMP_ONCE = false;
     }
+
+    generate_param_name_pair_array(
+        param_name_map_, param_name_gc_
+    );
+}
+
+
+ParameterNamesPairArray* CAPI::get_parameter_names()
+{
+    return &param_name_map_;
 }
 
 
@@ -140,8 +150,7 @@ void CAPI::set_rng_type( const CharArray& rng_type )
 
 void CAPI::generate_tile_grid(
     const NestedTileIdxArray& rank_tiles_ownership,
-    const GPStruct& grid_parameters,
-    const split_t num_splits
+    const GPStruct& grid_parameters
 )
 {
     if ( spatial_manager_ != nullptr )
@@ -181,8 +190,7 @@ void CAPI::generate_tile_grid(
     {
         spatial_manager_->initialize_tile_grid(
             nested_array_to_set_vector( rank_tiles_ownership ),
-            gpstruct_to_grid_params( grid_parameters ),
-            num_splits
+            gpstruct_to_grid_params( grid_parameters )
         );
     }
     catch ( const std::exception& e )
@@ -230,21 +238,27 @@ std::size_t CAPI::generate_nodes_in_tiles(
 }
 
 
-std::pair< NodeCountVector, NestedSpaceTArray* >
+std::pair< NodeCountVector, PositionViewStruct* >
 CAPI::insert_positions_in_grid(
-    const NestedSpaceTArray& positions
+    const PositionViewStruct& positions
 )
 {
     if ( spatial_manager_ == nullptr )
         throw std::runtime_error( "Spatial grid not initialized yet" );
 
-    auto pos = nested_array_to_nested_vector( positions );
+    auto [node_counts_per_rank, leftovers] = spatial_manager_->insert_positions_in_grid(
+        positions.dimensions_,
+        positions.coord_count_,
+        positions.coordinates_
+    );
 
-    const auto node_counts_per_rank = spatial_manager_->insert_positions_in_grid( pos );
+    auto uptr = std::make_unique< std::vector< space_t > >( std::move( leftovers ) );
+    const auto ptr = uptr.get();
+    gc_.collect( std::move( uptr ) );
 
     return std::make_pair(
-        node_counts_per_rank,
-        nested_collection_to_nested_array( pos, gc_ )
+        std::move( node_counts_per_rank ),
+        make_view_from_positions( positions.dimensions_, *ptr, gc_ )
     );
 }
 

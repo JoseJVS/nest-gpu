@@ -20,6 +20,7 @@
  *
  */
 
+#include "enum_store.h"
 #include "rng_creators.h"
 #include "creator_registry.h"
 #include "type_erasure_helpers.h"
@@ -102,15 +103,25 @@ struct FakeGenerator final : public  StateLessCreator< AnyRNG_T< RT > >
 
 void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint32_t > >& anr )
 {
-    anr.register_creator< PCGGenerator32 >( "PCG" );
-    anr.register_creator< FakeGenerator< uint32_t > >( "Fake" );
+    anr.register_creator< PCGGenerator32 >(
+        RNG_NAMES_32BIT[ uint8_t( RNG32::PCG ) ]
+    );
+    anr.register_creator< FakeGenerator< uint32_t > >(
+        RNG_NAMES_32BIT[ uint8_t( RNG32::FAKE ) ]
+    );
 }
 
 
 void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint64_t > >& anr )
 {
-    anr.register_creator< PCGGenerator64 >( "PCG" );
-    anr.register_creator< MersenneTwister64 >( "MersenneTwister" );
-    anr.register_creator< FakeGenerator< uint64_t > >( "Fake" );
+    anr.register_creator< PCGGenerator64 >(
+        RNG_NAMES_64BIT[ uint8_t( RNG64::PCG ) ]
+    );
+    anr.register_creator< MersenneTwister64 >(
+        RNG_NAMES_64BIT[ uint8_t( RNG64::MT ) ]
+    );
+    anr.register_creator< FakeGenerator< uint64_t > >(
+        RNG_NAMES_64BIT[ uint8_t( RNG64::FAKE ) ]
+    );
 }
 }

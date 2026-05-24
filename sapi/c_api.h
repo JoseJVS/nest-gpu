@@ -45,6 +45,8 @@ struct CAPI
     CAPI& operator=( const CAPI& ) = delete;
     CAPI& operator=( CAPI&& ) = delete;
 
+    ParameterNamesPairArray* get_parameter_names();
+
     void reset();
     void free_gc();
     void free_view_gc();
@@ -66,8 +68,7 @@ struct CAPI
 
     void generate_tile_grid(
         const NestedTileIdxArray& rank_tiles_ownership,
-        const GPStruct& grid_parameters,
-        const split_t num_splits
+        const GPStruct& grid_parameters
     );
 
     NodeCountVector
@@ -82,9 +83,9 @@ struct CAPI
         const uint8_t distribution_mode
     );
 
-    std::pair< NodeCountVector, NestedSpaceTArray* >
+    std::pair< NodeCountVector, PositionViewStruct* >
         insert_positions_in_grid(
-            const NestedSpaceTArray& positions
+            const PositionViewStruct& positions
         );
 
     std::size_t insert_positions_in_tiles(
@@ -127,10 +128,12 @@ private:
     vp_t num_processes_ = 1;
     rng_seed_t seed_ = DEFAULT_BASE_SEED_;
     std::string rng_type_ = DEFAULT_RNG_TYPE_;
+    ParameterNamesPairArray param_name_map_;
 
     GC gc_;
     GC view_gc_;
     GC spatial_storage_;
+    GC param_name_gc_;
     BaseSpatialManager* spatial_manager_ = nullptr;
 };
 }

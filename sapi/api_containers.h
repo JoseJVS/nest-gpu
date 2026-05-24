@@ -77,6 +77,13 @@ extern "C"
         const space_t* coordinates_ = nullptr;
     };
 
+    struct PositionViewStruct
+    {
+        dim_t dimensions_ = 0;
+        std::size_t coord_count_ = 0;
+        const space_t* coordinates_ = nullptr;
+    };
+
     struct ConnectionViewStruct
     {
         std::size_t num_partitions_ = 0;
@@ -123,6 +130,8 @@ extern "C"
     typedef PairArrayT< vp_t, ConnectionViewStruct > ConnectionViewPairArray;
     typedef PairT< ConnectionViewPairArray, ConnectionViewPairArray > RemoteConnectionViewPair;
 
+    typedef PairArrayT< CharArray, NestedCharArray > ParameterNamesPairArray;
+
     struct GPStruct
     {
         // Grid size and origin
@@ -133,6 +142,12 @@ extern "C"
         CharArray tile_type_;
         SpaceTArray tile_side_lengths_;
         AngleTArray tile_angular_offsets_;
+
+        // Split parameters
+        bool compute_splits_ = false;
+        split_t num_splits_ = 0;
+        nodeidx_t expected_total_nodes_ = 0;
+        nodeidx_t expected_nodes_per_leaf_ = 0;
     };
 
     struct MPStruct

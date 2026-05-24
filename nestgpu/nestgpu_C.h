@@ -421,6 +421,8 @@ extern "C"
    int *target_host_arr, int n_target_host, uint **target_arr, uint *n_target_arr,
    int indegree, int i_host_group );
 
+  sapi::ParameterNamesPairArray* get_parameter_names();
+
   bool free_gc();
 
   bool free_view_gc();
@@ -443,8 +445,7 @@ extern "C"
 
   bool generate_tile_grid(
     const sapi::NestedTileIdxArray& rank_tiles_ownership,
-    const sapi::GPStruct& grid_parameters,
-    sapi::split_t num_splits
+    const sapi::GPStruct& grid_parameters
   );
 
   sapi::PairT< bool, sapi::SpatialNodeSequence >
@@ -457,10 +458,10 @@ extern "C"
       uint8_t tile_distribution_mode
     );
 
-  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
+  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::PositionViewStruct* >
     insert_positions_in_grid(
       const sapi::CharArray& model_name,
-      const sapi::NestedSpaceTArray& positions,
+      const sapi::PositionViewStruct& positions,
       int num_ports
     );
 

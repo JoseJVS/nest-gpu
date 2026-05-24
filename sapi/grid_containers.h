@@ -37,7 +37,7 @@ namespace sapi
 template < typename CoordT >
 using GridShift = std::array< shift_t, CoordT::D >;
 
-// Forward list of relative displacements
+// Collection of relative displacements
 template < typename CoordT >
 using GridShiftVector = std::vector< GridShift< CoordT > >;
 

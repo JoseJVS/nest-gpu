@@ -136,6 +136,7 @@ void generate_grid_images(
     }
 
     tile_position.tile_images_.resize( possible_shifts );
+    tile_position.image_locks_.resize( possible_shifts );
     tile_position.image_displacements_.resize( possible_shifts );
     auto image_it = tile_position.tile_images_.begin();
     auto displacement_it = tile_position.image_displacements_.begin();

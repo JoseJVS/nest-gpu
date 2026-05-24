@@ -42,13 +42,17 @@ struct BaseGCCreator final : public StateLessCreator< ConnectionGenerator >
 
 void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr )
 {
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_BERNOULLI > >
-        ( "PairWiseBernoulli" );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_POISSON > >
-        ( "PairWisePoisson" );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_IN_DEGREE > >
-        ( "FixedInDegree" );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_OUT_DEGREE > >
-        ( "FixedOutDegree" );
+    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_BERNOULLI > >(
+        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::PAIRWISE_BERNOULLI ) ]
+    );
+    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_POISSON > >(
+        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::PAIRWISE_POISSON ) ]
+    );
+    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_IN_DEGREE > >(
+        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::FIXED_IN_DEGREE ) ]
+    );
+    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_OUT_DEGREE > >(
+        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::FIXED_OUT_DEGREE ) ]
+    );
 }
 }

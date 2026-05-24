@@ -44,10 +44,18 @@ struct MaskCreator final : public StateLessCreator< Mask< CoordT > >
 
 void initialize_mk_registry( CreatorRegistry< Mask< Coord2D > >& mkr )
 {
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::CIRCULAR > >( "Circular" );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::ELLIPTICAL > >( "Elliptical" );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::PARALLELOGRAM > >( "Parallelogram" );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::TRIANGULAR > >( "Triangular" );
+    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::CIRCULAR > >(
+        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::CIRCULAR ) ]
+    );
+    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::ELLIPTICAL > >(
+        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::ELLIPTICAL ) ]
+    );
+    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::PARALLELOGRAM > >(
+        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::PARALLELOGRAM ) ]
+    );
+    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::TRIANGULAR > >(
+        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::TRIANGULAR ) ]
+    );
 }
 
 

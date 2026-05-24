@@ -23,7 +23,7 @@
 #ifndef TILE_H
 #define TILE_H
 
-#include <forward_list>
+#include <deque>
 #include <cassert>
 
 #include "tile_geometry.h"
@@ -96,12 +96,10 @@ struct Tile
         ) const;
 
     void insert_leaf_sub_tiles(
-        std::forward_list< const Tile* >& leaves
+        std::deque< const Tile* >& leaves
     ) const;
 
     bool operator==( const Tile& ) const;
-
-    std::string get_name() const;
 
     std::string to_string( const uint8_t tabs = 0 ) const;
 };
@@ -190,7 +188,12 @@ inline void Tile< CoordT >::split(
     // Leaf tiles will meet first condition
     // intermediate sub tiles second
     // root tiles last
-    if ( 0 <= index_ || !sub_tiles_.empty() || !leaf_tiles_.empty() )
+    if (
+        0 <= index_
+        || !sub_tiles_.empty()
+        || !leaf_tiles_.empty()
+        || shape_ == TILE_SHAPE::NULL_TS
+        )
         return;
 
     if ( 0 < splits )
@@ -206,7 +209,6 @@ inline void Tile< CoordT >::split(
             leaf_tiles_.resize( num_leaves, nullptr );
         }
 
-#pragma omp taskgroup
         sapi::split_tile(
             sub_tiles_,
             leaf_tiles_,
@@ -268,7 +270,12 @@ inline CoordT Tile< CoordT >::project_point_to_surface(
     const CoordT& coord
 ) const
 {
-    return sapi::project_point_to_surface( coord, vertices_ );
+    return sapi::project_point_to_surface(
+        coord,
+        vertices_,
+        c_radius_,
+        shape_
+    );
 }
 
 
@@ -293,30 +300,31 @@ Tile< CoordT >::get_possible_sub_tile_branches(
 
 template < typename CoordT >
 void Tile< CoordT >::insert_leaf_sub_tiles(
-    std::forward_list< const Tile* >& leaves
+    std::deque< const Tile* >& leaves
 ) const
 {
-    std::forward_list< const Tile* > tree{ this };
-    do
+    if ( !leaf_tiles_.empty() )
     {
-        auto tile = tree.front();
-        tree.pop_front();
-
-        if ( !tile->sub_tiles_.empty() )
-            for ( const auto& st : tile->sub_tiles_ )
-                tree.emplace_front( &st );
-        else
-            leaves.emplace_front( tile );
-
+        for ( const auto& lt : leaf_tiles_ )
+            leaves.emplace_back( lt );
     }
-    while ( !tree.empty() );
-}
+    else
+    {
+        std::deque< const Tile* > tree{ this };
+        do
+        {
+            auto tile = tree.front();
+            tree.pop_front();
 
+            if ( !tile->sub_tiles_.empty() )
+                for ( const auto& st : tile->sub_tiles_ )
+                    tree.emplace_back( &st );
+            else
+                leaves.emplace_back( tile );
 
-template < typename CoordT >
-inline std::string Tile< CoordT >::get_name() const
-{
-    return sapi::get_name( shape_ );
+        }
+        while ( !tree.empty() );
+    }
 }
 
 
@@ -327,7 +335,7 @@ std::string Tile< CoordT >::to_string( const uint8_t tabs ) const
     for ( uint8_t t = 0; t < tabs; ++t )
         str += "\t";
 
-    str += get_name()
+    str += std::string( TILE_SHAPE_NAMES[ uint8_t( shape_ ) ] )
         + " - index: "
         + std::to_string( index_ )
         + ", properties: "

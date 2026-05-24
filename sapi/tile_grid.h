@@ -42,16 +42,30 @@ struct Tile;
 template < typename CoordT >
 struct BoundingBox;
 
+// Forward definition to vp_interface.h
+template < typename T >
+struct OmpLock;
+
 
 template < typename CoordT >
 struct TilePosition
 {
     GridPosition< CoordT > position_;
     mutable Tile< CoordT > tile_;
+    mutable OmpLock< CoordT > tile_lock_;
     mutable std::vector< Tile< CoordT > > tile_images_;
+    mutable std::vector< OmpLock< CoordT > > image_locks_;
     std::vector< CoordT > image_displacements_;
     std::unordered_set< tileidx_t > direct_tile_neighborhood_;
     std::unordered_set< tileidx_t > wrapped_tile_neighborhood_;
+
+    TilePosition() noexcept = default;
+    TilePosition( const TilePosition& ) = delete;
+    TilePosition( TilePosition&& ) noexcept = default;
+    ~TilePosition() noexcept = default;
+
+    TilePosition& operator=( const TilePosition& ) = delete;
+    TilePosition& operator=( TilePosition&& ) = delete;
 
     const std::unordered_set< tileidx_t >&
         get_tile_neighborhood( const bool ) const;
@@ -121,12 +135,48 @@ struct TileGrid
     BoundingBox< CoordT > bounding_box_;
     std::vector< TilePosition< CoordT > > positions_;
 
+    TileGrid() noexcept = default;
+    TileGrid( const TileGrid& ) = delete;
+    TileGrid( TileGrid&& ) noexcept = default;
+    ~TileGrid() noexcept = default;
+
+    TileGrid& operator=( const TileGrid& ) = delete;
+    TileGrid& operator=( TileGrid&& ) noexcept;
+
     void prepare( const GridPosition < CoordT >& );
 
     std::string to_string() const;
 
     bool operator==( const TileGrid& ) const;
 };
+
+
+template < typename CoordT >
+TileGrid< CoordT >& TileGrid< CoordT >::operator=( TileGrid&& tg ) noexcept
+{
+    has_split_ = tg.has_split_;
+    tg.has_split_ = false;
+
+    splits_ = tg.splits_;
+    tg.splits_ = 0;
+
+    num_tiles_ = tg.num_tiles_;
+    tg.num_tiles_ = 0;
+
+    auto dim_it = dimensions_.begin();
+    for ( auto& d : tg.dimensions_ )
+    {
+        ( *dim_it++ ) = d;
+        d = 0;
+    }
+
+    bounding_box_ = std::move( tg.bounding_box_ );
+
+    positions_.swap( tg.positions_ );
+    tg.positions_.clear();
+
+    return *this;
+}
 
 
 template < typename CoordT >

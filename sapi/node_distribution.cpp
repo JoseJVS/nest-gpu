@@ -29,7 +29,7 @@ namespace sapi
 DistributedTiledNodeSequenceMap
 consolidate_node_sequences_per_tile_per_rank(
     const RankNodeSequenceMap& node_sequences_per_rank,
-    const TileIdxNodeCountPairListVector& node_counts_per_tile_per_rank
+    const RankTileIdxNodeCountPairs& node_counts_per_tile_per_rank
 )
 {
     nodeidx_t first_node_idx;

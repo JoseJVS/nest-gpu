@@ -64,7 +64,7 @@ struct MaskCollection
 
     bool source_overlap( const Tile< CoordT >& t ) const;
 
-    std::forward_list< const Tile< CoordT >* >
+    std::deque< const Tile< CoordT >* >
         source_overlapping_leafs( const Tile< CoordT >& t ) const;
 
     OptDisp< CoordT >
@@ -72,7 +72,7 @@ struct MaskCollection
 
     bool target_overlap( const Tile< CoordT >& t ) const;
 
-    std::forward_list< const Tile< CoordT >* >
+    std::deque< const Tile< CoordT >* >
         target_overlapping_leafs( const Tile< CoordT >& t ) const;
 };
 
@@ -183,7 +183,7 @@ inline bool MaskCollection< CoordT >::source_overlap(
 
 
 template < typename CoordT >
-inline std::forward_list< const Tile< CoordT >* >
+inline std::deque< const Tile< CoordT >* >
 MaskCollection< CoordT >::source_overlapping_leafs(
     const Tile< CoordT >& t
 ) const
@@ -214,7 +214,7 @@ inline bool MaskCollection< CoordT >::target_overlap(
 
 
 template < typename CoordT >
-inline std::forward_list< const Tile< CoordT >* >
+inline std::deque< const Tile< CoordT >* >
 MaskCollection< CoordT >::target_overlapping_leafs(
     const Tile< CoordT >& t
 ) const

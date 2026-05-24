@@ -20,6 +20,7 @@
  *
  */
 
+#include "enum_store.h"
 #include "timer_manager.h"
 #include "api_converters.h"
 
@@ -76,6 +77,24 @@ void make_view_from_indexed_node_coords(
     {
         ncs.indexes_ = nullptr;
         ncs.coordinates_ = nullptr;
+    }
+}
+
+
+void make_view_from_positions(
+    PositionViewStruct& pvs,
+    const dim_t dimensions,
+    const std::vector< space_t >& coordinates
+)
+{
+    if ( dimensions < 2 || 3 < dimensions || coordinates.size() % dimensions != 0 )
+        throw std::invalid_argument( "Invalid coordinates" );
+
+    pvs.dimensions_ = dimensions;
+    if ( !coordinates.empty() )
+    {
+        pvs.coord_count_ = coordinates.size();
+        pvs.coordinates_ = coordinates.data();
     }
 }
 
@@ -212,6 +231,75 @@ void copy_to_timer_data_pair_array_from_timer_data_map(
 }
 
 
+void generate_param_name_pair_array(
+    ParameterNamesPairArray& pnpa,
+    GC& gc
+)
+{
+    pnpa.resize( 7, gc );
+
+    auto& tile_shapes = pnpa.array_[ 0 ];
+    copy_to_charray_from_string( tile_shapes.first_, "tile_shapes", gc );
+    tile_shapes.second_.resize( uint8_t( TILE_SHAPE::NULL_TS ), gc );
+
+    for ( uint8_t ts = 0; ts < uint8_t( TILE_SHAPE::NULL_TS ); ++ts )
+        copy_to_charray_from_string( tile_shapes.second_.array_[ ts ], TILE_SHAPE_NAMES[ ts ], gc );
+
+    auto& mask_shapes = pnpa.array_[ 1 ];
+    copy_to_charray_from_string( mask_shapes.first_, "mask_shapes", gc );
+    mask_shapes.second_.resize( uint8_t( MASK_SHAPE::NULL_MS ), gc );
+
+    for ( uint8_t ms = 0; ms < uint8_t( MASK_SHAPE::NULL_MS ); ++ms )
+        copy_to_charray_from_string( mask_shapes.second_.array_[ ms ], MASK_SHAPE_NAMES[ ms ], gc );
+
+    auto& distribution_modes = pnpa.array_[ 2 ];
+    copy_to_charray_from_string( distribution_modes.first_, "distribution_modes", gc );
+    distribution_modes.second_.resize( uint8_t( DISTRIBUTION_MODE::NULL_DM ), gc );
+
+    for ( uint8_t dm = 0; dm < uint8_t( DISTRIBUTION_MODE::NULL_DM ); ++dm )
+        copy_to_charray_from_string( distribution_modes.second_.array_[ dm ], DISTRIBUTION_MODE_NAMES[ dm ], gc );
+
+    auto& connection_methods = pnpa.array_[ 3 ];
+    copy_to_charray_from_string( connection_methods.first_, "connection_methods", gc );
+    connection_methods.second_.resize( uint8_t( CONNECTION_METHOD::NULL_CM ), gc );
+
+    for ( uint8_t cm = 0; cm < uint8_t( CONNECTION_METHOD::NULL_CM ); ++cm )
+        copy_to_charray_from_string( connection_methods.second_.array_[ cm ], CONNECTION_METHOD_NAMES[ cm ], gc );
+
+    auto& unary_functions = pnpa.array_[ 4 ];
+    copy_to_charray_from_string( unary_functions.first_, "unary_functions", gc );
+    unary_functions.second_.resize( uint8_t( UNARY_FUNCTION::NULL_UF ), gc );
+
+    for ( uint8_t uf = 0; uf < uint8_t( UNARY_FUNCTION::NULL_UF ); ++uf )
+        copy_to_charray_from_string( unary_functions.second_.array_[ uf ], UNARY_FUNCTION_NAMES[ uf ], gc );
+
+    auto& displacement_functions = pnpa.array_[ 5 ];
+    copy_to_charray_from_string( displacement_functions.first_, "displacement_functions", gc );
+    displacement_functions.second_.resize( uint8_t( DISPLACEMENT_FUNCTION::NULL_DF ), gc );
+
+    for ( uint8_t df = 0; df < uint8_t( DISPLACEMENT_FUNCTION::NULL_DF ); ++df )
+        copy_to_charray_from_string( displacement_functions.second_.array_[ df ], DISPLACEMENT_FUNCTION_NAMES[ df ], gc );
+
+    auto& random_generators = pnpa.array_[ 6 ];
+    copy_to_charray_from_string( random_generators.first_, "random_generators", gc );
+
+    if constexpr ( std::is_same_v< rng_bits_t, uint32_t > )
+    {
+        random_generators.second_.resize( uint8_t( RNG32::NULL_RNG ), gc );
+
+        for ( uint8_t rng = 0; rng < uint8_t( RNG32::NULL_RNG ); ++rng )
+            copy_to_charray_from_string( random_generators.second_.array_[ rng ], RNG_NAMES_32BIT[ rng ], gc );
+    }
+    else
+    {
+        random_generators.second_.resize( uint8_t( RNG64::NULL_RNG ), gc );
+
+        for ( uint8_t rng = 0; rng < uint8_t( RNG64::NULL_RNG ); ++rng )
+            copy_to_charray_from_string( random_generators.second_.array_[ rng ], RNG_NAMES_64BIT[ rng ], gc );
+    }
+}
+
+
 GridParameters gpstruct_to_grid_params(
     const GPStruct& gps
 )
@@ -223,6 +311,10 @@ GridParameters gpstruct_to_grid_params(
     gp.tile_type_ = charray_to_string( gps.tile_type_ );
     gp.tile_side_lengths_ = array_to_vector( gps.tile_side_lengths_ );
     gp.tile_angular_offsets_ = array_to_vector( gps.tile_angular_offsets_ );
+    gp.compute_splits_ = gps.compute_splits_;
+    gp.num_splits_ = gps.num_splits_;
+    gp.expected_total_nodes_ = gps.expected_total_nodes_;
+    gp.expected_nodes_per_leaf_ = gps.expected_nodes_per_leaf_;
 
     return gp;
 }

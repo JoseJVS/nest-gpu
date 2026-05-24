@@ -23,6 +23,8 @@
 #ifndef MASK_CONTAINERS_H
 #define MASK_CONTAINERS_H
 
+#include <forward_list>
+
 #include "node_containers.h"
 
 
@@ -89,9 +91,6 @@ struct TilePairInfo
         std::unordered_map< tileidx_t, count_t > >
         aggregated_leaf_pairs_;
 
-    std::forward_list< LeafPairInfo >
-        flattened_leaf_pairs_;
-
     TilePairInfo() noexcept = default;
     TilePairInfo( const TilePairInfo& ) = delete;
     TilePairInfo( TilePairInfo&& ) noexcept = default;
@@ -113,9 +112,6 @@ TilePairInfo< CoordT >::operator=( TilePairInfo&& tpi ) noexcept
 
     aggregated_leaf_pairs_.swap( tpi.aggregated_leaf_pairs_ );
     tpi.aggregated_leaf_pairs_.clear();
-
-    flattened_leaf_pairs_.swap( tpi.flattened_leaf_pairs_ );
-    tpi.flattened_leaf_pairs_.clear();
 
     return *this;
 }

@@ -46,20 +46,17 @@ template < typename T,
 >
 class TAArray;
 
-// Forward definition to node_containers_init.h
-template < typename CoordT >
-void wrapped_split_tile(
-    Tile< CoordT >& tile,
-    const split_t num_splits,
-    const bool generate_total_leaves_vector
-);
-
 // Forward definition to link with payload_preparation.h
 template < typename CoordT >
 void prepare_data_payload(
     CommunicationInfo< CoordT >& comm_info,
     const TileSetInfo< CoordT >& tile_set_info
 );
+
+
+// Forward definition to vp_interface.h
+template < typename T >
+struct OmpLockGuard;
 
 
 template < typename CoordT, bool inverted_source_target, bool filter_source, bool filter_target >
@@ -114,7 +111,8 @@ inline bool tile_overlap(
 
 template < typename CoordT, bool inverted_source_target, bool filter_source, bool filter_target >
 void insert_leaf_tiles_within_range(
-    std::forward_list< LeafPairInfo >& lpi_list,
+    std::unordered_map< tileidx_t,
+    std::unordered_map< tileidx_t, count_t > >& leaf_pairs,
     const Tile< CoordT >& driver,
     const Tile< CoordT >& pool,
     const TAArray< MaskCollection< CoordT > >& mc_array,
@@ -132,24 +130,12 @@ void insert_leaf_tiles_within_range(
         if constexpr ( inverted_source_target )
         {
 #pragma omp critical
-            lpi_list.emplace_front(
-                construct_leaf_pair_info(
-                    pool.index_,
-                    driver.index_,
-                    image_index
-                )
-            );
+            leaf_pairs[ pool.index_ ][ driver.index_ ] |= 1 << image_index;
         }
         else
         {
 #pragma omp critical
-            lpi_list.emplace_front(
-                construct_leaf_pair_info(
-                    driver.index_,
-                    pool.index_,
-                    image_index
-                )
-            );
+            leaf_pairs[ driver.index_ ][ pool.index_ ] |= 1 << image_index;
         }
     }
     else
@@ -161,8 +147,8 @@ void insert_leaf_tiles_within_range(
         const auto p_sub_tiles = pool.sub_tiles_.data();
         const auto rem_splits = splits - 1;
 
-#pragma omp taskloop collapse( 2 ) num_tasks( 2 ) grainsize( 1 ) mergeable final( rem_splits < 2 )\
-    default( none ) shared( lpi_list, mc_array )\
+#pragma omp taskloop collapse( 2 ) num_tasks( 4 ) grainsize( 1 ) nogroup mergeable final( rem_splits < 2 )\
+    default( none ) shared( leaf_pairs, mc_array )\
     firstprivate( d_st_count, d_sub_tiles, p_st_count, p_sub_tiles, image_index, is_shifted, rem_splits )
         for ( std::size_t d_st = 0; d_st < d_st_count; ++d_st )
         {
@@ -175,7 +161,7 @@ void insert_leaf_tiles_within_range(
                     )
                 {
                     insert_leaf_tiles_within_range< CoordT, inverted_source_target, filter_source, filter_target >(
-                        lpi_list,
+                        leaf_pairs,
                         d_sub_tiles[ d_st ],
                         p_sub_tiles[ p_st ],
                         mc_array,
@@ -186,44 +172,6 @@ void insert_leaf_tiles_within_range(
                 }
             }
         }
-    }
-}
-
-
-template < typename CoordT >
-void aggregate_leaf_pairs( TilePairInfo< CoordT >& tpi )
-{
-    if ( tpi.flattened_leaf_pairs_.empty() )
-        return;
-
-    auto leaf_it = tpi.flattened_leaf_pairs_.begin();
-    while ( !tpi.flattened_leaf_pairs_.empty() )
-    {
-        const LeafPairInfo& lpi = *leaf_it++;
-
-        const auto source_leaf_it = tpi.aggregated_leaf_pairs_.find(
-            lpi.source_index_
-        );
-        if ( source_leaf_it == tpi.aggregated_leaf_pairs_.end() )
-        {
-            tpi.aggregated_leaf_pairs_[ lpi.source_index_ ][ lpi.target_index_ ] = 1 << lpi.image_index_;
-        }
-        else
-        {
-            const auto target_leaf_it = source_leaf_it->second.find(
-                lpi.target_index_
-            );
-            if ( target_leaf_it == source_leaf_it->second.end() )
-            {
-                source_leaf_it->second[ lpi.target_index_ ] = 1 << lpi.image_index_;
-            }
-            else
-            {
-                target_leaf_it->second |= 1 << lpi.image_index_;
-            }
-        }
-
-        tpi.flattened_leaf_pairs_.pop_front();
     }
 }
 
@@ -243,39 +191,49 @@ void tile_pair_overlap(
         pool_tile_pos.image_displacements_.size() == pool_tile_pos.tile_images_.size()
     );
 
-    bool at_least_one_overlap = false;
     const auto mask_collection = mc_array.get_local_thread_item();
+    tpi.image_displacements_ = &pool_tile_pos.image_displacements_;
 
 #pragma omp taskgroup
-    wrapped_split_tile( driver_tile_pos.tile_, splits, false );
+    {
+        OmpLockGuard< CoordT > g( driver_tile_pos.tile_lock_ );
+        driver_tile_pos.tile_.split( splits, false );
+    }
 
     if constexpr ( edge_wrap )
     {
         assert( pool_tile_pos.tile_images_.size() <= 27 );
         const shift_t total_images = static_cast< shift_t >( pool_tile_pos.tile_images_.size() );
 
-#pragma omp taskgroup
         for ( shift_t image_index = 0; image_index < total_images; ++image_index )
         {
             auto pool_image = &pool_tile_pos.tile_images_[ image_index ];
+            auto image_lock = &pool_tile_pos.image_locks_[ image_index ];
+
             const bool is_shifted = pool_image->shape_ != TILE_SHAPE::NULL_TS;
-            pool_image = is_shifted ? pool_image : &pool_tile_pos.tile_;
+
+            if ( !is_shifted )
+            {
+                pool_image = &pool_tile_pos.tile_;
+                image_lock = &pool_tile_pos.tile_lock_;
+            }
 
             if ( mask_collection->blueprint_overlap(
                 driver_tile_pos.tile_,
                 *pool_image )
                 )
             {
-                at_least_one_overlap = true;
-
 #pragma omp taskgroup
-                wrapped_split_tile( *pool_image, splits, false );
+                {
+                    OmpLockGuard g( *image_lock );
+                    pool_image->split( splits, false );
+                }
 
 #pragma omp task default( none )\
     shared( tpi, driver_tile_pos, mc_array )\
     firstprivate( pool_image, image_index, is_shifted, splits )
                 insert_leaf_tiles_within_range< CoordT, inverted_source_target, filter_source, filter_target >(
-                    tpi.flattened_leaf_pairs_,
+                    tpi.aggregated_leaf_pairs_,
                     driver_tile_pos.tile_,
                     *pool_image,
                     mc_array,
@@ -293,14 +251,14 @@ void tile_pair_overlap(
             )
             return;
 
-        at_least_one_overlap = true;
-
 #pragma omp taskgroup
-        wrapped_split_tile( pool_tile_pos.tile_, splits, false );
+        {
+            OmpLockGuard< CoordT > g( pool_tile_pos.tile_lock_ );
+            pool_tile_pos.tile_.split( splits, false );
+        }
 
-#pragma omp taskgroup
         insert_leaf_tiles_within_range< CoordT, inverted_source_target, filter_source, filter_target >(
-            tpi.flattened_leaf_pairs_,
+            tpi.aggregated_leaf_pairs_,
             driver_tile_pos.tile_,
             pool_tile_pos.tile_,
             mc_array,
@@ -308,13 +266,6 @@ void tile_pair_overlap(
             false,
             splits
         );
-    }
-
-    if ( at_least_one_overlap )
-    {
-        tpi.image_displacements_ = &pool_tile_pos.image_displacements_;
-#pragma omp task default( none ) shared( tpi )
-        aggregate_leaf_pairs( tpi );
     }
 }
 
@@ -540,25 +491,29 @@ void rank_pair_overlap(
             );
             valid_tiles = true;
 
-            if constexpr ( inverted_source_target )
+#pragma omp task default( none ) shared( mc_array, tile_grid )\
+firstprivate( target_pair, source_tile_pos, target_tile_pos )
             {
-                tile_pair_overlap< CoordT, edge_wrap, inverted_source_target, filter_source, filter_target >(
-                    target_pair->second,
-                    *target_tile_pos,
-                    *source_tile_pos,
-                    mc_array,
-                    tile_grid.splits_
-                );
-            }
-            else
-            {
-                tile_pair_overlap< CoordT, edge_wrap, inverted_source_target, filter_source, filter_target >(
-                    target_pair->second,
-                    *source_tile_pos,
-                    *target_tile_pos,
-                    mc_array,
-                    tile_grid.splits_
-                );
+                if constexpr ( inverted_source_target )
+                {
+                    tile_pair_overlap< CoordT, edge_wrap, inverted_source_target, filter_source, filter_target >(
+                        target_pair->second,
+                        *target_tile_pos,
+                        *source_tile_pos,
+                        mc_array,
+                        tile_grid.splits_
+                    );
+                }
+                else
+                {
+                    tile_pair_overlap< CoordT, edge_wrap, inverted_source_target, filter_source, filter_target >(
+                        target_pair->second,
+                        *source_tile_pos,
+                        *target_tile_pos,
+                        mc_array,
+                        tile_grid.splits_
+                    );
+                }
             }
         }
 
@@ -582,7 +537,6 @@ firstprivate( source_pair, tile_nc_it, source_node_sequence )
     }
 
     if ( prepare_payload )
-#pragma omp task default( none ) shared( rpi )
         prepare_data_payload( rpi.sender_info_, rpi.tile_pairs_set_ );
 }
 
@@ -622,6 +576,9 @@ void distributed_overlap(
         );
         assert( success );
 
+#pragma omp task default( none )\
+shared( tns_source, tile_grid, grid_node_col, mc_array )\
+firstprivate( emplace_it, tns_target_it, force_prepare_payload, is_remote )
         rank_pair_overlap< CoordT, edge_wrap, only_neighborhood, inverted_source_target, filter_source, filter_target >(
             emplace_it->second,
             tns_source,
@@ -671,6 +628,9 @@ compute_distributed_tile_overlap(
     {
         if ( source_side != dist_tns_source.end() )
         {
+#pragma omp task default( none )\
+shared( dpi, dist_tns_target, tile_grid, grid_neighborhood, grid_node_col, mc_array )\
+firstprivate( filter_source, filter_target, source_side, force_prepare_payload )
             switch (
                 ( filter_source << 0 )
                 + ( filter_target << 1 )
@@ -744,6 +704,9 @@ compute_distributed_tile_overlap(
 
         if ( target_side != dist_tns_target.end() )
         {
+#pragma omp task default( none )\
+shared( dpi, dist_tns_source, tile_grid, grid_neighborhood, grid_node_col, mc_array )\
+firstprivate( filter_source, filter_target, target_side, force_prepare_payload )
             switch (
                 ( filter_source << 0 )
                 + ( filter_target << 1 )

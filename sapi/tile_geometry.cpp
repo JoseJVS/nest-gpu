@@ -77,18 +77,26 @@ std::vector< split_t > get_possible_sub_tile_branches(
 }
 
 
-std::string get_name( const TILE_SHAPE shape )
+split_t compute_minimal_splits(
+    const double expected_total_nodes,
+    const double total_tiles,
+    const double expected_nodes_per_leaf,
+    const TILE_SHAPE shape
+)
 {
+    if ( expected_total_nodes < 1 || total_tiles < 1 || expected_nodes_per_leaf < 1 )
+        throw std::invalid_argument( "Invalid split parameters" );
+
     switch ( shape )
     {
     case TILE_SHAPE::RECTANGLE:
-        return "Rectangle";
+        return split_t( std::max( std::floor( std::log( expected_total_nodes / ( expected_nodes_per_leaf * total_tiles ) ) / std::log( 4. ) ), 0. ) );
 
     case TILE_SHAPE::TRIANGLE:
-        return "Triangle";
+        return split_t( std::max( std::floor( std::log( expected_total_nodes / ( expected_nodes_per_leaf * total_tiles ) ) / std::log( 2. ) ), 0. ) );
 
     case TILE_SHAPE::HEXAGON:
-        return "Hexagon";
+        return split_t( std::max( std::floor( std::log( expected_total_nodes / ( 6. * expected_nodes_per_leaf * total_tiles ) ) / std::log( 2. ) + 1. ), 0. ) );
 
     default:
         throw std::invalid_argument( "Invalid tile shape" );

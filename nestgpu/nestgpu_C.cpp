@@ -2183,6 +2183,16 @@ extern "C"
     END_ERR_PROP return ret;
   }
 
+  sapi::ParameterNamesPairArray* get_parameter_names()
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.get_parameter_names();
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
   bool free_gc()
   {
     BEGIN_ERR_PROP
@@ -2307,16 +2317,14 @@ extern "C"
 
   bool generate_tile_grid(
     const sapi::NestedTileIdxArray& rank_tiles_ownership,
-    const sapi::GPStruct& grid_parameters,
-    sapi::split_t num_splits
+    const sapi::GPStruct& grid_parameters
   )
   {
     BEGIN_ERR_PROP
     {
       capi.generate_tile_grid(
         rank_tiles_ownership,
-        grid_parameters,
-        num_splits
+        grid_parameters
       );
       return true;
     }
@@ -2429,20 +2437,20 @@ extern "C"
     return pair;
   }
 
-  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* >
+  sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::PositionViewStruct* >
     insert_positions_in_grid(
       const sapi::CharArray& model_name,
-      const sapi::NestedSpaceTArray& anycoord_array,
+      const sapi::PositionViewStruct& positions,
       int num_ports
     )
   {
-    sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::NestedSpaceTArray* > triplet;
+    sapi::TripletT< bool, sapi::SpatialNodeSequence, sapi::PositionViewStruct* > triplet;
     BEGIN_ERR_PROP
     {
       const auto [nodes_per_rank, leftovers] =
-      capi.insert_positions_in_grid( anycoord_array );
+      capi.insert_positions_in_grid( positions );
 
-      if ( leftovers->size_ == anycoord_array.size_ )
+    if ( leftovers->coord_count_ == positions.coord_count_ )
         throw std::runtime_error( "Failed to insert any provided node position" );
 
       auto rank_map = update_node_counts_per_rank(

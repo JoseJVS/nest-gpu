@@ -87,7 +87,7 @@ bool recursive_bounds_test(
 
 template < typename CoordT >
 void aggregate_local_node_positions(
-    std::list< CoordT >& coord_list,
+    std::deque< CoordT >& coords,
     TiledCoordMap< CoordT >& tiled_coord_map,
     const tileidx_t tile_index,
     const nodeidx_t copy_count,
@@ -96,36 +96,35 @@ void aggregate_local_node_positions(
 {
     assert( 0 < copy_count &&
         0 <= skip_count &&
-        static_cast< std::size_t >( skip_count + copy_count ) <= coord_list.size()
+        static_cast< std::size_t >( skip_count + copy_count ) <= coords.size()
     );
 
     // This function should only be called once per tile and only for local tiles
-    if ( 0 == skip_count && static_cast< std::size_t >( copy_count ) == coord_list.size() )
+    if ( 0 == skip_count && static_cast< std::size_t >( copy_count ) == coords.size() )
     {
-        tiled_coord_map[ tile_index ].swap( coord_list );
+        tiled_coord_map[ tile_index ].swap( coords );
         return;
     }
 
-    auto& tiled_coord_list = tiled_coord_map[ tile_index ];
+    auto& tiled_coords = tiled_coord_map[ tile_index ];
+    tiled_coords.resize( copy_count );
 
     nodeidx_t copied_coords = 0;
     nodeidx_t skipped_coords = 0;
-    auto coord_it = coord_list.begin();
-    while ( !coord_list.empty() )
+    while ( !coords.empty() )
     {
-        auto coord = *coord_it++;
-        coord_list.pop_front();
+        if ( skip_count <= skipped_coords++ )
+        {
+            tiled_coords[ copied_coords++ ] = coords.front();
 
-        if ( skipped_coords++ < skip_count )
-            continue;
+            if ( copy_count <= copied_coords )
+                break;
+        }
 
-        if ( copy_count <= copied_coords++ )
-            break;
-
-        tiled_coord_list.emplace_back( coord );
+        coords.pop_front();
     }
 
-    coord_list.clear();
+    coords.clear();
 }
 
 
@@ -134,7 +133,7 @@ void aggregate_tiled_node_count_by_rank(
     TiledCoordMap< CoordT >& global_tiled_coord_map,
     TiledCoordMap< CoordT >& local_tiled_coord_map,
     NodeCountVector& node_counts_per_rank,
-    TileIdxNodeCountPairListVector& tiled_node_counts_per_rank,
+    RankTileIdxNodeCountPairs& tiled_node_counts_per_rank,
     const GridNeighborhood& grid_neighborhood,
     const RandomManager& rng_manager
 )
@@ -147,10 +146,10 @@ void aggregate_tiled_node_count_by_rank(
     if ( global_tiled_coord_map.empty() )
         return;
 
-    for ( auto& [tile_index, coord_list] : global_tiled_coord_map )
+    for ( auto& [tile_index, coords] : global_tiled_coord_map )
     {
-        assert( !coord_list.empty() &&
-            coord_list.size() < std::numeric_limits< nodeidx_t >::max() );
+        assert( !coords.empty() &&
+            coords.size() < std::numeric_limits< nodeidx_t >::max() );
 
         const auto tile_owners = grid_neighborhood.tile_ranks_ownership_map_.cbegin() + tile_index;
         assert(
@@ -161,7 +160,7 @@ void aggregate_tiled_node_count_by_rank(
 
         const auto node_counts_per_owning_rank = uniform_distribute_node_counts
             < nodeidx_t, true, true >(
-                static_cast< nodeidx_t >( coord_list.size() ),
+                static_cast< nodeidx_t >( coords.size() ),
                 static_cast< tileidx_t >( tile_owners->size() ),
                 rng_manager
             );
@@ -173,7 +172,7 @@ void aggregate_tiled_node_count_by_rank(
             const auto count = *nc_it++;
             if ( count == 0 ) continue;
             node_counts_per_rank[ owner_rank ] += count;
-            tiled_node_counts_per_rank[ owner_rank ].emplace_front(
+            tiled_node_counts_per_rank[ owner_rank ].emplace_back(
                 tile_index, count
             );
 
@@ -183,7 +182,7 @@ void aggregate_tiled_node_count_by_rank(
                 // As tile_owners is a set
                 // this is guaranteed to happen only once per tile
                 aggregate_local_node_positions(
-                    coord_list,
+                    coords,
                     local_tiled_coord_map,
                     tile_index,
                     count,
@@ -191,7 +190,7 @@ void aggregate_tiled_node_count_by_rank(
                 );
         }
 
-        coord_list.clear();
+        coords.clear();
     }
 
     global_tiled_coord_map.clear();
@@ -201,11 +200,11 @@ void aggregate_tiled_node_count_by_rank(
 template < typename CoordT >
 std::tuple<
     NodeCountVector, // rank node counts
-    TileIdxNodeCountPairListVector, // rank tiled node counts
+    RankTileIdxNodeCountPairs, // rank tiled node counts
     TiledCoordMap< CoordT > // sorted coords by locally owned tiles
 >
 insert_node_positions_in_grid(
-    std::list< CoordT >& coord_list,
+    std::deque< CoordT >& coords,
     const TileGrid< CoordT >& tile_grid,
     const GridNeighborhood& grid_neighborhood,
     const RandomManager& rng_manager
@@ -217,12 +216,12 @@ insert_node_positions_in_grid(
         rng_manager.is_initialized()
     );
 
-    std::list< CoordT > leftovers;
+    std::deque< CoordT > leftovers;
     NodeCountVector node_counts_per_rank( grid_neighborhood.num_processes_, 0 );
-    TileIdxNodeCountPairListVector tiled_node_counts_per_rank( grid_neighborhood.num_processes_ );
+    RankTileIdxNodeCountPairs tiled_node_counts_per_rank( grid_neighborhood.num_processes_ );
     TiledCoordMap< CoordT > local_tiled_coords;
 
-    if ( coord_list.empty() )
+    if ( coords.empty() )
         return std::make_tuple(
             std::move( node_counts_per_rank ),
             std::move( tiled_node_counts_per_rank ),
@@ -230,22 +229,19 @@ insert_node_positions_in_grid(
         );
 
     TiledCoordMap< CoordT > global_tiled_coords;
-    auto coord_it = coord_list.begin();
-    while ( !coord_list.empty() )
+    while ( !coords.empty() )
     {
-        auto coord = *coord_it++;
-        coord_list.pop_front();
-
         if ( !recursive_bounds_test(
-            coord,
+            coords.front(),
             global_tiled_coords,
             tile_grid.bounding_box_,
             tile_grid,
             grid_neighborhood
         ) )
         {
-            leftovers.emplace_back( coord );
+            leftovers.emplace_back( coords.front() );
         }
+        coords.pop_front();
     }
 
     aggregate_tiled_node_count_by_rank(
@@ -257,7 +253,7 @@ insert_node_positions_in_grid(
         rng_manager
     );
 
-    coord_list.swap( leftovers );
+    coords.swap( leftovers );
 
     return std::make_tuple(
         std::move( node_counts_per_rank ),
@@ -327,55 +323,46 @@ void recursive_sub_tile_test(
 
 template < typename CoordT >
 void insert_node_positions_in_leafs(
-    std::list< CoordT >& coord_list,
+    std::deque< CoordT >& coords,
     LeafNodeCollection< CoordT >& leaf_node_col,
     const TilePosition< CoordT >& tile_position,
     const NodeSequence& node_sequence
 )
 {
-    assert( !coord_list.empty() );
+    assert( !coords.empty() );
 
     TiledCoordMap< CoordT > sub_tile_coord_map;
-    auto coord_it = coord_list.begin();
-    while ( !coord_list.empty() )
-    {
-        auto coord = *coord_it++;
-        coord_list.pop_front();
-
+    for ( const auto& coord : coords )
         recursive_sub_tile_test(
             coord,
             sub_tile_coord_map,
             tile_position.tile_
         );
-    }
 
-    coord_list.clear();
+    coords.clear();
     assert( !sub_tile_coord_map.empty() );
 
     nodeidx_t st_node_index = node_sequence.first;
-    for ( auto& [st_index, st_coord_list] : sub_tile_coord_map )
+    for ( auto& [st_index, st_coords] : sub_tile_coord_map )
     {
-        assert( !st_coord_list.empty() &&
-            st_coord_list.size() < std::numeric_limits< nodeidx_t >::max()
+        assert( !st_coords.empty() &&
+            st_coords.size() < std::numeric_limits< nodeidx_t >::max()
         );
 
         const auto indexed_coord_col = leaf_node_col.begin() + st_index;
         assert( indexed_coord_col != leaf_node_col.end() );
 
         auto& coord_vec = indexed_coord_col->emplace_back();
-        coord_vec.reserve( st_coord_list.size() );
+        coord_vec.reserve( st_coords.size() );
 
-        coord_it = st_coord_list.begin();
-        while ( !st_coord_list.empty() )
+        while ( !st_coords.empty() )
         {
             coord_vec.emplace_back(
                 st_node_index++,
-                *coord_it++
+                st_coords.front()
             );
-            st_coord_list.pop_front();
+            st_coords.pop_front();
         }
-
-        st_coord_list.clear();
     }
     assert( ( st_node_index - node_sequence.first ) == node_sequence.second );
 
@@ -385,7 +372,7 @@ void insert_node_positions_in_leafs(
 
 template < typename CoordT >
 void insert_node_positions_in_tiles(
-    TiledCoordMap< CoordT >&& tiled_coord_map,
+    TiledCoordMap< CoordT >& tiled_coord_map,
     GridNodeCollection< CoordT >& grid_node_col,
     const TileIdxNodeSequenceMap& node_seq_per_tile,
     const TileGrid< CoordT >& tile_grid

@@ -23,6 +23,8 @@
 #ifndef SPATIAL_MANAGER_H
 #define SPATIAL_MANAGER_H
 
+#include <numeric>
+
 #include "nf_creators.h"
 #include "cg_creators.h"
 #include "gf_creators.h"
@@ -86,8 +88,7 @@ public:
 
     virtual void initialize_tile_grid(
         std::vector< std::set< tileidx_t > >&& rank_tiles_ownership,
-        const GridParameters& grid_parameters,
-        const split_t num_splits
+        const GridParameters& grid_parameters
     ) = 0;
 
     virtual NodeCountVector
@@ -97,9 +98,11 @@ public:
             const DISTRIBUTION_MODE distribution_mode
         ) = 0;
 
-    virtual NodeCountVector
+    virtual std::pair< NodeCountVector, std::vector< space_t > >
         insert_positions_in_grid(
-            std::vector< std::vector< space_t > >& positions
+            const dim_t dimensions,
+            const std::size_t coord_count,
+            const space_t* const coordinates
         ) = 0;
 
     virtual std::size_t
@@ -204,8 +207,7 @@ public:
 
     void initialize_tile_grid(
         std::vector< std::set< tileidx_t > >&& rank_tiles_ownership,
-        const GridParameters& grid_parameters,
-        const split_t num_splits
+        const GridParameters& grid_parameters
     ) override;
 
     NodeCountVector
@@ -215,9 +217,11 @@ public:
             const DISTRIBUTION_MODE distribution_mode
         ) override;
 
-    NodeCountVector
+    std::pair< NodeCountVector, std::vector< space_t > >
         insert_positions_in_grid(
-            std::vector< std::vector< space_t > >& positions
+            const dim_t dimensions,
+            const std::size_t coord_count,
+            const space_t* const coordinates
         ) override;
 
     std::size_t
@@ -265,15 +269,15 @@ protected:
 
     // Temporaries for distribution/insertion of nodes in tiles
     // after getting rank node sequences
-    std::forward_list< TileIdxNodeCountPairListVector >
+    std::forward_list< RankTileIdxNodeCountPairs >
         temp_node_generation_data_;
     std::forward_list<
-        std::pair< TileIdxNodeCountPairListVector, TiledCoordMap< CoordT > > >
+        std::pair< RankTileIdxNodeCountPairs, TiledCoordMap< CoordT > > >
         temp_node_insertion_data_;
 
     void _initialize_registers();
 
-    void _initialize_grid_parameters(
+    split_t _initialize_grid_parameters(
         const GridParameters& grid_parameters
     );
 
@@ -343,11 +347,10 @@ inline void SpatialManager< CoordT >::update_num_threads()
 
 
 template < typename CoordT >
-void SpatialManager< CoordT >::_initialize_grid_parameters(
+split_t SpatialManager< CoordT >::_initialize_grid_parameters(
     const GridParameters& grid_parameters
 )
 {
-
     const auto gpt = rank_timer_registry_->get_register_timer( "grid_param_time" );
     gpt->start();
 
@@ -362,23 +365,31 @@ void SpatialManager< CoordT >::_initialize_grid_parameters(
         ctc_registry_
     );
 
+    const auto num_splits = grid_parameters.compute_splits_ ? compute_minimal_splits(
+        grid_parameters.expected_total_nodes_,
+        std::accumulate( gc.grid_dimensions_.cbegin(), gc.grid_dimensions_.cend(), 1, std::multiplies< tileidx_t >{} ),
+        grid_parameters.expected_nodes_per_leaf_,
+        gc.ctc_.shape_
+    ) : grid_parameters.num_splits_;
+
     gc_array_.clone( gc );
 
     gpt->stop();
+
+    return num_splits;
 }
 
 
 template < typename CoordT >
 void SpatialManager< CoordT >::initialize_tile_grid(
     std::vector< std::set< tileidx_t > >&& rank_tiles_ownership,
-    const GridParameters& grid_parameters,
-    const split_t num_splits
+    const GridParameters& grid_parameters
 )
 {
     if ( is_initialized() )
         throw std::runtime_error( "Cannot generate tile grid more than once" );
 
-    _initialize_grid_parameters( grid_parameters );
+    const auto num_splits = _initialize_grid_parameters( grid_parameters );
 
     const auto ggt = rank_timer_registry_->get_register_timer( "grid_generation_time" );
     ggt->start();
@@ -440,7 +451,7 @@ SpatialManager< CoordT >::distribute_nodes_in_grid(
     ndt->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     auto [
         node_counts_per_rank,
@@ -465,34 +476,42 @@ SpatialManager< CoordT >::distribute_nodes_in_grid(
 
 
 template < typename CoordT >
-NodeCountVector
+std::pair< NodeCountVector, std::vector< space_t > >
 SpatialManager< CoordT >::insert_positions_in_grid(
-    std::vector< std::vector< space_t > >& positions
+    const dim_t dimensions,
+    const std::size_t coord_count,
+    const space_t* const coordinates
 )
 {
     const auto nit = rank_timer_registry_->get_register_timer( "node_insertion_time" );
     nit->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
-    std::list < CoordT > coord_list;
-    for ( auto& anycoord : positions )
+    if ( dimensions != CoordT::D || coord_count % CoordT::D != 0 || coordinates == nullptr )
+        throw std::invalid_argument( "Invalid positions to insert" );
+
+    std::deque< CoordT > coords;
+    coords.resize( coord_count / CoordT::D );
+    for ( std::size_t index = 0; index < coord_count; index += CoordT::D )
     {
-        if ( anycoord.size() != static_cast< std::size_t >( CoordT::D ) )
-            throw std::invalid_argument( "Incorrect node position dimensions" );
+        auto& coord = coords[ index / CoordT::D ];
+        coord.x_ = coordinates[ index ];
+        coord.y_ = coordinates[ index + 1 ];
 
-        coord_list.emplace_back( CoordT::copy_from_vec( anycoord.begin() ) );
-        anycoord.clear();
+        if constexpr ( std::is_same_v< CoordT, Coord3D > )
+        {
+            coord.z_ = coordinates[ index + 2 ];
+        }
     }
-    positions.clear();
 
     auto [
         node_counts_per_rank,
         tiled_node_counts_per_rank,
         tiled_coord_map
     ] = insert_node_positions_in_grid(
-        coord_list,
+        coords,
         tile_grid_,
         grid_neighborhood_,
         random_manager_
@@ -505,22 +524,18 @@ SpatialManager< CoordT >::insert_positions_in_grid(
         )
     );
 
-    if ( !coord_list.empty() )
+    std::vector< space_t > leftovers( coords.size() * CoordT::D );
+    auto lt_it = leftovers.begin();
+    while ( !coords.empty() )
     {
-        positions.reserve( coord_list.size() );
-        auto coord_it = coord_list.begin();
-        while ( !coord_list.empty() )
-        {
-            ( *coord_it++ ).copy_to_vec(
-                positions.emplace_back( CoordT::D ).begin()
-            );
-            coord_list.pop_front();
-        }
+        auto coord = coords.front();
+        coords.pop_front();
+        coord.copy_to_vec( lt_it );
     }
 
     nit->stop();
 
-    return node_counts_per_rank;
+    return std::make_pair( std::move( node_counts_per_rank ), std::move( leftovers ) );
 }
 
 
@@ -535,7 +550,7 @@ SpatialManager< CoordT >::generate_nodes_in_tiles(
     nct->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     if ( temp_node_generation_data_.empty() )
         throw std::invalid_argument( "Incorrect node generation data cache" );
@@ -587,18 +602,16 @@ SpatialManager< CoordT >::insert_positions_in_tiles(
     nct->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     if ( temp_node_insertion_data_.empty() )
         throw std::invalid_argument( "Incorrect node insertion data cache" );
-
-    const auto temp_it = temp_node_insertion_data_.begin();
 
     const auto index = cached_distributed_tiled_node_sequences_.size();
     const auto& ref = cached_distributed_tiled_node_sequences_.emplace_back(
         consolidate_node_sequences_per_tile_per_rank(
             node_sequences_per_rank,
-            temp_it->first
+            temp_node_insertion_data_.front().first
         )
     );
 
@@ -614,12 +627,12 @@ SpatialManager< CoordT >::insert_positions_in_tiles(
         local_tns_it != ref.end()
         )
         insert_node_positions_in_tiles(
-            std::move( temp_it->second ),
+            temp_node_insertion_data_.front().second,
             grid_collection_,
             local_tns_it->second,
             tile_grid_
         );
-    else if ( !temp_it->second.empty() )
+    else if ( !temp_node_insertion_data_.front().second.empty() )
         throw std::runtime_error( "Corrupted tiled coords map cache" );
 
     temp_node_insertion_data_.pop_front();
@@ -724,7 +737,7 @@ SpatialManager< CoordT >::compute_spatial_connections(
     sct->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     _initialize_mask_parameters( mask_parameters );
     _initialize_connection_parameters( connection_parameters );
@@ -771,7 +784,7 @@ SpatialManager< CoordT >::get_nodes(
     sst->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     DistributedTiledNodeSequenceMap* dist_tns = nullptr;
 
@@ -797,7 +810,9 @@ SpatialManager< CoordT >::get_nodes(
 
     IndexedNodeCoordinates res;
 
-    const auto total_size = slice.size();
+    std::size_t total_size = 0;
+    for ( const auto& leaf_nodes : slice )
+        total_size += leaf_nodes.size();
 
     if ( 0 < total_size )
     {
@@ -806,17 +821,20 @@ SpatialManager< CoordT >::get_nodes(
         res.coordinates_.resize( CoordT::D * total_size );
 
         std::size_t index = 0;
-        for ( const auto& coord_ptr : slice )
+        for ( const auto& leaf_nodes : slice )
         {
-            res.indexes_[ index ] = coord_ptr->first;
-            res.coordinates_[ index ] = coord_ptr->second.x_;
-            res.coordinates_[ index + total_size ] = coord_ptr->second.y_;
-
-            if constexpr ( std::is_same_v< CoordT, Coord3D > )
+            for ( const auto& coord_ptr : leaf_nodes )
             {
-                res.coordinates_[ index + 2 * total_size ] = coord_ptr->second.z_;
+                res.indexes_[ index ] = coord_ptr->first;
+                res.coordinates_[ index ] = coord_ptr->second.x_;
+                res.coordinates_[ index + total_size ] = coord_ptr->second.y_;
+
+                if constexpr ( std::is_same_v< CoordT, Coord3D > )
+                {
+                    res.coordinates_[ index + 2 * total_size ] = coord_ptr->second.z_;
+                }
+                ++index;
             }
-            ++index;
         }
     }
 
@@ -841,7 +859,7 @@ SpatialManager< CoordT >::get_grid_vertices()
     gvt->start();
 
     if ( !is_initialized() )
-          throw std::runtime_error( "Spatial grid not initialized" );
+        throw std::runtime_error( "Spatial grid not initialized" );
 
     GridVertexMap grid_vertices;
     grid_vertices.dimensions_ = CoordT::D;
