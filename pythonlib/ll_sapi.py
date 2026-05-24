@@ -9,8 +9,9 @@ Authors: JoseJVS.
 """
 
 import ctypes
+import pathlib
+import sys
 import typing
-import math
 import functools
 
 NP = None
@@ -162,7 +163,7 @@ class NodesViewStruct(ctypes.Structure):
             return [], []
 
         elif not (bool(self.indexes_) and bool(self.coordinates_)):
-            raise ValueError("Error converting nodes coords to tuple")
+            raise ValueError("Corrupted NodesViewStruct")
 
         indexes = [0] * self.node_count_
         coordinates = [[]] * self.dimensions_
@@ -200,7 +201,7 @@ class NodesViewStruct(ctypes.Structure):
             return NP.empty((0,)), NP.empty((0,))
 
         elif not (bool(self.indexes_) and bool(self.coordinates_)):
-            raise ValueError("Error converting nodes coords to tuple")
+            raise ValueError("Corrupted NodesViewStruct")
 
         return NP.ctypeslib.as_array(
             self.indexes_, (self.node_count_,)
@@ -209,6 +210,81 @@ class NodesViewStruct(ctypes.Structure):
         ).reshape(
             (self.dimensions_, self.node_count_), copy=False
         )
+
+
+class PositionViewStruct(ctypes.Structure):
+    _fields_ = [
+        ("dimensions_", dim_t),
+        ("coord_count_", ctypes.c_size_t),
+        ("coordinates_", ctypes.POINTER(space_t)),
+    ]
+
+    def from_tuple(
+        self,
+        t: typing.Sequence[typing.Sequence[float]],
+    ) -> None:
+        if len(t) < 1:
+            self.dimensions_ = 0
+            self.node_count_ = 0
+            self.coordinates_ = None
+            return
+
+        pos_length = len(t)
+        dimensions_length = len(t[0])
+        if (
+            dimensions_length < 2
+            or 3 < dimensions_length
+            or any(len(c) != dimensions_length for c in t)
+        ):
+            raise ValueError("Mismatched dimensions in position sequence")
+
+        try:
+            self.dimensions_ = dimensions_length
+            self.coord_count_ = pos_length * dimensions_length
+            self.coordinates_ = (space_t * self.coord_count_)()
+
+            c_count = 0
+            for coord_tuple in t:
+                for coord in coord_tuple:
+                    self.coordinates_[c_count] = coord
+                    c_count += 1
+
+            if c_count != self.coord_count_:
+                raise ValueError("Error converting nodes coords from tuple")
+
+        except Exception as e:
+            self.dimensions_ = 0
+            self.node_count_ = 0
+            self.indexes_ = None
+            self.coordinates_ = None
+            raise e
+
+    def to_tuple(self) -> typing.Sequence[typing.Sequence[float]]:
+        if self.dimensions_ < 2 or 3 < self.dimensions_:
+            raise ValueError("Corrupted PositionViewStruct")
+
+        elif self.coord_count_ < 1:
+            if bool(self.coordinates_):
+                raise ValueError("Corrupted PositionViewStruct")
+            return []
+
+        elif not bool(self.coordinates_):
+            raise ValueError("Corrupted PositionViewStruct")
+
+        total_positions = int(self.coord_count_ / self.dimensions_)
+        coordinates = [[]] * total_positions
+
+        c_count = 0
+        for pos in range(total_positions):
+            coordinates[pos] = [0] * self.dimensions_
+            for d in range(self.dimensions_):
+                coordinates[pos][d] = self.coordinates_[c_count]
+                c_count += 1
+
+        if c_count != self.coord_count_:
+            raise ValueError("Error converting positions to tuples")
+
+        return coordinates
 
 
 class ConnectionViewStruct(ctypes.Structure):
@@ -677,6 +753,8 @@ RemoteConnectionViewPair = pair_template(
     ConnectionViewPairArray, ConnectionViewPairArray
 )
 
+ParameterNamesPairArray = pair_array_template(CharArray, NestedCharArray)
+
 
 def check_bool(b_val: ctypes.c_bool) -> None:
     if not b_val:
@@ -789,13 +867,21 @@ def nested_num_arr_to_nested_num_seq(
 
 
 _CONVERTERS = {
+    ctypes.c_bool: (
+        bool,
+        ctypes.c_bool,
+    ),
+    split_t: (
+        int,
+        split_t,
+    ),
     count_t: (
         int,
         count_t,
     ),
-    ctypes.c_bool: (
-        bool,
-        ctypes.c_bool,
+    nix_t: (
+        int,
+        nix_t,
     ),
     CharArray: (carr_to_str, str_to_carr),
     NestedCharArray: (nested_carr_to_str_seq, str_seq_to_nested_carr),
@@ -816,48 +902,136 @@ _CONVERTERS = {
 }
 
 _GPS_FIELDS = (
-    ("grid_origin", SpaceTArray, lambda: tuple()),
-    ("grid_dimensions", TileIdxArray, lambda: tuple()),
-    ("tile_type", CharArray, lambda: ""),
-    ("tile_side_lengths", SpaceTArray, lambda: tuple()),
-    ("tile_angular_offsets", AngleTArray, lambda: tuple()),
+    ("grid_origin", SpaceTArray, lambda: tuple(), lambda go: 2 <= len(go) <= 3),
+    (
+        "grid_dimensions",
+        TileIdxArray,
+        lambda: tuple(),
+        lambda gd: 2 <= len(gd) <= 3 and all(0 < d < (1 << 32) for d in gd),
+    ),
+    ("tile_type", CharArray, lambda: "", "tile_shapes"),
+    (
+        "tile_side_lengths",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda tsl: 1 <= len(tsl) <= 3 and all(0 < sl for sl in tsl),
+    ),
+    (
+        "tile_angular_offsets",
+        AngleTArray,
+        lambda: tuple(),
+        lambda tao: all(-(1 << 16) < a < (1 << 16) for a in tao),
+    ),
+    (
+        "compute_splits",
+        ctypes.c_bool,
+        lambda: False,
+        lambda cs: cs == True or cs == False,
+    ),
+    ("num_splits", split_t, lambda: 0, lambda ns: 0 <= ns < (1 << 8)),
+    ("expected_total_nodes", nix_t, lambda: 0, lambda etn: 0 <= etn < (1 << 32)),
+    ("expected_nodes_per_leaf", nix_t, lambda: 0, lambda enpl: 0 <= enpl < (1 << 32)),
 )
 
 _MPS_FIELDS = (
-    ("mask_blueprint_name", CharArray, lambda: ""),
-    ("mask_blueprint_params", SpaceTArray, lambda: tuple()),
-    ("mask_blueprint_offset", SpaceTArray, lambda: tuple()),
-    ("source_mask_name", CharArray, lambda: ""),
-    ("source_mask_origin", SpaceTArray, lambda: tuple()),
-    ("source_mask_params", SpaceTArray, lambda: tuple()),
-    ("source_mask_offset", SpaceTArray, lambda: tuple()),
-    ("target_mask_name", CharArray, lambda: ""),
-    ("target_mask_origin", SpaceTArray, lambda: tuple()),
-    ("target_mask_params", SpaceTArray, lambda: tuple()),
-    ("target_mask_offset", SpaceTArray, lambda: tuple()),
+    ("mask_blueprint_name", CharArray, lambda: "", "mask_shapes"),
+    ("mask_blueprint_params", SpaceTArray, lambda: tuple(), None),
+    (
+        "mask_blueprint_offset",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda o: 2 <= len(o) <= 3,
+    ),
+    ("source_mask_name", CharArray, lambda: "", "mask_shapes"),
+    (
+        "source_mask_origin",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda o: 2 <= len(o) <= 3,
+    ),
+    ("source_mask_params", SpaceTArray, lambda: tuple(), None),
+    (
+        "source_mask_offset",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda o: 2 <= len(o) <= 3,
+    ),
+    ("target_mask_name", CharArray, lambda: "", "mask_shapes"),
+    (
+        "target_mask_origin",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda o: 2 <= len(o) <= 3,
+    ),
+    ("target_mask_params", SpaceTArray, lambda: tuple(), None),
+    (
+        "target_mask_offset",
+        SpaceTArray,
+        lambda: tuple(),
+        lambda o: 2 <= len(o) <= 3,
+    ),
 )
 
 _CPS_FIELDS = (
-    ("edge_wrap", ctypes.c_bool, lambda: False),
-    ("only_neighborhood", ctypes.c_bool, lambda: False),
-    ("allow_multiplicity", ctypes.c_bool, lambda: False),
-    ("allow_self_connections", ctypes.c_bool, lambda: False),
-    ("partition_connections_by_source", ctypes.c_bool, lambda: False),
-    ("connection_counts", count_t, lambda: 0),
-    ("conn_gen_name", CharArray, lambda: ""),
-    ("weight_df_name", CharArray, lambda: ""),
-    ("weight_df_params", SpaceTArray, lambda: tuple()),
-    ("weight_ufs_names", NestedCharArray, lambda: tuple()),
-    ("weight_ufs_params", NestedSpaceTArray, lambda: tuple()),
-    ("delay_df_name", CharArray, lambda: ""),
-    ("delay_df_params", SpaceTArray, lambda: tuple()),
-    ("delay_ufs_names", NestedCharArray, lambda: tuple()),
-    ("delay_ufs_params", NestedSpaceTArray, lambda: tuple()),
-    ("prob_df_name", CharArray, lambda: ""),
-    ("prob_df_params", SpaceTArray, lambda: tuple()),
-    ("prob_ufs_names", NestedCharArray, lambda: tuple()),
-    ("prob_ufs_params", NestedSpaceTArray, lambda: tuple()),
+    ("edge_wrap", ctypes.c_bool, lambda: False, lambda cs: cs == True or cs == False),
+    (
+        "only_neighborhood",
+        ctypes.c_bool,
+        lambda: False,
+        lambda cs: cs == True or cs == False,
+    ),
+    (
+        "allow_multiplicity",
+        ctypes.c_bool,
+        lambda: False,
+        lambda cs: cs == True or cs == False,
+    ),
+    (
+        "allow_self_connections",
+        ctypes.c_bool,
+        lambda: False,
+        lambda cs: cs == True or cs == False,
+    ),
+    (
+        "partition_connections_by_source",
+        ctypes.c_bool,
+        lambda: False,
+        lambda cs: cs == True or cs == False,
+    ),
+    ("connection_counts", count_t, lambda: 0, lambda cc: 0 <= cc < (1 << 32)),
+    ("conn_gen_name", CharArray, lambda: "", "connection_methods"),
+    ("weight_df_name", CharArray, lambda: "", "displacement_functions"),
+    ("weight_df_params", SpaceTArray, lambda: tuple(), None),
+    ("weight_ufs_names", NestedCharArray, lambda: tuple(), "unary_functions"),
+    ("weight_ufs_params", NestedSpaceTArray, lambda: tuple(), None),
+    ("delay_df_name", CharArray, lambda: "", "displacement_functions"),
+    ("delay_df_params", SpaceTArray, lambda: tuple(), None),
+    ("delay_ufs_names", NestedCharArray, lambda: tuple(), "unary_functions"),
+    ("delay_ufs_params", NestedSpaceTArray, lambda: tuple(), None),
+    ("prob_df_name", CharArray, lambda: "", "displacement_functions"),
+    ("prob_df_params", SpaceTArray, lambda: tuple(), None),
+    ("prob_ufs_names", NestedCharArray, lambda: tuple(), "unary_functions"),
+    ("prob_ufs_params", NestedSpaceTArray, lambda: tuple(), None),
 )
+
+
+def test_param(
+    name: str,
+    value: typing.Any,
+    test: str | typing.Callable | None,
+    param_names: typing.Mapping[str, typing.Sequence[str]],
+):
+    if test is not None:
+        if isinstance(test, str):
+            names = param_names[test]
+            if not isinstance(value, str) and isinstance(value, typing.Iterable):
+                for v in value:
+                    if v not in names:
+                        raise KeyError(f"Invalid name {v} for parameter {name}")
+            elif value not in names:
+                raise KeyError(f"Invalid name {value} for parameter {name}")
+        elif not test(value):
+            raise ValueError(f"Invalid value for parameter {name}")
 
 
 def io_struct_template(
@@ -869,25 +1043,32 @@ def io_struct_template(
 
         def to_dict(self) -> dict:
             res = dict()
-            for name, type, _ in self._fmp:
+            for name, type, _, _ in self._fmp:
                 try:
                     res[name] = _CONVERTERS[type][0](self.__getattribute__(name))
                 except KeyError:
                     raise KeyError("Unknown field in structure")
             return res
 
-        def from_dict(self, d: dict) -> None:
-            for name, type, dfg in self._fmp:
-                try:
-                    if name in d:
-                        self.__setattr__(name, _CONVERTERS[type][1](d[name]))
-                    else:
-                        self.__setattr__(
-                            name,
-                            _CONVERTERS[type][1](dfg()),
-                        )
-                except KeyError:
-                    raise KeyError("Unknown field in structure")
+        def from_dict(
+            self, d: dict, param_names: typing.Mapping[str, typing.Sequence[str]]
+        ) -> None:
+            used_keys = []
+            for name, type, dfg, test in self._fmp:
+                if name in d:
+                    val = d[name]
+                    test_param(name, val, test, param_names)
+                    self.__setattr__(name, _CONVERTERS[type][1](val))
+                    used_keys.append(name)
+                else:
+                    self.__setattr__(
+                        name,
+                        _CONVERTERS[type][1](dfg()),
+                    )
+
+            for name in d:
+                if name not in used_keys:
+                    raise KeyError(f"Unknown key {name}")
 
     return IOStruct
 
@@ -895,6 +1076,38 @@ def io_struct_template(
 GPStruct = io_struct_template(_GPS_FIELDS)
 MPStruct = io_struct_template(_MPS_FIELDS)
 CPStruct = io_struct_template(_CPS_FIELDS)
+
+
+def dict_to_parameter_name_pair_array(
+    d: typing.Mapping[str, typing.Sequence[str]],
+) -> ctypes.Structure:
+    pnpa = ParameterNamesPairArray()
+    pnpa.resize(len(d))
+    for p, (category, names) in enumerate(d.items()):
+        entry = pnpa.array_[p]
+        entry.first_ = str_to_carr(category)
+        entry.second_ = str_seq_to_nested_carr(names)
+
+    return pnpa
+
+
+def parameter_name_pair_array_to_dict(
+    pnpa: ctypes.Structure,  # ParameterNamesPairArray
+) -> typing.Mapping[str, typing.Sequence[str]]:
+    res = dict()
+    if 0 < pnpa.size_:
+        check_ptr(pnpa.array_)
+        for p in range(pnpa.size_):
+            entry = pnpa.array_[p]
+            res[carr_to_str(entry.first_)] = nested_carr_to_str_seq(entry.second_)
+
+        if len(res) != pnpa.size_:
+            raise ValueError("Corrupted ParameterNamesPairArray")
+
+    elif bool(pnpa.array_):
+        raise ValueError("Corrupted ParameterNamesPairArray")
+
+    return res
 
 
 def dict_to_connection_view_pair_array(
@@ -1105,28 +1318,19 @@ def safe_ptr_deref(ptr: ctypes._Pointer):
     return ptr.contents
 
 
-def parse_distribution_mode(mode: str | int) -> ctypes.c_uint8:
+def parse_distribution_mode(
+    mode: str | int,
+    param_names: typing.Mapping[str, typing.Sequence[str]],
+) -> ctypes.c_uint8:
     if isinstance(mode, str):
-        match mode.upper():
-            case "FREE":
-                return ctypes.c_uint8(0)
-            case "SQUEEZED":
-                return ctypes.c_uint8(1)
-            case "BALANCED":
-                return ctypes.c_uint8(2)
-            case _:
-                raise ValueError("Invalid distribution mode")
-    if isinstance(mode, int):
-        match mode:
-            case 0:
-                return ctypes.c_uint8(0)
-            case 1:
-                return ctypes.c_uint8(1)
-            case 2:
-                return ctypes.c_uint8(2)
-            case _:
-                raise ValueError("Invalid distribution mode")
-    raise TypeError("Invalid distribution mode argument")
+        for i, name in enumerate(param_names["distribution_modes"]):
+            if mode == name:
+                return ctypes.c_uint8(i)
+    elif isinstance(mode, int):
+        if not (0 <= mode < len(param_names["distribution_modes"])):
+            raise ValueError("Invalid distribution mode")
+        return ctypes.c_uint8(mode)
+    raise ValueError("Invalid distribution  mode")
 
 
 def simple_prime_factorization(n: int) -> typing.Generator[int, None, None]:
@@ -1157,76 +1361,40 @@ def largest_m_factors(n: int, m: int) -> typing.Sequence[int]:
     return factors
 
 
-def compute_num_splits(
-    tile_type: str, num_nodes: int, num_tiles: int, expected_nodes_per_leaf: int
-) -> int:
-    if num_nodes < 1 or num_tiles < 1 or expected_nodes_per_leaf < 1:
-        raise ValueError("Cannot compute split numbers based on negative values")
-    match tile_type.lower():
-        case "rectangle":
-            return int(
-                max(
-                    math.floor(
-                        math.log(num_nodes / (expected_nodes_per_leaf * num_tiles))
-                        / math.log(4)
-                    ),
-                    0,
+def check_rank_tile_ownership(
+    rank_tile_ownership: str | typing.Sequence[typing.Set[int]],
+    grid_dimensions: typing.Sequence[int],
+    num_processes: int,
+) -> typing.Sequence[typing.Set[int]]:
+    total_tiles = functools.reduce(lambda x, y: x * y, grid_dimensions, 1)
+    if isinstance(rank_tile_ownership, str):
+        match (rank_tile_ownership.lower()):
+            case "unique":
+                if total_tiles != num_processes:
+                    raise ValueError(
+                        "Cannot generate an ownership map with a unique tile per rank with given dimensions"
+                    )
+                return [{i} for i in range(total_tiles)]
+            case "round_robin":
+                map = [set()] * num_processes
+                for p in range(num_processes):
+                    map[p] = set()
+                for t in range(total_tiles):
+                    map[t % num_processes].add(t)
+                return map
+            case "shared":
+                return [{i for i in range(total_tiles)} for _ in range(num_processes)]
+            case _:
+                raise ValueError(
+                    "Unknown ownership directive, possible are: unique, round_robin, shared"
                 )
+    else:
+        if len(rank_tile_ownership) != num_processes:
+            raise ValueError(
+                "Ownership map must be equal in length to the number of processes"
             )
-        case "triangle":
-            return int(
-                max(
-                    math.floor(
-                        math.log(num_nodes / (expected_nodes_per_leaf * num_tiles))
-                        / math.log(2)
-                    ),
-                    0,
-                )
-            )
-        case "hexagon":
-            return int(
-                max(
-                    math.floor(
-                        math.log(num_nodes / (6 * expected_nodes_per_leaf * num_tiles))
-                        / math.log(2)
-                        + 1
-                    ),
-                    0,
-                )
-            )
-        case _:
-            raise ValueError("Incorrect tile type")
-
-
-def compute_tile_area(
-    tile_type: str, tile_side_lengths: typing.Sequence[float]
-) -> float:
-    num_sides = len(tile_side_lengths)
-    if num_sides < 1:
-        raise ValueError("Invalid number of side lengths")
-    product = lambda t: functools.reduce((lambda x, y: x * y), t, 1)
-    match (tile_type.lower()):
-        case "rectangle":
-            if 2 < num_sides:
-                raise ValueError("Invalid number of side lengths")
-            return (
-                product(tile_side_lengths)
-                if num_sides == 2
-                else tile_side_lengths[0] ** 2
-            )
-        case "triangle":
-            if 2 < num_sides:
-                raise ValueError("Invalid number of side lengths")
-            # Here we assume right angle triangle
-            return (
-                product(tile_side_lengths)
-                if num_sides == 2
-                else tile_side_lengths[0] ** 2
-            ) / 2
-        case "hexagon":
-            if 1 < num_sides:
-                raise ValueError("Invalid number of side lengths")
-            # Here we assume regular hexagon
-            return 1.5 * math.sqrt(3) * tile_side_lengths[0] ** 2
-        case _:
-            raise ValueError("Incorrect tile type")
+        if not all(
+            all(0 <= t < total_tiles for t in tiles) for tiles in rank_tile_ownership
+        ):
+            raise ValueError("Invalid tile indexes in ownership map")
+        return rank_tile_ownership

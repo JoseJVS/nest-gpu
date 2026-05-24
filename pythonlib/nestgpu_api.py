@@ -3318,6 +3318,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     return ret
 
 
+_nestgpu.get_parameter_names.restype = ctypes.POINTER(ll_sapi.ParameterNamesPairArray)
 _nestgpu.free_gc.restype = ctypes.c_bool
 _nestgpu.free_view_gc.restype = ctypes.c_bool
 _nestgpu.get_rank.restype = ll_sapi.OptionalIndex
@@ -3335,7 +3336,6 @@ _nestgpu.set_rng_type.restype = ctypes.c_bool
 _nestgpu.generate_tile_grid.argtypes = (
     ctypes.POINTER(ll_sapi.NestedTileIdxArray),
     ctypes.POINTER(ll_sapi.GPStruct),
-    ll_sapi.split_t,
 )
 _nestgpu.generate_tile_grid.restype = ctypes.c_bool
 
@@ -3353,13 +3353,13 @@ _nestgpu.generate_nodes_in_grid.restype = ll_sapi.pair_template(
 
 _nestgpu.insert_positions_in_grid.argtypes = (
     ctypes.POINTER(ll_sapi.CharArray),
-    ctypes.POINTER(ll_sapi.NestedSpaceTArray),
+    ctypes.POINTER(ll_sapi.PositionViewStruct),
     ctypes.c_int,
 )
 _nestgpu.insert_positions_in_grid.restype = ll_sapi.triplet_template(
     ctypes.c_bool,
     ll_sapi.SpatialNodeSequence,
-    ctypes.POINTER(ll_sapi.NestedSpaceTArray),
+    ctypes.POINTER(ll_sapi.PositionViewStruct),
 )
 
 _nestgpu.compute_spatial_connections.argtypes = (
@@ -3392,6 +3392,16 @@ _nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.RecordedTimesArrayPair)
 
 _nestgpu.clear_spatial_connections.argtypes = (ctypes.c_size_t,)
 _nestgpu.clear_spatial_connections.restype = ctypes.c_bool
+
+
+def get_parameter_names() -> typing.Mapping[str, typing.Sequence[str]]:
+    ret = _nestgpu.get_parameter_names()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.parameter_name_pair_array_to_dict(ll_sapi.safe_ptr_deref(ret))
+
+
+_PARAMS = get_parameter_names()
 
 
 def free_gc() -> None:
@@ -3430,6 +3440,8 @@ def get_num_threads() -> int:
 
 
 def set_num_threads(num_threads: int) -> None:
+    if not (0 < num_threads < (1 << 32)):
+        raise ValueError("Invalid num threads")
     ret = _nestgpu.set_num_threads(ll_sapi.vp_t(num_threads))
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
@@ -3444,6 +3456,8 @@ def get_rng_seed() -> int:
 
 
 def set_rng_seed(seed: int) -> None:
+    if not (0 < seed < (1 << 32)):
+        raise ValueError("Invalid seed")
     ret = _nestgpu.set_rng_seed(ll_sapi.rng_seed_t(seed))
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
@@ -3460,6 +3474,7 @@ def get_rng_type() -> str:
 
 
 def set_rng_type(rng_type: str) -> None:
+    ll_sapi.test_param("rng_type", rng_type, "random_generators", _PARAMS)
     carr = ll_sapi.str_to_carr(rng_type)
     ret = _nestgpu.set_rng_type(ctypes.byref(carr))
     if GetErrorCode() != 0:
@@ -3468,20 +3483,34 @@ def set_rng_type(rng_type: str) -> None:
 
 
 def generate_tile_grid(
-    rank_tile_ownership: typing.Sequence[typing.Set[int]],
     grid_params: dict,
-    splits: int,
+    rank_tile_ownership: str | typing.Sequence[typing.Set[int]] = "unique",
+    num_splits: int = 0,
+    expected_total_nodes: int = 0,
+    expected_nodes_per_leaf: int = 100,
 ) -> None:
+    if (0 < expected_total_nodes) and not (0 < expected_nodes_per_leaf):
+        raise ValueError(
+            "Need to set both expected total nodes and nodes per leaf to compute splits"
+        )
     gps = ll_sapi.GPStruct()
-    gps.from_dict(grid_params)
+    gps.from_dict(
+        grid_params
+        | {
+            "compute_splits": (0 < expected_total_nodes),
+            "num_splits": num_splits,
+            "expected_total_nodes": expected_total_nodes,
+            "expected_nodes_per_leaf": expected_nodes_per_leaf,
+        },
+        _PARAMS,
+    )
+    rank_tile_ownership = ll_sapi.check_rank_tile_ownership(
+        rank_tile_ownership, grid_params["grid_dimensions"], get_num_processes()
+    )
     rto_arr = ll_sapi.nested_num_seq_to_nested_arr(
         ll_sapi.NestedTileIdxArray, rank_tile_ownership
     )
-    ret = _nestgpu.generate_tile_grid(
-        ctypes.byref(rto_arr),
-        ctypes.byref(gps),
-        ll_sapi.split_t(splits),
-    )
+    ret = _nestgpu.generate_tile_grid(ctypes.byref(rto_arr), ctypes.byref(gps))
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(ret)
@@ -3496,18 +3525,24 @@ def generate_nodes_in_grid(
     grid_distribution_mode: str | int = "balanced",
     tile_distribution_mode: str | int = "squeezed",
 ) -> ll_sapi.SpatialNodeSeq:
+    if num_nodes < 1:
+        raise ValueError("Invalid number of nodes")
+    if num_ports < 0:
+        raise ValueError("Invalid number of ports")
     c_mname = ll_sapi.str_to_carr(model_name)
     tiles_arr = ll_sapi.TileIdxArray()
     tiles_arr.size_ = 0
     if tiles is not None and len(tiles) > 0:
+        if not all(0 <= t for t in tiles):
+            raise ValueError("Invalid tile index in tile set")
         tiles_arr = ll_sapi.num_seq_to_num_arr(ll_sapi.TileIdxArray, tiles)
     ret = _nestgpu.generate_nodes_in_grid(
         ctypes.byref(c_mname),
         ll_sapi.lnix_t(num_nodes),
         ctypes.byref(tiles_arr),
         ctypes.c_int(num_ports),
-        ll_sapi.parse_distribution_mode(grid_distribution_mode),
-        ll_sapi.parse_distribution_mode(tile_distribution_mode),
+        ll_sapi.parse_distribution_mode(grid_distribution_mode, _PARAMS),
+        ll_sapi.parse_distribution_mode(tile_distribution_mode, _PARAMS),
     )
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
@@ -3534,12 +3569,13 @@ def insert_positions_in_grid(
     status_dict: dict | None = None,
 ) -> typing.Tuple[ll_sapi.SpatialNodeSeq, typing.Sequence[typing.Sequence[float]]]:
     num_pos = len(positions)
-    if num_pos < 1:
+    if positions is None or num_pos < 1:
         raise ValueError("Cannot insert empty position collection")
+    if num_ports < 0:
+        raise ValueError("Invalid number of ports")
     c_mname = ll_sapi.str_to_carr(model_name)
-    c_pos = ll_sapi.nested_num_seq_to_nested_arr(
-        ll_sapi.NestedSpaceTArray, positions
-    )  # copy 1
+    c_pos = ll_sapi.PositionViewStruct()
+    c_pos.from_tuple(positions)  # copy 1
     ret = _nestgpu.insert_positions_in_grid(
         ctypes.byref(c_mname),
         ctypes.byref(c_pos),
@@ -3549,9 +3585,7 @@ def insert_positions_in_grid(
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(ret.first_)
-    leftovers = ll_sapi.nested_num_arr_to_nested_num_seq(
-        ll_sapi.safe_ptr_deref(ret.third_)
-    )
+    leftovers = ll_sapi.safe_ptr_deref(ret.third_).to_tupple()
     free_gc()  # clean C leftover positions
     local_sequence = False
     if 0 <= ret.second_.second_:
@@ -3588,9 +3622,9 @@ def compute_spatial_connections(
                     "Only receptor port or synapse group parameters are possible SynSpec arguments for spatial connections"
                 )
     mps = ll_sapi.MPStruct()
-    mps.from_dict(mask_params)
+    mps.from_dict(mask_params, _PARAMS)
     cps = ll_sapi.CPStruct()
-    cps.from_dict(conn_params)
+    cps.from_dict(conn_params, _PARAMS)
     ret = _nestgpu.compute_spatial_connections(
         ctypes.c_size_t(sp_ns_source.spatial_index),
         ctypes.c_size_t(sp_ns_target.spatial_index),
@@ -3614,7 +3648,7 @@ def get_positions(
         c_opt.second_ = sp_node_seq.spatial_index
     mps = ll_sapi.MPStruct()
     if mask_params is not None:
-        mps.from_dict(mask_params)
+        mps.from_dict(mask_params, _PARAMS)
     ret = _nestgpu.view_nodes(c_opt, ctypes.byref(mps))
     res = ll_sapi.safe_ptr_deref(ret).to_tuple()
     free_gc()
@@ -3631,7 +3665,7 @@ def view_positions(
         c_opt.second_ = sp_node_seq.spatial_index
     mps = ll_sapi.MPStruct()
     if mask_params is not None:
-        mps.from_dict(mask_params)
+        mps.from_dict(mask_params, _PARAMS)
     ret = _nestgpu.view_nodes(c_opt, ctypes.byref(mps))
     res = ll_sapi.safe_ptr_deref(ret).to_np_data()
     free_gc()
@@ -3662,6 +3696,8 @@ def get_spatial_connections(conn_index: int) -> typing.Tuple[
         ],
     ],
 ]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
     ret = _nestgpu.view_spatial_connections(
         ctypes.c_size_t(conn_index),
     )
@@ -3680,6 +3716,8 @@ def view_spatial_connections(conn_index: int) -> typing.Tuple[
     typing.Dict[int, typing.Sequence[tuple]],
     typing.Dict[int, typing.Sequence[tuple]],
 ]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
     ret = _nestgpu.view_spatial_connections(
         ctypes.c_size_t(conn_index),
     )
@@ -3745,6 +3783,8 @@ def get_timer_data() -> typing.Mapping[str, float | typing.Sequence[float]]:
 
 
 def clear_spatial_connections(conn_index: int) -> None:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
     ret = _nestgpu.clear_spatial_connections(ctypes.c_size_t(conn_index))
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
