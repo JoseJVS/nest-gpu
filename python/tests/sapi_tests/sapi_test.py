@@ -25,46 +25,36 @@ def update_verbosity():
     logging.basicConfig(level=args.verbosity, handlers=(stdout,))
 
 
-def middle_factors(n: int) -> tuple:
-    step = 2 if n % 2 else 1
-    upper_bound = int(np.floor(np.sqrt(n))) + 1
-    lower_factor = 1
-    higher_factor = n
-    for i in range(1, upper_bound, step):
-        if n % i == 0:
-            lower_factor, higher_factor = i, n // i
-    return lower_factor, higher_factor
-
-
 def main() -> None:
     nestgpu.set_rng_seed(args.rng_seed)
     nestgpu.SetBoolParam("check_node_maps", True)
 
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
-    width, length = middle_factors(num_processes)
     total_nodes = 3 * num_processes
 
-    LOG.info("RANK %i: generating %ix%i tile grid", local_rank, width, length)
+    LOG.info("RANK %i: tile grid", local_rank)
     nestgpu.generate_tile_grid(
-        (0, 0),
-        (1, 1),
-        "Rectangle",
-        (0.1,),
-        tuple(),
-        [{0} for r in range(num_processes)],
-        0,
+        {
+            "grid_origin": (0, 0),
+            "grid_dimensions": (1, 1),
+            "tile_type": "rectangle",
+            "tile_side_lengths": (1,),
+        },
+        rank_tile_ownership="shared",
     )
 
     LOG.info("RANK %i: generating %i nodes in grid", local_rank, total_nodes)
-    sp_ns = nestgpu.generate_nodes_in_grid("iaf_psc_alpha", total_nodes)
+    sp_ns = nestgpu.generate_nodes_in_grid(
+        "iaf_psc_alpha", total_nodes, grid_distribution_mode="balanced"
+    )
 
     LOG.info("RANK %i: computing spatial connections", local_rank)
     conn_index = nestgpu.compute_spatial_connections(
         sp_ns,
         sp_ns,
         {
-            "mask_blueprint_name": "Circular",
+            "mask_blueprint_name": "circular",
             "mask_blueprint_params": (1,),
         },
         {
@@ -73,17 +63,15 @@ def main() -> None:
             "allow_self_connections": False,
             "allow_multiplicity": False,
             "partition_connections_by_source": False,
-            "conn_gen_name": "PairWiseBernoulli",
-            "weight_df_name": "Distance",
-            "weight_ufs_names": ["LowerBound", "Inverse"],
+            "rule": "pairwise_bernoulli",
+            "weight_df_name": "distance",
+            "weight_ufs_names": ["lower_bound", "inverse"],
             "weight_ufs_params": [[0.0001, 0.0001], []],
-            "delay_df_name": "Distance",
-            "delay_ufs_names": ["Offset"],
+            "delay_df_name": "distance",
+            "delay_ufs_names": ["offset"],
             "delay_ufs_params": [[0.1]],
-            "prob_df_name": "Constant",
+            "prob_df_name": "constant",
             "prob_df_params": [1.0],
-            "prob_ufs_names": [],
-            "prob_ufs_params": [],
         },
     )
 
@@ -92,27 +80,25 @@ def main() -> None:
 
     LOG.info("RANK %i: checking local connections", local_rank)
     if sp_ns.local_index is not None and sp_ns.local_length is not None:
-        spatial_conns = nestgpu.get_spatial_connections(conn_index)
+        incoming_conns, _ = nestgpu.get_spatial_connections(conn_index)
+        print(json.dumps(incoming_conns[local_rank], indent=4))
         total_cons = 0
         spatial_conn_map = {}
-        for conn_part in spatial_conns[1][local_rank]:
-            total_cons += len(conn_part)
-            for conn_t in conn_part:
-                source, target, weight, delay = conn_t
+        for sources, targets, weights, delays in incoming_conns[local_rank]:
+            total_cons += len(sources)
+            for i, source in enumerate(sources):
+                target = targets[i]
                 if source in spatial_conn_map:
-                    source_map = spatial_conn_map[source]
-                    assert target not in source_map
-                    source_map[target] = (weight, delay)
+                    assert target not in spatial_conn_map[source]
+                    spatial_conn_map[source][target] = (weights[i], delays[i])
                 else:
-                    source_map = spatial_conn_map[source] = {}
-                    source_map[target] = (weight, delay)
+                    spatial_conn_map[source] = {target: (weights[i], delays[i])}
 
         assert total_cons > 0 and len(spatial_conn_map) > 0
 
         ns = nestgpu.NodeSeq(sp_ns.local_index, sp_ns.local_length)
         conn_list = nestgpu.GetConnections(ns, ns)
         conn_status = nestgpu.GetConnectionStatus(conn_list)
-
         print(json.dumps(conn_status, indent=4))
 
         gpu_conn_map = {}
