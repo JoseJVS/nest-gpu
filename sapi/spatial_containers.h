@@ -105,7 +105,7 @@ struct ConnectionParameters
     count_t connection_counts_ = 0;
 
     // Connection generation
-    std::string conn_gen_name_;
+    std::string rule_;
 
     // Weight computation
     std::string weight_df_name_;

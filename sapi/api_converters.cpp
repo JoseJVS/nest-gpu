@@ -259,12 +259,12 @@ void generate_param_name_pair_array(
     for ( uint8_t dm = 0; dm < uint8_t( DISTRIBUTION_MODE::NULL_DM ); ++dm )
         copy_to_charray_from_string( distribution_modes.second_.array_[ dm ], DISTRIBUTION_MODE_NAMES[ dm ], gc );
 
-    auto& connection_methods = pnpa.array_[ 3 ];
-    copy_to_charray_from_string( connection_methods.first_, "connection_methods", gc );
-    connection_methods.second_.resize( uint8_t( CONNECTION_METHOD::NULL_CM ), gc );
+    auto& connection_rules = pnpa.array_[ 3 ];
+    copy_to_charray_from_string( connection_rules.first_, "connection_rules", gc );
+    connection_rules.second_.resize( uint8_t( CONNECTION_RULE::NULL_CM ), gc );
 
-    for ( uint8_t cm = 0; cm < uint8_t( CONNECTION_METHOD::NULL_CM ); ++cm )
-        copy_to_charray_from_string( connection_methods.second_.array_[ cm ], CONNECTION_METHOD_NAMES[ cm ], gc );
+    for ( uint8_t cm = 0; cm < uint8_t( CONNECTION_RULE::NULL_CM ); ++cm )
+        copy_to_charray_from_string( connection_rules.second_.array_[ cm ], CONNECTION_RULE_NAMES[ cm ], gc );
 
     auto& unary_functions = pnpa.array_[ 4 ];
     copy_to_charray_from_string( unary_functions.first_, "unary_functions", gc );
@@ -355,7 +355,7 @@ ConnectionParameters cpstruct_to_conn_params(
     cp.partition_connections_by_source_ = cps.partition_connections_by_source_;
     cp.connection_counts_ = cps.connection_counts_;
 
-    cp.conn_gen_name_ = charray_to_string( cps.conn_gen_name_ );
+    cp.rule_ = charray_to_string( cps.rule_ );
 
     cp.weight_df_name_ = charray_to_string( cps.weight_df_name_ );
     cp.weight_df_params_ = array_to_vector( cps.weight_df_params_ );

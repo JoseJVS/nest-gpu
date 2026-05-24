@@ -85,7 +85,7 @@ constexpr static const char* const DISTRIBUTION_MODE_NAMES[ uint8_t( DISTRIBUTIO
 };
 
 
-enum class CONNECTION_METHOD : uint8_t
+enum class CONNECTION_RULE : uint8_t
 {
     PAIRWISE_BERNOULLI,
     PAIRWISE_POISSON,
@@ -95,7 +95,7 @@ enum class CONNECTION_METHOD : uint8_t
 };
 
 
-constexpr static const char* const CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::NULL_CM ) ] = {
+constexpr static const char* const CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::NULL_CM ) ] = {
     "pairwise_bernoulli",
     "pairwise_poisson",
     "fixed_indegree",

@@ -40,7 +40,7 @@ node_distribution.h
 grid_containers.h
 spatial_manager.h
 rng_creators.cpp
-connection_methods.h
+connection_rules.h
 timer_manager.cpp
 gf_creators.h
 numerics.h

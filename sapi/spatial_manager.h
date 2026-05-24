@@ -35,7 +35,7 @@
 #include "mask_collection.h"
 #include "grid_generation.h"
 #include "spatial_containers.h"
-#include "connection_methods.h"
+#include "connection_rules.h"
 #include "payload_preparation.h"
 #include "node_containers_init.h"
 #include "spatial_communication.h"
@@ -681,7 +681,7 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
     cpt->start();
 
     auto cg = cg_registry_.get_creator(
-        connection_parameters.conn_gen_name_
+        connection_parameters.rule_
     )->create();
     cg.connection_counts_ = connection_parameters.connection_counts_;
     cg.partition_connections_by_source_ = connection_parameters.partition_connections_by_source_;

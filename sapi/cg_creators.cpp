@@ -28,13 +28,13 @@
 
 namespace sapi
 {
-template < CONNECTION_METHOD method >
+template < CONNECTION_RULE method >
 struct BaseGCCreator final : public StateLessCreator< ConnectionGenerator >
 {
     ConnectionGenerator create() const override
     {
         ConnectionGenerator cg;
-        cg.method_ = method;
+        cg.rule_ = method;
         return cg;
     }
 };
@@ -42,17 +42,17 @@ struct BaseGCCreator final : public StateLessCreator< ConnectionGenerator >
 
 void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr )
 {
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_BERNOULLI > >(
-        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::PAIRWISE_BERNOULLI ) ]
+    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::PAIRWISE_BERNOULLI > >(
+        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::PAIRWISE_BERNOULLI ) ]
     );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::PAIRWISE_POISSON > >(
-        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::PAIRWISE_POISSON ) ]
+    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::PAIRWISE_POISSON > >(
+        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::PAIRWISE_POISSON ) ]
     );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_IN_DEGREE > >(
-        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::FIXED_IN_DEGREE ) ]
+    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::FIXED_IN_DEGREE > >(
+        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::FIXED_IN_DEGREE ) ]
     );
-    cgr.register_creator< BaseGCCreator< CONNECTION_METHOD::FIXED_OUT_DEGREE > >(
-        CONNECTION_METHOD_NAMES[ uint8_t( CONNECTION_METHOD::FIXED_OUT_DEGREE ) ]
+    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::FIXED_OUT_DEGREE > >(
+        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::FIXED_OUT_DEGREE ) ]
     );
 }
 }

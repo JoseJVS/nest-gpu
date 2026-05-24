@@ -176,8 +176,8 @@ extern "C"
         bool partition_connections_by_source_ = false;
         count_t connection_counts_ = 0;
 
-        // Connection generation
-        CharArray conn_gen_name_;
+        // Connection method
+        CharArray rule_;
 
         // Weight computation
         CharArray weight_df_name_;

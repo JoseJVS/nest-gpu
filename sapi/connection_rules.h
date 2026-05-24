@@ -1,5 +1,5 @@
 /*
- *  connection_methods.h
+ *  connection_rules.h
  *
  *  This file is part of NEST GPU.
  *
@@ -20,8 +20,8 @@
  *
  */
 
-#ifndef CONNECTION_METHODS_H
-#define CONNECTION_METHODS_H
+#ifndef CONNECTION_RULES_H
+#define CONNECTION_RULES_H
 
 #include <random>
 
@@ -570,12 +570,12 @@ count_t generate_connections(
     const Mask< CoordT >& mask,
     const NFCollection& functors,
     const count_t connection_counts,
-    const CONNECTION_METHOD method
+    const CONNECTION_RULE method
 )
 {
     switch ( method )
     {
-    case CONNECTION_METHOD::PAIRWISE_BERNOULLI:
+    case CONNECTION_RULE::PAIRWISE_BERNOULLI:
     {
         std::uniform_real_distribution< conn_param_t > dist( 0, 1 );
         return generate_probabilistic_connections<
@@ -586,7 +586,7 @@ count_t generate_connections(
         );
     }
 
-    case CONNECTION_METHOD::PAIRWISE_POISSON:
+    case CONNECTION_RULE::PAIRWISE_POISSON:
     {
         std::poisson_distribution< count_t > dist;
         return generate_probabilistic_connections<
@@ -597,7 +597,7 @@ count_t generate_connections(
         );
     }
 
-    case CONNECTION_METHOD::FIXED_IN_DEGREE:
+    case CONNECTION_RULE::FIXED_IN_DEGREE:
     {
         if ( functors.probability_functor_.is_initialized() )
         {
@@ -617,7 +617,7 @@ count_t generate_connections(
         }
     }
 
-    case CONNECTION_METHOD::FIXED_OUT_DEGREE:
+    case CONNECTION_RULE::FIXED_OUT_DEGREE:
     {
         if ( functors.probability_functor_.is_initialized() )
         {

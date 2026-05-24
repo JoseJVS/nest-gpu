@@ -45,7 +45,7 @@ template < typename RT,
 class AnyRNG_T;
 typedef AnyRNG_T< rng_bits_t, true > AnyRNG;
 
-// Forward definition to connection_methods.h
+// Forward definition to connection_rules.h
 template < typename CoordT, bool allow_self_connections, bool allow_multiplicity >
 count_t generate_connections(
     AnyRNG& rng,
@@ -54,7 +54,7 @@ count_t generate_connections(
     const Mask< CoordT >& mask,
     const NFCollection& functors,
     const count_t connection_counts,
-    const CONNECTION_METHOD method
+    const CONNECTION_RULE method
 );
 
 
@@ -63,7 +63,7 @@ struct ConnectionGenerator
     bool partition_connections_by_source_ = false;
     bool allow_self_connections_ = false;
     bool allow_multiplicity_ = false;
-    CONNECTION_METHOD method_ = CONNECTION_METHOD::NULL_CM;
+    CONNECTION_RULE rule_ = CONNECTION_RULE::NULL_CM;
     count_t connection_counts_ = 0;
     NFCollection numeric_functors_;
 
@@ -90,18 +90,18 @@ inline bool ConnectionGenerator::check_parameters() const
         )
         return false;
 
-    switch ( method_ )
+    switch ( rule_ )
     {
-    case CONNECTION_METHOD::PAIRWISE_BERNOULLI:
+    case CONNECTION_RULE::PAIRWISE_BERNOULLI:
         return numeric_functors_.probability_functor_.is_initialized();
 
-    case CONNECTION_METHOD::PAIRWISE_POISSON:
+    case CONNECTION_RULE::PAIRWISE_POISSON:
         return numeric_functors_.probability_functor_.is_initialized();
 
-    case CONNECTION_METHOD::FIXED_IN_DEGREE:
+    case CONNECTION_RULE::FIXED_IN_DEGREE:
         return 0 < connection_counts_;
 
-    case CONNECTION_METHOD::FIXED_OUT_DEGREE:
+    case CONNECTION_RULE::FIXED_OUT_DEGREE:
         return 0 < connection_counts_;
 
     default:
@@ -112,7 +112,7 @@ inline bool ConnectionGenerator::check_parameters() const
 
 inline bool ConnectionGenerator::sort_by_pool_indexes() const
 {
-    return method_ == CONNECTION_METHOD::FIXED_IN_DEGREE;
+    return rule_ == CONNECTION_RULE::FIXED_IN_DEGREE;
 }
 
 
@@ -139,7 +139,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 2:
@@ -150,7 +150,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 3:
@@ -161,7 +161,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 7:
@@ -172,7 +172,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 6:
@@ -183,7 +183,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 5:
@@ -194,7 +194,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     case 4:
@@ -205,7 +205,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
 
     default:
@@ -216,7 +216,7 @@ count_t ConnectionGenerator::generate_connections(
             mask,
             numeric_functors_,
             connection_counts_,
-            method_
+            rule_
         );
     }
 }

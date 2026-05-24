@@ -999,7 +999,7 @@ _CPS_FIELDS = (
         lambda cs: cs == True or cs == False,
     ),
     ("connection_counts", count_t, lambda: 0, lambda cc: 0 <= cc < (1 << 32)),
-    ("conn_gen_name", CharArray, lambda: "", "connection_methods"),
+    ("rule", CharArray, lambda: "", "connection_rules"),
     ("weight_df_name", CharArray, lambda: "", "displacement_functions"),
     ("weight_df_params", SpaceTArray, lambda: tuple(), None),
     ("weight_ufs_names", NestedCharArray, lambda: tuple(), "unary_functions"),
