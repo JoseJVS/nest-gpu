@@ -3585,7 +3585,7 @@ def insert_positions_in_grid(
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     ll_sapi.check_bool(ret.first_)
-    leftovers = ll_sapi.safe_ptr_deref(ret.third_).to_tupple()
+    leftovers = ll_sapi.safe_ptr_deref(ret.third_).to_tuple()
     free_gc()  # clean C leftover positions
     local_sequence = False
     if 0 <= ret.second_.second_:
