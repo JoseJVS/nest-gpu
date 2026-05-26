@@ -25,6 +25,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <array>
 
 #include "nestgpu.h"
 #include "nestgpu_C.h"
@@ -2518,21 +2519,21 @@ extern "C"
     if ( remote )
       NESTGPU_instance->RemoteConnect(
         source_rank,
-        static_cast< inode_t >( 0 ),
-        conn_vec.bounds_.last_source_index_ + 1,
+        conn_vec.bounds_.first_source_index_,
+        conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
         target_rank,
-        static_cast< inode_t >( 0 ),
-        conn_vec.bounds_.last_target_index_ + 1,
+        conn_vec.bounds_.first_target_index_,
+        conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.first_source_index_ + 1,
         -1,
         ConnSpec_instance,
         SynSpec_instance
       );
     else
       NESTGPU_instance->Connect(
-        static_cast< inode_t >( 0 ),
-        conn_vec.bounds_.last_source_index_ + 1,
-        static_cast< inode_t >( 0 ),
-        conn_vec.bounds_.last_target_index_ + 1,
+        conn_vec.bounds_.first_source_index_,
+        conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
+        conn_vec.bounds_.first_target_index_,
+        conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.first_source_index_ + 1,
         ConnSpec_instance,
         SynSpec_instance
       );
