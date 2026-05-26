@@ -143,16 +143,16 @@ stack_boxes( std::vector< BoundingBox< CoordT > >&& bbs )
     if ( bb_count == 1 )
         return std::move( bbs[ 0 ] );
 
-    auto [min, max] = minmax_coords< CoordT >();
+    auto min_max = minmax_coords< CoordT >();
 
     for ( const auto& bb : bbs )
     {
-        update_min( min, bb.minmax_bounds_.first );
-        update_max( max, bb.minmax_bounds_.second );
+        update_min( min_max.first, bb.minmax_bounds_.first );
+        update_max( min_max.second, bb.minmax_bounds_.second );
     }
 
     return BoundingBox< CoordT >(
-        std::make_pair( min, max ),
+        std::move( min_max ),
         std::move( bbs )
     );
 }

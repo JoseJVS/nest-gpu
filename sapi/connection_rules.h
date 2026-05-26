@@ -186,7 +186,7 @@ count_t compute_minimal_displacement(
 
 
 template < typename CoordT, typename DistributionT, bool allow_self_connections, bool allow_multiplicity >
-count_t generate_probabilistic_connections(
+std::size_t generate_probabilistic_connections(
     AnyRNG& rng,
     DistributionT& dist,
     ProceduralConnectivityBlocks& proc_block,
@@ -201,7 +201,7 @@ count_t generate_probabilistic_connections(
         && 0 < task.total_possible_combinations_
         && functors.probability_functor_.is_initialized() );
 
-    count_t tracked_conn_counts = 0;
+    std::size_t tracked_conn_counts = 0;
     const count_t individual_max_conns = 0 < connection_counts
         ? connection_counts
         : task.total_possible_combinations_;
@@ -252,8 +252,6 @@ count_t generate_probabilistic_connections(
         tracked_conn_counts += individual_max_conns - individual_conn_counts;
         ++block_it;
     }
-
-    assert( 0 <= tracked_conn_counts );
 
     task.possible_combinations_.clear();
 
@@ -470,7 +468,7 @@ void compute_fixed_connections(
 
 
 template < typename CoordT, bool allow_self_connections, bool allow_multiplicity, bool inverted_pivot, bool has_kernel >
-count_t generate_fixed_number_connections(
+std::size_t generate_fixed_number_connections(
     AnyRNG& rng,
     ProceduralConnectivityBlocks& proc_block,
     ConnectionTask< CoordT >& task,
@@ -487,7 +485,7 @@ count_t generate_fixed_number_connections(
     std::deque< ConnectionInfo > possible_connections;
     std::deque< conn_param_t > connection_probabilities;
 
-    count_t tracked_conn_counts = 0;
+    std::size_t tracked_conn_counts = 0;
     proc_block.resize( task.pivot_vector_->size() );
     auto block_it = proc_block.begin();
     for ( const auto& pivot_ptr : *task.pivot_vector_ )
@@ -554,8 +552,6 @@ count_t generate_fixed_number_connections(
         ++block_it;
     }
 
-    assert( 0 <= tracked_conn_counts );
-
     task.possible_combinations_.clear();
 
     return tracked_conn_counts;
@@ -563,7 +559,7 @@ count_t generate_fixed_number_connections(
 
 
 template < typename CoordT, bool allow_self_connections, bool allow_multiplicity >
-count_t generate_connections(
+std::size_t generate_connections(
     AnyRNG& rng,
     ProceduralConnectivityBlocks& proc_block,
     ConnectionTask< CoordT >& task,

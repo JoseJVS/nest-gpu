@@ -30,10 +30,9 @@
 
 namespace sapi
 {
-void ConnectionVectors::prepare_vectors( const count_t size )
+void ConnectionVectors::prepare_vectors( const std::size_t size )
 {
     assert(
-        0 <= size &&
         connection_sources_.empty() &&
         connection_targets_.empty() &&
         connection_weights_.empty() &&
@@ -65,7 +64,7 @@ RankConnectionInfo::build_connection_map() const
     {
         weights = conn_vec.connection_weights_.data();
         delays = conn_vec.connection_delays_.data();
-        for ( count_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
+        for ( std::size_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx )
         {
             std::memcpy( &( weight ), weights + conn_idx, sizeof( conn_param_t ) );
             std::memcpy( &( delay ), delays + conn_idx, sizeof( conn_param_t ) );
@@ -151,7 +150,7 @@ void copy_to_connection_vector(
 
 void ConnectionVectors::copy_from_procedural_connections(
     std::vector< ProceduralConnectivityBlocks >& procedural_connections,
-    const count_t total_procedural_connections,
+    const std::size_t total_procedural_connections,
     const bool inverted_pivot
 )
 {
@@ -202,13 +201,13 @@ void ConnectionVectors::copy_from_procedural_connections(
 
 
 template < bool inverted_pivot >
-std::unordered_map< count_t, std::deque< std::pair< conn_index_t, ConnectionInfo > > >
+std::unordered_map< nodeidx_t, std::deque< std::pair< conn_index_t, ConnectionInfo > > >
 generate_connection_partitions(
     std::vector< ProceduralConnectivityBlocks >& procedural_connections,
-    const count_t total_generated_connections
+    const std::size_t total_generated_connections
 )
 {
-    std::unordered_map< count_t, std::deque< std::pair< conn_index_t, ConnectionInfo > > >
+    std::unordered_map< nodeidx_t, std::deque< std::pair< conn_index_t, ConnectionInfo > > >
         procedural_partitions;
 
     // Heuristic reservation to avoid re-hashing
@@ -218,7 +217,7 @@ generate_connection_partitions(
 
     if constexpr ( inverted_pivot )
     {
-        std::unordered_map< conn_index_t, count_t > indexes;
+        std::unordered_map< conn_index_t, nodeidx_t > indexes;
         for ( auto& proc_bloc : procedural_connections )
         {
             for ( auto& [pivot, connections] : proc_bloc )
@@ -240,7 +239,7 @@ generate_connection_partitions(
         {
             for ( auto& [pivot, connections] : proc_bloc )
             {
-                count_t index = 0;
+                nodeidx_t index = 0;
                 for ( const auto& conn : connections )
                     procedural_partitions[ index++ ].emplace_back( pivot, conn );
 
@@ -261,7 +260,7 @@ template < bool inverted_pivot >
 void consolidate_partitions(
     std::vector< ProceduralConnectivityBlocks >& procedural_connections,
     std::vector< ConnectionVectors >& consolidated_partitions,
-    const count_t total_generated_connections
+    const std::size_t total_generated_connections
 )
 {
     auto procedural_partitions = generate_connection_partitions< inverted_pivot >(
@@ -271,6 +270,7 @@ void consolidate_partitions(
 
     const auto num_threads = get_max_omp_threads();
     const auto total_partitions = procedural_partitions.size();
+    assert( total_partitions < std::numeric_limits< nodeidx_t >::max() );
     consolidated_partitions.resize( total_partitions );
 
 #pragma omp taskloop num_tasks( num_threads ) grainsize( 1 ) default( none )\
@@ -280,11 +280,10 @@ shared( procedural_partitions, consolidated_partitions ) firstprivate( total_par
         auto& procedural_partition = procedural_partitions.at( p_index );
         auto& partition = consolidated_partitions[ p_index ];
 
-        assert( !procedural_partition.empty()
-            && procedural_partition.size() < std::numeric_limits< count_t >::max() );
+        assert( !procedural_partition.empty() );
         partition.prepare_vectors( procedural_partition.size() );
 
-        for ( count_t c_index = 0; c_index < partition.sizes_; ++c_index )
+        for ( std::size_t c_index = 0; c_index < partition.sizes_; ++c_index )
         {
             const auto& index_conn_pair = procedural_partition[ c_index ];
 
@@ -318,7 +317,7 @@ shared( procedural_partitions, consolidated_partitions ) firstprivate( total_par
 
 void RankConnectionInfo::consolidate_connection_map()
 {
-    assert( 0 <= total_generated_connections_ && partitioned_connections_.empty() );
+    assert( partitioned_connections_.empty() );
 
     if ( total_generated_connections_ < 1 )
         return;

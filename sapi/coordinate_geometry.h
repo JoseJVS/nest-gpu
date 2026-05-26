@@ -486,15 +486,15 @@ minmax_vertices(
 {
     assert( 1 < coord_vec.size() );
 
-    auto [min, max] = minmax_coords< CoordT >();
+    auto min_max = minmax_coords< CoordT >();
 
     for ( const auto& coord : coord_vec )
     {
-        update_min( min, coord );
-        update_max( max, coord );
+        update_min( min_max.first, coord );
+        update_max( min_max.second, coord );
     }
 
-    return std::make_pair( min, max );
+    return min_max;
 }
 
 

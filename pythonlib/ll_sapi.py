@@ -290,7 +290,7 @@ class PositionViewStruct(ctypes.Structure):
 class ConnectionViewStruct(ctypes.Structure):
     _fields_ = [
         ("num_partitions_", ctypes.c_size_t),
-        ("partition_sizes_", ctypes.POINTER(count_t)),
+        ("partition_sizes_", ctypes.POINTER(ctypes.c_size_t)),
         ("sources_", ctypes.POINTER(ctypes.POINTER(conn_index_t))),
         ("targets_", ctypes.POINTER(ctypes.POINTER(conn_index_t))),
         ("weights_", ctypes.POINTER(ctypes.POINTER(conn_param_t))),
@@ -320,7 +320,7 @@ class ConnectionViewStruct(ctypes.Structure):
 
         try:
             self.num_partitions_ = num_partitions
-            self.partition_sizes_ = (count_t * num_partitions)()
+            self.partition_sizes_ = (ctypes.c_size_t * num_partitions)()
             self.sources_ = (ctypes.POINTER(conn_index_t) * num_partitions)()
             self.targets_ = (ctypes.POINTER(conn_index_t) * num_partitions)()
             self.weights_ = (ctypes.POINTER(conn_param_t) * num_partitions)()

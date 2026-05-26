@@ -87,7 +87,7 @@ extern "C"
     struct ConnectionViewStruct
     {
         std::size_t num_partitions_ = 0;
-        count_t* partition_sizes_ = nullptr;
+        std::size_t* partition_sizes_ = nullptr;
         const conn_index_t** sources_ = nullptr;
         const conn_index_t** targets_ = nullptr;
         const conn_param_t** weights_ = nullptr;

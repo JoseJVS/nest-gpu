@@ -55,12 +55,14 @@ void add_task(
     const CoordDataVector< CoordT >* const pivot_vector,
     const CoordDataVector< CoordT >* const combination_vector,
     const std::vector< CoordT >* const image_displacements,
-    const std::size_t combination_length,
+    const nodeidx_t combination_length,
     const count_t used_displacements,
     const combined_idx_t pivot_key,
     const combined_idx_t combination_key
 )
 {
+    assert( 0 < combination_length );
+
     const auto [task_it, success] = aggregation_map.try_emplace(
         pivot_key,
         nullptr
@@ -182,9 +184,6 @@ void generate_connection_tasks(
                     // Remote leaf not found -> filtered out during masking
                     if ( remote_filtered_leaf == remote_filtered_tile->second.end() )
                         continue;
-
-                    // If the remote leaf is found then its vector cannot be empty
-                    assert( !remote_filtered_leaf->second.empty() );
 
                     if constexpr ( aggregate_by_local )
                     {

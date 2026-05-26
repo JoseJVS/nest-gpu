@@ -47,7 +47,7 @@ typedef AnyRNG_T< rng_bits_t, true > AnyRNG;
 
 // Forward definition to connection_rules.h
 template < typename CoordT, bool allow_self_connections, bool allow_multiplicity >
-count_t generate_connections(
+std::size_t generate_connections(
     AnyRNG& rng,
     ProceduralConnectivityBlocks& proc_block,
     ConnectionTask< CoordT >& task,
@@ -72,7 +72,7 @@ struct ConnectionGenerator
     bool sort_by_pool_indexes() const;
 
     template < typename CoordT >
-    count_t generate_connections(
+    std::size_t generate_connections(
         AnyRNG& rng,
         ProceduralConnectivityBlocks& proc_block,
         ConnectionTask< CoordT >& task,
@@ -117,7 +117,7 @@ inline bool ConnectionGenerator::sort_by_pool_indexes() const
 
 
 template < typename CoordT >
-count_t ConnectionGenerator::generate_connections(
+std::size_t ConnectionGenerator::generate_connections(
     AnyRNG& rng,
     ProceduralConnectivityBlocks& proc_block,
     ConnectionTask< CoordT >& task,

@@ -108,7 +108,7 @@ inline void ConnectionBounds::update_first_last_target( const conn_index_t index
 
 struct ConnectionVectors
 {
-    count_t sizes_ = 0;
+    std::size_t sizes_ = 0;
     ConnectionBounds bounds_;
 
     std::vector< conn_index_t > connection_sources_;
@@ -124,11 +124,11 @@ struct ConnectionVectors
     ConnectionVectors& operator=( const ConnectionVectors& ) = delete;
     ConnectionVectors& operator=( ConnectionVectors&& ) = delete;
 
-    void prepare_vectors( const count_t size );
+    void prepare_vectors( const std::size_t size );
 
     void copy_from_procedural_connections(
         std::vector< ProceduralConnectivityBlocks >& procedural_connections,
-        const count_t total_procedural_connections,
+        const std::size_t total_procedural_connections,
         const bool inverted_pivot
     );
 };
@@ -138,7 +138,7 @@ struct RankConnectionInfo
 {
     bool sort_by_pool_indexes_ = false;
     bool partition_connections_by_source_ = false;
-    count_t total_generated_connections_ = 0;
+    std::size_t total_generated_connections_ = 0;
 
     std::vector< ProceduralConnectivityBlocks >
         procedural_connections_;
@@ -236,7 +236,7 @@ inline PossibleConnections< CoordT > construct_possible_connections(
 template < typename CoordT >
 struct ConnectionTask
 {
-    count_t total_possible_combinations_ = 0;
+    nodeidx_t total_possible_combinations_ = 0;
     const CoordDataVector< CoordT >* const pivot_vector_;
     // Sorted for reproducibility
     std::map< combined_idx_t, PossibleConnections< CoordT > > possible_combinations_;

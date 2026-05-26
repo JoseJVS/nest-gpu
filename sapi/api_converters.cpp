@@ -151,7 +151,7 @@ void make_view_from_conn_info_map(
 
         auto& cvs = rcv->second_;
         cvs.num_partitions_ = rci.partitioned_connections_.size();
-        cvs.partition_sizes_ = gc.make_collected< count_t >( cvs.num_partitions_ );
+        cvs.partition_sizes_ = gc.make_collected< std::size_t >( cvs.num_partitions_ );
         cvs.sources_ = gc.make_collected< const conn_index_t* >( cvs.num_partitions_ );
         cvs.targets_ = gc.make_collected< const conn_index_t* >( cvs.num_partitions_ );
         cvs.weights_ = gc.make_collected< const conn_param_t* >( cvs.num_partitions_ );
