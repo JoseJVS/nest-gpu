@@ -2684,6 +2684,20 @@ extern "C"
       return nullptr;
   }
 
+  sapi::ConnectionCountsViewStruct* view_connection_counts(
+    std::size_t index
+  )
+  {
+    BEGIN_ERR_PROP
+    {
+      return capi.view_connection_counts(
+          index
+      );
+    }
+      END_ERR_PROP
+      return nullptr;
+  }
+
   sapi::GridViewStruct* view_grid_vertices()
   {
     BEGIN_ERR_PROP

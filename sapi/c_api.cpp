@@ -340,6 +340,27 @@ CAPI::view_spatial_connections(
 }
 
 
+ConnectionCountsViewStruct*
+CAPI::view_connection_counts(
+    const std::size_t index
+)
+{
+    if ( spatial_manager_ == nullptr )
+        throw std::runtime_error( "Spatial grid not initialized yet" );
+
+    auto uptr = std::make_unique< ConnectionCounts >(
+        spatial_manager_->get_connection_counts( index )
+    );
+    const auto ptr = uptr.get();
+    view_gc_.collect( std::move( uptr ) );
+
+    return make_view_from_connection_counts(
+        *ptr,
+        gc_
+    );
+}
+
+
 GridViewStruct*
 CAPI::view_grid_vertices()
 {

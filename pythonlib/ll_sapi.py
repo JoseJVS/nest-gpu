@@ -480,6 +480,139 @@ class ConnectionViewStruct(ctypes.Structure):
         return res
 
 
+class ConnectionCountsViewStruct(ctypes.Structure):
+    _fields_ = [
+        ("incoming_ranks_", ctypes.c_size_t),
+        ("outgoing_ranks_", ctypes.c_size_t),
+        ("source_ranks_", ctypes.POINTER(vp_t)),
+        ("incoming_counts_", ctypes.POINTER(ctypes.c_size_t)),
+        ("target_ranks_", ctypes.POINTER(vp_t)),
+        ("outgoing_counts_", ctypes.POINTER(ctypes.c_size_t)),
+    ]
+
+    def from_tuple(
+        self,
+        t: typing.Tuple[
+            typing.Tuple[typing.Sequence[int], typing.Sequence[int]],
+            typing.Tuple[typing.Sequence[int], typing.Sequence[int]],
+        ],
+    ) -> None:
+        if len(t) != 2 or len(t[0]) != 2 or len(t[1]) != 2:
+            raise ValueError("Invalid connection count tuple")
+
+        incoming_ranks = len(t[0][0])
+        outgoing_ranks = len(t[1][0])
+        if len(t[0][1]) != incoming_ranks or len(t[1][1]) != outgoing_ranks:
+            raise ValueError("Invalid connection count tuple")
+
+        if 0 < incoming_ranks:
+            try:
+                self.incoming_ranks_ = incoming_ranks
+                self.source_ranks_ = (vp_t * incoming_ranks)()
+                self.incoming_counts_ = (ctypes.c_size_t * incoming_ranks)()
+                for i, rank in enumerate(t[0][0]):
+                    self.source_ranks_[i] = rank
+                    self.incoming_counts_[i] = t[0][1][i]
+
+            except Exception as e:
+                self.incoming_ranks_ = 0
+                self.source_ranks_ = None
+                self.incoming_counts_ = None
+                raise e
+        else:
+            self.incoming_ranks_ = 0
+            self.source_ranks_ = None
+            self.incoming_counts_ = None
+
+        if 0 < outgoing_ranks:
+            try:
+                self.outgoing_ranks_ = outgoing_ranks
+                self.target_ranks_ = (vp_t * outgoing_ranks)()
+                self.outgoing_counts_ = (ctypes.c_size_t * outgoing_ranks)()
+                for i, rank in enumerate(t[1][0]):
+                    self.target_ranks_[i] = rank
+                    self.outgoing_counts_[i] = t[1][1][i]
+
+            except Exception as e:
+                self.outgoing_ranks_ = 0
+                self.target_ranks_ = None
+                self.outgoing_counts_ = None
+                raise e
+        else:
+            self.outgoing_ranks_ = 0
+            self.target_ranks_ = None
+            self.outgoing_counts_ = None
+
+    def to_tuple(self) -> typing.Tuple[
+        typing.Tuple[typing.List[int], typing.List[int]],
+        typing.Tuple[typing.List[int], typing.List[int]],
+    ]:
+        res = (([], []), ([], []))
+
+        if 0 < self.incoming_ranks_:
+            if not (bool(self.source_ranks_) and bool(self.incoming_counts_)):
+                raise ValueError("Corrupted connection count view")
+
+            for i in range(self.incoming_ranks_):
+                res[0][0].append(self.source_ranks_[i])
+                res[0][1].append(self.incoming_counts_[i])
+
+        elif bool(self.source_ranks_) or bool(self.incoming_counts_):
+            raise ValueError("Corrupted connection count view")
+
+        if 0 < self.outgoing_ranks_:
+            if not (bool(self.target_ranks_) and bool(self.outgoing_counts_)):
+                raise ValueError("Corrupted connection count view")
+
+            for i in range(self.outgoing_ranks_):
+                res[1][0].append(self.target_ranks_[i])
+                res[1][1].append(self.outgoing_counts_[i])
+
+        elif bool(self.target_ranks_) or bool(self.outgoing_counts_):
+            raise ValueError("Corrupted connection count view")
+
+        return res
+
+    def to_np_data(self) -> typing.Tuple[tuple, tuple]:
+        if NP is None:
+            raise RuntimeError("Cannot create connection views without Numpy")
+
+        source_ranks = NP.empty(0)
+        incoming_counts = NP.empty(0)
+        target_ranks = NP.empty(0)
+        outgoing_counts = NP.empty(0)
+
+        if 0 < self.incoming_ranks_:
+            if not (bool(self.source_ranks_) and bool(self.incoming_counts_)):
+                raise ValueError("Corrupted connection count view")
+
+            source_ranks = NP.ctypeslib.as_array(
+                self.source_ranks_, (self.incoming_ranks_,)
+            )
+            incoming_counts = NP.ctypeslib.as_array(
+                self.incoming_counts_, (self.incoming_ranks_,)
+            )
+
+        elif bool(self.source_ranks_) or bool(self.incoming_counts_):
+            raise ValueError("Corrupted connection count view")
+
+        if 0 < self.outgoing_ranks_:
+            if not (bool(self.target_ranks_) and bool(self.outgoing_counts_)):
+                raise ValueError("Corrupted connection count view")
+
+            target_ranks = NP.ctypeslib.as_array(
+                self.target_ranks_, (self.outgoing_ranks_,)
+            )
+            outgoing_counts = NP.ctypeslib.as_array(
+                self.outgoing_counts_, (self.outgoing_ranks_,)
+            )
+
+        elif bool(self.target_ranks_) or bool(self.outgoing_counts_):
+            raise ValueError("Corrupted connection count view")
+
+        return ((source_ranks, incoming_counts), (target_ranks, outgoing_counts))
+
+
 class GridViewStruct(ctypes.Structure):
     _fields_ = [
         ("dimensions_", dim_t),
@@ -926,7 +1059,7 @@ _GPS_FIELDS = (
         "compute_splits",
         ctypes.c_bool,
         lambda: False,
-        lambda cs: cs == True or cs == False,
+        lambda cs: 0 <= cs <= 1,
     ),
     ("num_splits", split_t, lambda: 0, lambda ns: 0 <= ns < (1 << 8)),
     ("expected_total_nodes", nix_t, lambda: 0, lambda etn: 0 <= etn < (1 << 32)),
@@ -978,25 +1111,25 @@ _CPS_FIELDS = (
         "only_neighborhood",
         ctypes.c_bool,
         lambda: False,
-        lambda cs: cs == True or cs == False,
+        lambda cs: 0 <= cs <= 1,
     ),
     (
         "allow_multiplicity",
         ctypes.c_bool,
         lambda: False,
-        lambda cs: cs == True or cs == False,
+        lambda cs: 0 <= cs <= 1,
     ),
     (
         "allow_self_connections",
         ctypes.c_bool,
         lambda: False,
-        lambda cs: cs == True or cs == False,
+        lambda cs: 0 <= cs <= 1,
     ),
     (
-        "partition_connections_by_source",
+        "partition_connections",
         ctypes.c_bool,
         lambda: False,
-        lambda cs: cs == True or cs == False,
+        lambda cs: 0 <= cs <= 1,
     ),
     ("connection_counts", count_t, lambda: 0, lambda cc: 0 <= cc < (1 << 32)),
     ("rule", CharArray, lambda: "", "connection_rules"),

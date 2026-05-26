@@ -137,7 +137,7 @@ struct ConnectionVectors
 struct RankConnectionInfo
 {
     bool sort_by_pool_indexes_ = false;
-    bool partition_connections_by_source_ = false;
+    bool partition_connections_ = false;
     std::size_t total_generated_connections_ = 0;
 
     std::vector< ProceduralConnectivityBlocks >

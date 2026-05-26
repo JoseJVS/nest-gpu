@@ -57,6 +57,18 @@ struct GridVertexMap
 };
 
 
+// This map is used to export connection counts
+struct ConnectionCounts
+{
+    std::size_t incoming_ranks_ = 0;
+    std::size_t outgoing_ranks_ = 0;
+    std::vector< vp_t > source_ranks_;
+    std::vector< std::size_t > incoming_counts_;
+    std::vector< vp_t > target_ranks_;
+    std::vector< std::size_t > outgoing_counts_;
+};
+
+
 // ----- Input parameters -----
 struct GridParameters
 {
@@ -101,7 +113,7 @@ struct ConnectionParameters
     bool only_neighborhood_ = false;
     bool allow_multiplicity_ = false;
     bool allow_self_connections_ = false;
-    bool partition_connections_by_source_ = false;
+    bool partition_connections_ = false;
     count_t connection_counts_ = 0;
 
     // Connection generation

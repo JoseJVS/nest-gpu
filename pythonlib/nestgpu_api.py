@@ -3381,6 +3381,11 @@ _nestgpu.view_spatial_connections.restype = ctypes.POINTER(
     ll_sapi.RemoteConnectionViewPair
 )
 
+_nestgpu.view_connection_counts.argtypes = (ctypes.c_size_t,)
+_nestgpu.view_connection_counts.restype = ctypes.POINTER(
+    ll_sapi.ConnectionCountsViewStruct
+)
+
 _nestgpu.view_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridViewStruct)
 
 _nestgpu.get_distributed_node_sequences.argtypes = (ctypes.c_size_t,)
@@ -3730,6 +3735,39 @@ def view_spatial_connections(conn_index: int) -> typing.Tuple[
     )
     free_gc()
     return res
+
+
+def get_connection_counts(conn_index: int) -> typing.Tuple[
+    typing.Tuple[typing.List[int], typing.List[int]],
+    typing.Tuple[typing.List[int], typing.List[int]],
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_connection_counts(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret).to_tuple()
+    free_gc()
+    free_view_gc()
+    return pair
+
+
+def view_connection_counts(conn_index: int) -> typing.Tuple[
+    tuple,
+    tuple,
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_connection_counts(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret).to_np_data()
+    free_gc()
+    return pair
 
 
 def get_grid_vertices() -> typing.List[

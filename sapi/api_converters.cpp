@@ -174,6 +174,33 @@ void make_view_from_conn_info_map(
 }
 
 
+void make_view_from_connection_counts(
+    ConnectionCountsViewStruct& cc_view,
+    const ConnectionCounts& cc
+)
+{
+    if ( cc.incoming_ranks_ != cc.source_ranks_.size()
+        || cc.incoming_ranks_ != cc.incoming_counts_.size()
+        || cc.outgoing_ranks_ != cc.target_ranks_.size()
+        || cc.outgoing_ranks_ != cc.outgoing_counts_.size() )
+        throw std::invalid_argument( "Invalid connection counts map" );
+
+    if ( 0 < cc.incoming_ranks_ )
+    {
+        cc_view.incoming_ranks_ = cc.incoming_ranks_;
+        cc_view.source_ranks_ = cc.source_ranks_.data();
+        cc_view.incoming_counts_ = cc.incoming_counts_.data();
+    }
+
+    if ( 0 < cc.outgoing_ranks_ )
+    {
+        cc_view.outgoing_ranks_ = cc.outgoing_ranks_;
+        cc_view.target_ranks_ = cc.target_ranks_.data();
+        cc_view.outgoing_counts_ = cc.outgoing_counts_.data();
+    }
+}
+
+
 void copy_to_tns_pair_array_from_dist_tns_map(
     TiledNodeSequencePairArray& cdtns,
     const DistributedTiledNodeSequenceMap& dtns,
@@ -352,7 +379,7 @@ ConnectionParameters cpstruct_to_conn_params(
     cp.only_neighborhood_ = cps.only_neighborhood_;
     cp.allow_multiplicity_ = cps.allow_multiplicity_;
     cp.allow_self_connections_ = cps.allow_self_connections_;
-    cp.partition_connections_by_source_ = cps.partition_connections_by_source_;
+    cp.partition_connections_ = cps.partition_connections_;
     cp.connection_counts_ = cps.connection_counts_;
 
     cp.rule_ = charray_to_string( cps.rule_ );

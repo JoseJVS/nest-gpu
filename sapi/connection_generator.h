@@ -60,7 +60,7 @@ std::size_t generate_connections(
 
 struct ConnectionGenerator
 {
-    bool partition_connections_by_source_ = false;
+    bool partition_connections_ = false;
     bool allow_self_connections_ = false;
     bool allow_multiplicity_ = false;
     CONNECTION_RULE rule_ = CONNECTION_RULE::NULL_CM;

@@ -481,6 +481,10 @@ extern "C"
     std::size_t index
   );
 
+  sapi::ConnectionCountsViewStruct* view_connection_counts(
+    std::size_t index
+  );
+
   sapi::GridViewStruct* view_grid_vertices();
 
   sapi::TiledNodeSequencePairArray* get_distributed_node_sequences(

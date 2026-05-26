@@ -110,6 +110,11 @@ struct CAPI
             const std::size_t index
         );
 
+    ConnectionCountsViewStruct*
+        view_connection_counts(
+            const std::size_t index
+        );
+
     GridViewStruct* view_grid_vertices();
 
     TiledNodeSequencePairArray*

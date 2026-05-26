@@ -324,7 +324,7 @@ void RankConnectionInfo::consolidate_connection_map()
 
     assert( !procedural_connections_.empty() );
 
-    if ( partition_connections_by_source_ )
+    if ( partition_connections_ )
     {
         if ( sort_by_pool_indexes_ )
             consolidate_partitions< true >(

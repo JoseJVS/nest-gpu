@@ -330,6 +330,24 @@ make_view_from_distributed_connection_info(
 }
 
 
+void make_view_from_connection_counts(
+    ConnectionCountsViewStruct& cc_view,
+    const ConnectionCounts& cc
+);
+
+
+inline ConnectionCountsViewStruct*
+make_view_from_connection_counts(
+    const ConnectionCounts& cc,
+    GC& gc
+)
+{
+    const auto cc_view = gc.make_collected< ConnectionCountsViewStruct >();
+    make_view_from_connection_counts( *cc_view, cc );
+    return cc_view;
+}
+
+
 void make_view_from_grid_vertex_map(
     GridViewStruct& cgrid_vertices,
     const GridVertexMap& grid_vertices

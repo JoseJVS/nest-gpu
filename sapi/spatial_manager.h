@@ -54,10 +54,7 @@ public:
     BaseSpatialManager( BaseSpatialManager&& ) noexcept = default;
     virtual ~BaseSpatialManager() noexcept = default;
 
-    BaseSpatialManager( const vp_t local_rank, const vp_t num_processes ) noexcept
-        : random_manager_( local_rank, num_processes )
-        , grid_neighborhood_( local_rank, num_processes )
-    {}
+    BaseSpatialManager( const vp_t local_rank, const vp_t num_processes ) noexcept;
 
     BaseSpatialManager& operator=( const BaseSpatialManager& ) = delete;
     BaseSpatialManager& operator=( BaseSpatialManager&& ) = delete;
@@ -75,6 +72,11 @@ public:
         get_connection_map(
             const std::size_t index
         ) const;
+
+    ConnectionCounts
+        get_connection_counts(
+            const std::size_t index
+        );
 
     RecordedTimes get_timer_data() const;
 
@@ -684,7 +686,7 @@ void SpatialManager< CoordT >::_initialize_connection_parameters(
         connection_parameters.rule_
     )->create();
     cg.connection_counts_ = connection_parameters.connection_counts_;
-    cg.partition_connections_by_source_ = connection_parameters.partition_connections_by_source_;
+    cg.partition_connections_ = connection_parameters.partition_connections_;
     cg.allow_self_connections_ = connection_parameters.allow_self_connections_;
     cg.allow_multiplicity_ = connection_parameters.allow_multiplicity_;
 

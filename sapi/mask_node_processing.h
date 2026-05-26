@@ -258,7 +258,7 @@ void compute_displacement_checks_across_tile_pairs(
 
     const auto local_cg = cg_array.get_local_thread_item();
     rci.sort_by_pool_indexes_ = local_cg->sort_by_pool_indexes();
-    rci.partition_connections_by_source_ = local_cg->partition_connections_by_source_;
+    rci.partition_connections_ = local_cg->partition_connections_;
 
     TaskQueue< CoordT > task_queue;
     if ( inverted_source_target == rci.sort_by_pool_indexes_ )

@@ -94,6 +94,16 @@ extern "C"
         const conn_param_t** delays_ = nullptr;
     };
 
+    struct ConnectionCountsViewStruct
+    {
+        std::size_t incoming_ranks_ = 0;
+        std::size_t outgoing_ranks_ = 0;
+        const vp_t* source_ranks_;
+        const std::size_t* incoming_counts_;
+        const vp_t* target_ranks_;
+        const std::size_t* outgoing_counts_;
+    };
+
     struct GridViewStruct
     {
         dim_t dimensions_ = 0;
@@ -173,7 +183,7 @@ extern "C"
         bool only_neighborhood_ = false;
         bool allow_multiplicity_ = false;
         bool allow_self_connections_ = false;
-        bool partition_connections_by_source_ = false;
+        bool partition_connections_ = false;
         count_t connection_counts_ = 0;
 
         // Connection method

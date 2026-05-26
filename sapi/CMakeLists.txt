@@ -97,6 +97,7 @@ spatial_containers.h
 mask_tile_processing.h
 api_converters.cpp
 c_api.h
+spatial_manager.cpp
 )
 
 add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
