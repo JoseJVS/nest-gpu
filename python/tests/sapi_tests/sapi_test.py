@@ -36,10 +36,10 @@ def no_space_main() -> None:
 
     if 1 < num_processes:
         for i in range(num_processes):
-            nodes.append(nestgpu.RemoteCreate(i, "iaf_psc_exp", 3).node_seq)
+            nodes.append(nestgpu.RemoteCreate(i, "iaf_psc_exp", 100).node_seq)
         local_ns = nodes[local_rank]
     else:
-        local_ns = nestgpu.Create("iaf_psc_exp", 3)
+        local_ns = nestgpu.Create("iaf_psc_exp", 100)
 
     if 1 < num_processes:
         for i in range(num_processes):
@@ -49,14 +49,14 @@ def no_space_main() -> None:
                     nodes[i],
                     j,
                     nodes[j],
-                    {"rule": "one_to_one"},
+                    {"rule": "fixed_indegree", "indegree": 10},
                     {"weight": 1, "delay": 1},
                 )
     else:
         nestgpu.Connect(
             local_ns,
             local_ns,
-            {"rule": "one_to_one"},
+            {"rule": "fixed_indegree", "indegree": 10},
             {"weight": 1, "delay": 1},
         )
 
@@ -65,6 +65,7 @@ def no_space_main() -> None:
     conn_list = nestgpu.GetConnections(local_ns, local_ns)
     conn_status = nestgpu.GetConnectionStatus(conn_list)
     print(json.dumps(conn_status, indent=4))
+    print(len(conn_status))
 
 
 def main() -> None:
@@ -73,7 +74,7 @@ def main() -> None:
 
     local_rank = nestgpu.HostId()
     num_processes = nestgpu.HostNum()
-    total_nodes = 3 * num_processes
+    total_nodes = 10 * num_processes
 
     LOG.info("RANK %i: tile grid", local_rank)
     nestgpu.generate_tile_grid(
@@ -88,7 +89,7 @@ def main() -> None:
 
     LOG.info("RANK %i: generating %i nodes in grid", local_rank, total_nodes)
     sp_ns = nestgpu.generate_nodes_in_grid(
-        "iaf_psc_alpha", total_nodes, grid_distribution_mode="balanced"
+        "iaf_psc_exp", total_nodes, grid_distribution_mode="balanced"
     )
 
     LOG.info("RANK %i: computing spatial connections", local_rank)
@@ -97,7 +98,7 @@ def main() -> None:
         sp_ns,
         {
             "mask_blueprint_name": "circular",
-            "mask_blueprint_params": (1,),
+            "mask_blueprint_params": (0.1,),
         },
         {
             "edge_wrap": True,
@@ -106,14 +107,13 @@ def main() -> None:
             "allow_multiplicity": False,
             "partition_connections": True,
             "rule": "pairwise_bernoulli",
-            "weight_df_name": "distance",
-            "weight_ufs_names": ["lower_bound", "inverse"],
-            "weight_ufs_params": [[0.0001, 0.0001], []],
+            "weight_df_name": "constant",
+            "weight_df_params": [42],
             "delay_df_name": "distance",
             "delay_ufs_names": ["offset"],
-            "delay_ufs_params": [[0.1]],
+            "delay_ufs_params": [[42]],
             "prob_df_name": "constant",
-            "prob_df_params": [1.0],
+            "prob_df_params": [0.2],
         },
     )
 
@@ -157,7 +157,9 @@ def main() -> None:
                 source_map = gpu_conn_map[source] = {}
                 source_map[target] = (weight, delay)
 
-        assert len(spatial_conn_map) == len(gpu_conn_map)
+        assert len(spatial_conn_map) == len(
+            gpu_conn_map
+        ), f"sapi: {len(spatial_conn_map)}, gpu: {len(gpu_conn_map)}"
 
         for source, target_map in gpu_conn_map.items():
             assert source in spatial_conn_map
