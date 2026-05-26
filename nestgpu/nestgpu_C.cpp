@@ -2496,53 +2496,23 @@ extern "C"
     const int target_rank,
     sapi::ConnectionVectors& conn_vec,
     const bool remote,
-    const bool remote_source,
-    const bool partitioned_connections
+    const bool remote_source
   )
   {
     if ( conn_vec.sizes_ < 1 )
       return;
 
-    if ( partitioned_connections )
-    {
-      if ( std::numeric_limits< int >::max() < conn_vec.sizes_ )
-        throw std::runtime_error( "Too many connection in partition to copy" );
+    if ( std::numeric_limits< int >::max() <= conn_vec.sizes_ )
+      throw std::runtime_error( "Too many connections generated for single partition" );
 
-      ConnSpec_instance.rule_ = ConnectionRules::ONE_TO_ONE;
-      ConnSpec_instance.use_all_remote_source_nodes_ = true;
-      ConnSpec_instance.total_num_ = static_cast< int >( conn_vec.sizes_ );
-      SynSpec_instance.delay_distr_ = 1;
-      SynSpec_instance.weight_distr_ = 1;
-      SynSpec_instance.weight_h_array_pt_ = conn_vec.connection_weights_.data();
-      SynSpec_instance.delay_h_array_pt_ = conn_vec.connection_delays_.data();
+    ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_CONNECTIONS;
+    ConnSpec_instance.use_all_remote_source_nodes_ = false;
+    ConnSpec_instance.total_num_ = conn_vec.sizes_;
 
-      if ( remote )
-        NESTGPU_instance->RemoteConnect(
-          source_rank,
-          conn_vec.connection_sources_.data(),
-          static_cast< inode_t >( conn_vec.sizes_ ),
-          target_rank,
-          conn_vec.connection_targets_.data(),
-          static_cast< inode_t >( conn_vec.sizes_ ),
-          -1,
-          ConnSpec_instance,
-          SynSpec_instance
-        );
-      else
-        NESTGPU_instance->Connect(
-          conn_vec.connection_sources_.data(),
-          static_cast< inode_t >( conn_vec.sizes_ ),
-          conn_vec.connection_targets_.data(),
-          static_cast< inode_t >( conn_vec.sizes_ ),
-          ConnSpec_instance,
-          SynSpec_instance
-        );
-    }
-    else
+    if ( remote )
     {
-      ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_CONNECTIONS;
-      ConnSpec_instance.use_all_remote_source_nodes_ = false;
-      ConnSpec_instance.total_num_ = conn_vec.sizes_;
+      for ( auto& source : conn_vec.connection_sources_ )
+        source -= conn_vec.bounds_.first_source_index_;
 
       NESTGPU_instance->manual_assign_connections(
         conn_vec.connection_sources_.data(),
@@ -2554,27 +2524,41 @@ extern "C"
         SynSpec_instance
       );
 
-      if ( remote )
-        NESTGPU_instance->RemoteConnect(
-          source_rank,
-          conn_vec.bounds_.first_source_index_,
-          conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
-          target_rank,
-          conn_vec.bounds_.first_target_index_,
-          conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.first_source_index_ + 1,
-          -1,
-          ConnSpec_instance,
-          SynSpec_instance
-        );
-      else
-        NESTGPU_instance->Connect(
-          conn_vec.bounds_.first_source_index_,
-          conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
-          conn_vec.bounds_.first_target_index_,
-          conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.first_source_index_ + 1,
-          ConnSpec_instance,
-          SynSpec_instance
-        );
+      for ( auto& source : conn_vec.connection_sources_ )
+        source += conn_vec.bounds_.first_source_index_;
+
+      NESTGPU_instance->RemoteConnect(
+        source_rank,
+        conn_vec.bounds_.first_source_index_,
+        conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
+        target_rank,
+        conn_vec.bounds_.first_target_index_,
+        conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.last_target_index_ + 1,
+        -1,
+        ConnSpec_instance,
+        SynSpec_instance
+      );
+    }
+    else
+    {
+      NESTGPU_instance->manual_assign_connections(
+        conn_vec.connection_sources_.data(),
+        conn_vec.connection_targets_.data(),
+        conn_vec.connection_weights_.data(),
+        conn_vec.connection_delays_.data(),
+        conn_vec.sizes_,
+        false,
+        SynSpec_instance
+      );
+
+      NESTGPU_instance->Connect(
+        conn_vec.bounds_.first_source_index_,
+        conn_vec.bounds_.last_source_index_ - conn_vec.bounds_.first_source_index_ + 1,
+        conn_vec.bounds_.first_target_index_,
+        conn_vec.bounds_.last_target_index_ - conn_vec.bounds_.last_target_index_ + 1,
+        ConnSpec_instance,
+        SynSpec_instance
+      );
     }
   }
 
@@ -2666,7 +2650,7 @@ extern "C"
           {
             const auto is_remote = remote_rank != local_rank;
             for ( auto& conn_vec : rank_connection_info.partitioned_connections_ )
-              create_spatial_connections( static_cast< int >( remote_rank ), local_rank, conn_vec, is_remote, false, rank_connection_info.partition_connections_ );
+              create_spatial_connections( static_cast< int >( remote_rank ), local_rank, conn_vec, is_remote, false );
           }
         }
 
@@ -2676,7 +2660,7 @@ extern "C"
           {
             const auto is_remote = remote_rank != local_rank;
             for ( auto& conn_vec : rank_connection_info.partitioned_connections_ )
-              create_spatial_connections( local_rank, static_cast< int >( remote_rank ), conn_vec, is_remote, is_remote, rank_connection_info.partition_connections_ );
+              create_spatial_connections( local_rank, static_cast< int >( remote_rank ), conn_vec, is_remote, is_remote );
           }
         }
       }
