@@ -14,6 +14,7 @@ from mpi4py import MPI
 import nestgpu
 
 parser = ArgumentParser()
+parser.add_argument("--no_space", action="store_true")
 parser.add_argument("--rng_seed", type=int, default=12345)
 parser.add_argument("--verbosity", type=int, default=20)
 args = parser.parse_args()
@@ -23,6 +24,47 @@ def update_verbosity():
     stdout = logging.StreamHandler(sys.stdout)
     stdout.setFormatter(logging.Formatter("%(levelname)s:\n%(message)s"))
     logging.basicConfig(level=args.verbosity, handlers=(stdout,))
+
+
+def no_space_main() -> None:
+    nestgpu.SetKernelStatus({"rnd_seed": args.rng_seed, "check_node_maps": True})
+
+    local_rank = nestgpu.HostId()
+    num_processes = nestgpu.HostNum()
+    local_ns = None
+    nodes = []
+
+    if 1 < num_processes:
+        for i in range(num_processes):
+            nodes.append(nestgpu.RemoteCreate(i, "iaf_psc_exp", 3).node_seq)
+        local_ns = nodes[local_rank]
+    else:
+        local_ns = nestgpu.Create("iaf_psc_exp", 3)
+
+    if 1 < num_processes:
+        for i in range(num_processes):
+            for j in range(num_processes):
+                nestgpu.RemoteConnect(
+                    i,
+                    nodes[i],
+                    j,
+                    nodes[j],
+                    {"rule": "one_to_one"},
+                    {"weight": 1, "delay": 1},
+                )
+    else:
+        nestgpu.Connect(
+            local_ns,
+            local_ns,
+            {"rule": "one_to_one"},
+            {"weight": 1, "delay": 1},
+        )
+
+    nestgpu.Calibrate()
+
+    conn_list = nestgpu.GetConnections(local_ns, local_ns)
+    conn_status = nestgpu.GetConnectionStatus(conn_list)
+    print(json.dumps(conn_status, indent=4))
 
 
 def main() -> None:
@@ -62,7 +104,7 @@ def main() -> None:
             "only_neighborhood": False,
             "allow_self_connections": False,
             "allow_multiplicity": False,
-            "partition_connections_by_source": False,
+            "partition_connections": True,
             "rule": "pairwise_bernoulli",
             "weight_df_name": "distance",
             "weight_ufs_names": ["lower_bound", "inverse"],
@@ -135,7 +177,10 @@ if __name__ == "__main__":
     update_verbosity()
     try:
         nestgpu.ConnectMpiInit()
-        main()
+        if args.no_space:
+            no_space_main()
+        else:
+            main()
         nestgpu.MpiFinalize()
     except Exception:
         LOG.critical(format_exc())
