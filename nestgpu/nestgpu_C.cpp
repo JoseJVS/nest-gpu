@@ -2589,7 +2589,7 @@ extern "C"
                 const auto one_after_last_remote = first_remote + rank_ns->second;
                 for ( const auto& conn_vec : conn_map.partitioned_connections_ )
                 {
-                  for ( sapi::count_t idx = 0; idx < conn_vec.sizes_; ++idx )
+                  for ( std::size_t idx = 0; idx < conn_vec.sizes_; ++idx )
                   {
                     const auto source = static_cast< sapi::nodeidx_t >( conn_vec.connection_sources_[ idx ] );
                     const auto target = static_cast< sapi::nodeidx_t >( conn_vec.connection_targets_[ idx ] );
