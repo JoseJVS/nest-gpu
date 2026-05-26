@@ -475,7 +475,7 @@ public:
     inode_t* targets,
     float* weights,
     float* delays,
-    int count,
+    uint64_t count,
     bool remote_source_flag,
     SynSpec& syn_spec
   ) = 0;
@@ -1407,7 +1407,7 @@ public:
     inode_t* targets,
     float* weights,
     float* delays,
-    int count,
+    uint64_t count,
     bool remote_source_flag,
     SynSpec& syn_spec
   );
@@ -3494,7 +3494,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::_Connect( curandGenerator_t& gen,
     break;
   case ASSIGNED_CONNECTIONS:
     conn_spec.use_all_remote_source_nodes_ = false;
-    n_conn_ += conn_spec.total_num_;
+    n_conn_ += conn_spec.assigned_connections_;
     break;
   default:
     throw ngpu_exception( "Unknown connection rule" );
@@ -4075,7 +4075,7 @@ ConnectionTemplate< ConnKeyT, ConnStructT >::manual_assign_connections(
   inode_t* targets,
   float* weights,
   float* delays,
-  int count,
+  uint64_t count,
   bool remote_source_flag,
   SynSpec& syn_spec
 )

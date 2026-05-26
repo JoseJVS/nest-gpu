@@ -2502,12 +2502,9 @@ extern "C"
     if ( conn_vec.sizes_ < 1 )
       return;
 
-    if ( std::numeric_limits< int >::max() <= conn_vec.sizes_ )
-      throw std::runtime_error( "Too many connections generated for single partition" );
-
     ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_CONNECTIONS;
     ConnSpec_instance.use_all_remote_source_nodes_ = false;
-    ConnSpec_instance.total_num_ = conn_vec.sizes_;
+    ConnSpec_instance.assigned_connections_ = conn_vec.sizes_;
 
     if ( remote )
     {

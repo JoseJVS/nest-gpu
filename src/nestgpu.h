@@ -1023,7 +1023,7 @@ public:
     inode_t* targets,
     float* weights,
     float* delays,
-    int count,
+    uint64_t count,
     bool remote_source_flag,
     SynSpec& syn_spec
   );

@@ -72,6 +72,7 @@ public:
   int indegree_;
   int outdegree_;
   bool use_all_remote_source_nodes_;
+  uint64_t assigned_connections_;
 
   ConnSpec();
   ConnSpec( int rule, int degree = 0 );
