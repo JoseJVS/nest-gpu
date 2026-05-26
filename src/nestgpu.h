@@ -1023,7 +1023,7 @@ public:
     inode_t* targets,
     float* weights,
     float* delays,
-    std::size_t count,
+    int count,
     bool remote_source_flag,
     SynSpec& syn_spec
   );
