@@ -2666,6 +2666,7 @@ extern "C"
       }
       catch ( const std::exception& e )
       {
+        std::cerr << e.what() << "\n";
         capi.clear_spatial_connections(
           conn_index
         );
