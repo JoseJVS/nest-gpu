@@ -3370,7 +3370,7 @@ _nestgpu.compute_spatial_connections.argtypes = (
 )
 _nestgpu.compute_spatial_connections.restype = ll_sapi.OptionalIndex
 
-_nestgpu.view_nodes.argtypes = (
+_nestgpu.view_node_positions.argtypes = (
     ll_sapi.OptionalIndex,
     ctypes.POINTER(ll_sapi.MPStruct),
 )
