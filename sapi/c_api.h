@@ -100,7 +100,7 @@ struct CAPI
             const CPStruct& connection_parameters
         );
 
-    NodesViewStruct* view_nodes(
+    NodesViewStruct* view_node_positions(
         const OptionalIndex& index,
         const MPStruct& mask_parameters
     );

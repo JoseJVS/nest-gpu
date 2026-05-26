@@ -472,7 +472,7 @@ extern "C"
     const sapi::CPStruct& connection_parameters
   );
 
-  sapi::NodesViewStruct* view_nodes(
+  sapi::NodesViewStruct* view_node_positions(
     sapi::OptionalIndex index,
     const sapi::MPStruct& mask_parameters
   );

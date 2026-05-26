@@ -2681,14 +2681,14 @@ extern "C"
     return opt;
   }
 
-  sapi::NodesViewStruct* view_nodes(
+  sapi::NodesViewStruct* view_node_positions(
     sapi::OptionalIndex index,
     const sapi::MPStruct& mask_parameters
   )
   {
     BEGIN_ERR_PROP
     {
-      return capi.view_nodes( index, mask_parameters );
+      return capi.view_node_positions( index, mask_parameters );
     }
       END_ERR_PROP
       return nullptr;

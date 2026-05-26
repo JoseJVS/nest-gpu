@@ -297,7 +297,7 @@ CAPI::compute_spatial_connections(
 
 
 NodesViewStruct*
-CAPI::view_nodes(
+CAPI::view_node_positions(
     const OptionalIndex& index,
     const MPStruct& mask_parameters
 )

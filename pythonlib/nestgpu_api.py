@@ -3374,7 +3374,7 @@ _nestgpu.view_nodes.argtypes = (
     ll_sapi.OptionalIndex,
     ctypes.POINTER(ll_sapi.MPStruct),
 )
-_nestgpu.view_nodes.restype = ctypes.POINTER(ll_sapi.NodesViewStruct)
+_nestgpu.view_node_positions.restype = ctypes.POINTER(ll_sapi.NodesViewStruct)
 
 _nestgpu.view_spatial_connections.argtypes = (ctypes.c_size_t,)
 _nestgpu.view_spatial_connections.restype = ctypes.POINTER(
@@ -3641,7 +3641,7 @@ def compute_spatial_connections(
     return ll_sapi.check_optional(ret)
 
 
-def get_positions(
+def get_node_positions(
     sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
 ) -> typing.Tuple[
     typing.List[int],
@@ -3661,7 +3661,7 @@ def get_positions(
     return res
 
 
-def view_positions(
+def view_node_positions(
     sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
 ) -> tuple:
     c_opt = ll_sapi.OptionalIndex()
