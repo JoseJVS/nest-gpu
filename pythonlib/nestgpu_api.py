@@ -3654,7 +3654,7 @@ def get_node_positions(
     mps = ll_sapi.MPStruct()
     if mask_params is not None:
         mps.from_dict(mask_params, _PARAMS)
-    ret = _nestgpu.view_nodes(c_opt, ctypes.byref(mps))
+    ret = _nestgpu.view_node_positions(c_opt, ctypes.byref(mps))
     res = ll_sapi.safe_ptr_deref(ret).to_tuple()
     free_gc()
     free_view_gc()
@@ -3671,7 +3671,7 @@ def view_node_positions(
     mps = ll_sapi.MPStruct()
     if mask_params is not None:
         mps.from_dict(mask_params, _PARAMS)
-    ret = _nestgpu.view_nodes(c_opt, ctypes.byref(mps))
+    ret = _nestgpu.view_node_positions(c_opt, ctypes.byref(mps))
     res = ll_sapi.safe_ptr_deref(ret).to_np_data()
     free_gc()
     return res
