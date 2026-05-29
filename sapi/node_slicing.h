@@ -49,7 +49,7 @@ class TAArray;
 
 
 template < typename CoordT >
-using IndexedNodeCoords = std::deque< const std::pair< nodeidx_t, CoordT >* >;
+using FilteringCoordQueue = std::deque< IndexedCoordView< CoordT > >;
 
 
 typedef DistributedTiledNodeSequenceMap::const_iterator DistTns_IT;
@@ -84,12 +84,13 @@ inline get_optional_masked_sub_tiles(
 
 template < typename CoordT, bool ignore_mask >
 void check_insert_node_coord_pairs(
-    IndexedNodeCoords< CoordT >& node_coord_pairs,
+    FilteringCoordQueue< CoordT >& node_coord_pairs,
     const IndexedCoordCollection< CoordT >& indexed_coord_col,
     const std::optional< Tns_IT > opt_tns_it,
     const Mask< CoordT >& mask
 )
 {
+    static_assert( std::is_trivially_copyable_v< IndexedCoordView< CoordT > > );
     assert( node_coord_pairs.empty() && !indexed_coord_col.empty() );
 
     if ( opt_tns_it.has_value() )
@@ -113,27 +114,26 @@ void check_insert_node_coord_pairs(
 
             if ( jointure.second < 1 ) continue;
 
-            // Due to jointure computation the following is guaranteed to be positive or null
-            auto coord_vec_it = coord_vec.cbegin() + ( jointure.first - original_sequence.first );
-            const auto coord_vec_end = coord_vec.cend();
-            assert( jointure.second <= std::distance( coord_vec_it, coord_vec_end ) );
+            const auto skip = jointure.first - original_sequence.first;
+            assert( 0 <= skip &&
+                static_cast< std::size_t >( skip + jointure.second ) <= coord_vec.size() );
+            const auto coord_it = coord_vec.begin() + skip;
 
             if constexpr ( ignore_mask )
             {
                 for ( nodeidx_t index = 0; index < jointure.second; ++index )
                     node_coord_pairs.emplace_back(
-                        &( *coord_vec_it++ )
+                        coord_it + index
                     );
             }
             else
             {
                 for ( nodeidx_t index = 0; index < jointure.second; ++index )
                 {
-                    if ( mask.coord_in_mask( coord_vec_it->second ).first )
+                    if ( mask.coord_in_mask( ( coord_it + index )->second ).first )
                         node_coord_pairs.emplace_back(
-                            &( *coord_vec_it )
+                            coord_it + index
                         );
-                    ++coord_vec_it;
                 }
             }
         }
@@ -146,17 +146,17 @@ void check_insert_node_coord_pairs(
 
             if constexpr ( ignore_mask )
             {
-                for ( const auto& coord_pair : coord_vec )
+                for ( auto coord_it = coord_vec.cbegin(); coord_it != coord_vec.cend(); ++coord_it )
                     node_coord_pairs.emplace_back(
-                        &coord_pair
+                        coord_it
                     );
             }
             else
             {
-                for ( const auto& coord_pair : coord_vec )
-                    if ( mask.coord_in_mask( coord_pair.second ).first )
+                for ( auto coord_it = coord_vec.cbegin(); coord_it != coord_vec.cend(); ++coord_it )
+                    if ( mask.coord_in_mask( coord_it->second ).first )
                         node_coord_pairs.emplace_back(
-                            &coord_pair
+                            coord_it
                         );
             }
         }
@@ -165,7 +165,7 @@ void check_insert_node_coord_pairs(
 
 
 template < typename CoordT >
-std::deque< IndexedNodeCoords< CoordT > >
+std::deque< FilteringCoordQueue< CoordT > >
 slice_tiled_node_maps(
     const DistributedTiledNodeSequenceMap* const dist_tns,
     const TileGrid< CoordT >& tile_grid,
@@ -181,7 +181,7 @@ slice_tiled_node_maps(
         mc_array.is_initialized()
     );
 
-    std::deque< IndexedNodeCoords< CoordT > > tiled_coords;
+    std::deque< FilteringCoordQueue< CoordT > > tiled_coords;
     std::optional< DistTns_IT > opt_dist_tns_it;
     if ( dist_tns != nullptr )
     {

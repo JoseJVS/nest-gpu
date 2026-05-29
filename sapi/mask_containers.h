@@ -38,22 +38,11 @@ struct Displacement;
 template < typename CoordT >
 struct Tile;
 
-// Tile index
-//  -> leaf index
-//      -> vector of pointers to pairs of
-//          -> node index
-//          -> coordinate
-template < typename CoordT >
-using IndexedCoordPtrMap =
-std::unordered_map< tileidx_t,
-    std::unordered_map< tileidx_t,
-    std::vector< const std::pair< nodeidx_t, CoordT >* > > >;
-
 // Forward definition to comparisons.h
 template < typename CoordT >
 bool compare_indexed_node_ptr_maps(
-    const IndexedCoordPtrMap< CoordT >& left,
-    const IndexedCoordPtrMap< CoordT >& right
+    const FilteredTileNodeCollection< CoordT >& left,
+    const FilteredTileNodeCollection< CoordT >& right
 );
 
 
@@ -192,7 +181,7 @@ struct CommunicationInfo
     // From source rank
     // This map is then copied onto data_payload_
     // to be sent via MPI to receiving rank
-    IndexedCoordPtrMap< CoordT > filtered_coords_;
+    FilteredTileNodeCollection< CoordT > filtered_coords_;
 
     // Payload is composed by:
     //
@@ -252,7 +241,7 @@ inline bool CommunicationInfo< CoordT >::operator==(
     const CommunicationInfo& ci
     ) const
 {
-    return compare_indexed_node_ptr_maps(
+    return compare_indexed_node_ptr_maps< CoordT >(
         filtered_coords_,
         ci.filtered_coords_
     );

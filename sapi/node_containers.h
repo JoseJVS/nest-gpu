@@ -74,6 +74,10 @@ typedef std::vector< TileIdxNodeCountPairs > RankTileIdxNodeCountPairs;
 template < typename CoordT >
 using TiledCoordMap = std::unordered_map< tileidx_t, std::deque< CoordT > >;
 
+// Vector of node coordinates
+template < typename CoordT >
+using IndexedCoordinates = std::vector< std::pair< nodeidx_t, CoordT > >;
+
 // This container maps node indexes to coordinates.
 // A vector is instantiated for each tile position in a tile grid.
 // Each entry contains the first node id of a node sequence and
@@ -94,6 +98,26 @@ using LeafNodeCollection = std::vector< IndexedCoordCollection< CoordT > >;
 // The length of this vector is equal to the number of tiles in the grid.
 template < typename CoordT >
 using GridNodeCollection = std::vector< LeafNodeCollection< CoordT > >;
+
+// View of a node coordinate
+template < typename CoordT >
+using IndexedCoordView = typename std::vector< std::pair< nodeidx_t, CoordT > >::const_iterator;
+
+// Filtered view of vector of node coordinates
+template < typename CoordT >
+using FilteredIndexedCoordinates = std::vector< IndexedCoordView< CoordT > >;
+
+// Filtered view of a leaf node collection
+template < typename CoordT >
+using FilteredLeafNodeCollection = std::unordered_map< tileidx_t, FilteredIndexedCoordinates< CoordT > >;
+
+// View of filtered leaf node collection entry
+template < typename CoordT >
+using FilteredLeafView = typename FilteredLeafNodeCollection< CoordT >::const_iterator;
+
+// Filtered view a tile node collection
+template < typename CoordT >
+using FilteredTileNodeCollection = std::unordered_map< tileidx_t, FilteredLeafNodeCollection< CoordT > >;
 
 
 constexpr inline NodeSequence shift_sequence(

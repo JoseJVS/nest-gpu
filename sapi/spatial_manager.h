@@ -825,15 +825,15 @@ SpatialManager< CoordT >::get_nodes(
         std::size_t index = 0;
         for ( const auto& leaf_nodes : slice )
         {
-            for ( const auto& coord_ptr : leaf_nodes )
+            for ( const auto& coord_view : leaf_nodes )
             {
-                res.indexes_[ index ] = coord_ptr->first;
-                res.coordinates_[ index ] = coord_ptr->second.x_;
-                res.coordinates_[ index + total_size ] = coord_ptr->second.y_;
+                res.indexes_[ index ] = coord_view->first;
+                res.coordinates_[ index ] = coord_view->second.x_;
+                res.coordinates_[ index + total_size ] = coord_view->second.y_;
 
                 if constexpr ( std::is_same_v< CoordT, Coord3D > )
                 {
-                    res.coordinates_[ index + 2 * total_size ] = coord_ptr->second.z_;
+                    res.coordinates_[ index + 2 * total_size ] = coord_view->second.z_;
                 }
                 ++index;
             }

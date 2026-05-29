@@ -52,16 +52,15 @@ template < typename CoordT >
 void add_task(
     TaskMap< CoordT >& aggregation_map,
     TaskQueue< CoordT >& task_queue,
-    const CoordDataVector< CoordT >* const pivot_vector,
-    const CoordDataVector< CoordT >* const combination_vector,
+    const FilteredLeafView< CoordT > pivot_view,
+    const FilteredLeafView< CoordT > combination_view,
     const std::vector< CoordT >* const image_displacements,
-    const nodeidx_t combination_length,
     const count_t used_displacements,
     const combined_idx_t pivot_key,
     const combined_idx_t combination_key
 )
 {
-    assert( 0 < combination_length );
+    static_assert( std::is_trivially_copyable_v< FilteredLeafView< CoordT > > );
 
     const auto [task_it, success] = aggregation_map.try_emplace(
         pivot_key,
@@ -72,12 +71,12 @@ void add_task(
     {
         task_it->second = &task_queue.emplace_back(
             pivot_key,
-            pivot_vector
+            pivot_view
         ).second;
     }
     else
     {
-        assert( task_it->second->pivot_vector_ == pivot_vector );
+        assert( task_it->second->pivot_view_ == pivot_view );
     }
 
     const auto combination_emplace = task_it->second->possible_combinations_.emplace(
@@ -85,12 +84,12 @@ void add_task(
         construct_possible_connections< CoordT >(
             used_displacements,
             image_displacements,
-            combination_vector
+            combination_view
         )
     );
     assert( combination_emplace.second );
 
-    task_it->second->total_possible_combinations_ += combination_length;
+    task_it->second->total_possible_combinations_ += static_cast< nodeidx_t >( combination_view->second.size() );
 }
 
 
@@ -190,10 +189,9 @@ void generate_connection_tasks(
                         add_task(
                             aggregation_map,
                             task_queue,
-                            &local_filtered_leaf->second,
-                            &remote_filtered_leaf->second,
+                            local_filtered_leaf,
+                            remote_filtered_leaf,
                             tile_pair_info.image_displacements_,
-                            remote_filtered_leaf->second.size(),
                             used_displacements,
                             // Compose 64bit key made of tile index (high bits) and leaf index (low bits)
                             local_key,
@@ -205,10 +203,9 @@ void generate_connection_tasks(
                         add_task(
                             aggregation_map,
                             task_queue,
-                            &remote_filtered_leaf->second,
-                            &local_filtered_leaf->second,
+                            remote_filtered_leaf,
+                            local_filtered_leaf,
                             tile_pair_info.image_displacements_,
-                            local_filtered_leaf->second.size(),
                             used_displacements,
                             // Compose 64bit key made of tile index (high bits) and leaf index (low bits)
                             remote_key_high | static_cast< combined_idx_t >( remote_leaf_index ),

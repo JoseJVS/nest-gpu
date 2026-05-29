@@ -110,8 +110,7 @@ count_t compute_minimal_displacement(
     const std::pair< nodeidx_t, CoordT >& pool_node,
     const Mask< CoordT >& mask,
     const NFCollection& functors,
-    const CoordT* const image_displacements,
-    const shift_t total_displacements,
+    const std::vector< CoordT >& image_displacements,
     const count_t used_displacements,
     const count_t conn_limit
 )
@@ -124,13 +123,14 @@ count_t compute_minimal_displacement(
             return conn_limit;
     }
 
+    shift_t index = 0;
     OptDisp< CoordT > min_displacement;
-    for ( shift_t index = 0; index < total_displacements; ++index )
-        if ( 0 != ( used_displacements & 1ul << index ) )
+    for ( const auto& disp : image_displacements )
+        if ( 0 != ( used_displacements & 1 << index++ ) )
             check_minimal_displacement(
                 mask.coord_in_mask(
                     driver_node.second,
-                    pool_node.second + image_displacements[ index ]
+                    pool_node.second + disp
                 ),
                 min_displacement
             );
@@ -197,7 +197,6 @@ std::size_t generate_probabilistic_connections(
 )
 {
     assert( proc_block.empty()
-        && task.pivot_vector_ != nullptr
         && 0 < task.total_possible_combinations_
         && functors.probability_functor_.is_initialized() );
 
@@ -206,22 +205,23 @@ std::size_t generate_probabilistic_connections(
         ? connection_counts
         : task.total_possible_combinations_;
 
-    proc_block.resize( task.pivot_vector_->size() );
+    proc_block.resize( task.pivot_view_->second.size() );
     auto block_it = proc_block.begin();
-    for ( const auto& driver_ptr : *task.pivot_vector_ )
+    for ( const auto& driver_view : task.pivot_view_->second )
     {
-        const auto& driver_pair = *driver_ptr;
+        const auto& driver_pair = *driver_view;
         block_it->first = driver_pair.first;
         count_t individual_conn_counts = individual_max_conns;
 
         for ( const auto& combination : task.possible_combinations_ )
         {
-            const auto i_displacements = combination.second.image_displacements_->data();
-            const shift_t total_displacements = static_cast< shift_t >(
-                combination.second.image_displacements_->size() );
+            assert( combination.second.image_displacements_ != nullptr );
+            const auto& image_displacements = *combination.second.image_displacements_;
 
-            for ( const auto& pool_pair : *combination.second.possible_pairs_ )
+            for ( const auto& pool_view : combination.second.possible_pairs_->second )
             {
+                const auto& pool_pair = *pool_view;
+
                 individual_conn_counts = compute_minimal_displacement<
                     CoordT, DistributionT,
                     allow_self_connections, allow_multiplicity
@@ -230,11 +230,10 @@ std::size_t generate_probabilistic_connections(
                     dist,
                     block_it->second,
                     driver_pair,
-                    *pool_pair,
+                    pool_pair,
                     mask,
                     functors,
-                    i_displacements,
-                    total_displacements,
+                    image_displacements,
                     combination.second.used_displacements_,
                     individual_conn_counts
                 );
@@ -267,8 +266,7 @@ void compute_minimal_displacement(
     const std::pair< nodeidx_t, CoordT >& pool_node,
     const Mask< CoordT >& mask,
     const NFCollection& functors,
-    const CoordT* const image_displacements,
-    const shift_t total_displacements,
+    const std::vector< CoordT >& image_displacements,
     const count_t used_displacements
 )
 {
@@ -278,13 +276,14 @@ void compute_minimal_displacement(
             return;
     }
 
+    shift_t index = 0;
     OptDisp< CoordT > min_displacement;
-    for ( shift_t index = 0; index < total_displacements; ++index )
-        if ( 0 != ( used_displacements & 1ul << index ) )
+    for ( const auto& disp : image_displacements )
+        if ( 0 != ( used_displacements & 1 << index++ ) )
             check_minimal_displacement(
                 mask.coord_in_mask(
                     driver_node.second,
-                    pool_node.second + image_displacements[ index ]
+                    pool_node.second + disp
                 ),
                 min_displacement
             );
@@ -478,7 +477,6 @@ std::size_t generate_fixed_number_connections(
 )
 {
     assert( proc_block.empty()
-        && task.pivot_vector_ != nullptr
         && 0 < task.total_possible_combinations_
         && 0 < connection_counts );
 
@@ -486,22 +484,22 @@ std::size_t generate_fixed_number_connections(
     std::deque< conn_param_t > connection_probabilities;
 
     std::size_t tracked_conn_counts = 0;
-    proc_block.resize( task.pivot_vector_->size() );
+    proc_block.resize( task.pivot_view_->second.size() );
     auto block_it = proc_block.begin();
-    for ( const auto& pivot_ptr : *task.pivot_vector_ )
+    for ( const auto& pivot_view : task.pivot_view_->second )
     {
-        const auto& pivot_pair = *pivot_ptr;
+        const auto& pivot_pair = *pivot_view;
         block_it->first = pivot_pair.first;
 
         for ( const auto& combination : task.possible_combinations_ )
         {
-            // Guaranteed cast from total images check in mask tile processing
-            const shift_t total_displacements = static_cast< shift_t >(
-                combination.second.image_displacements_->size() );
-            const auto i_displacements = combination.second.image_displacements_->data();
+            assert( combination.second.image_displacements_ != nullptr );
+            const auto& image_displacements = *combination.second.image_displacements_;
 
-            for ( const auto& combination_pair : *combination.second.possible_pairs_ )
+            for ( const auto& combination_view : combination.second.possible_pairs_->second )
             {
+                const auto& combination_pair = *combination_view;
+
                 if constexpr ( inverted_pivot )
                 {
                     compute_minimal_displacement<
@@ -509,12 +507,11 @@ std::size_t generate_fixed_number_connections(
                     >(
                         possible_connections,
                         connection_probabilities,
-                        *combination_pair,
+                        combination_pair,
                         pivot_pair,
                         mask,
                         functors,
-                        i_displacements,
-                        total_displacements,
+                        image_displacements,
                         combination.second.used_displacements_
                     );
                 }
@@ -526,11 +523,10 @@ std::size_t generate_fixed_number_connections(
                         possible_connections,
                         connection_probabilities,
                         pivot_pair,
-                        *combination_pair,
+                        combination_pair,
                         mask,
                         functors,
-                        i_displacements,
-                        total_displacements,
+                        image_displacements,
                         combination.second.used_displacements_
                     );
                 }

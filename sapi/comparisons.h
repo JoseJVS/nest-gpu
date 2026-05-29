@@ -24,14 +24,14 @@
 #define COMPARISONS_H
 
 #include "mask_containers.h"
-#include "connection_containers.h"
+
 
 namespace sapi
 {
 template < typename CoordT >
 bool compare_indexed_node_ptr_maps(
-    const IndexedCoordPtrMap< CoordT >& left,
-    const IndexedCoordPtrMap< CoordT >& right
+    const FilteredTileNodeCollection< CoordT >& left,
+    const FilteredTileNodeCollection< CoordT >& right
 )
 {
     if ( left.size() != right.size() )
@@ -55,15 +55,15 @@ bool compare_indexed_node_ptr_maps(
             if ( left_leaf.second.size() != right_leaf_it->second.size() )
                 return false;
 
-            auto right_ptr_it = right_leaf_it->second.cbegin();
-            for ( const auto& left_ptr : left_leaf.second )
+            auto right_view_it = right_leaf_it->second.cbegin();
+            for ( const auto& left_view : left_leaf.second )
             {
                 if (
-                    left_ptr->first != ( *right_ptr_it )->first ||
-                    !( left_ptr->second == ( *right_ptr_it )->second )
+                    left_view->first != ( *right_view_it )->first ||
+                    !( left_view->second == ( *right_view_it )->second )
                     )
                     return false;
-                ++right_ptr_it;
+                ++right_view_it;
             }
         }
     }

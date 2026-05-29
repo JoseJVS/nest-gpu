@@ -23,6 +23,8 @@
 #ifndef MASK_TILE_PROCESSING_H
 #define MASK_TILE_PROCESSING_H
 
+#include <memory>
+
 #include "node_containers.h"
 #include "mask_containers.h"
 #include "grid_neighborhood.h"
@@ -192,7 +194,7 @@ void tile_pair_overlap(
     );
 
     const auto mask_collection = mc_array.get_local_thread_item();
-    tpi.image_displacements_ = &pool_tile_pos.image_displacements_;
+    tpi.image_displacements_ = std::addressof( pool_tile_pos.image_displacements_ );
 
 #pragma omp taskgroup
     {
@@ -272,12 +274,13 @@ void tile_pair_overlap(
 
 template < typename CoordT, bool ignore_mask >
 void check_insert_node_coord_pairs(
-    std::vector< const std::pair< nodeidx_t, CoordT >* >& node_coord_pairs,
+    FilteredIndexedCoordinates< CoordT >& node_coord_pairs,
     const IndexedCoordCollection< CoordT >& indexed_coord_col,
     const Mask< CoordT >& mask,
     const NodeSequence& node_sequence
 )
 {
+    static_assert( std::is_trivially_copyable_v< IndexedCoordView< CoordT > > );
     assert( node_coord_pairs.empty() && !indexed_coord_col.empty() );
 
     nodeidx_t sequences_found = 0;
@@ -302,27 +305,26 @@ void check_insert_node_coord_pairs(
         ++sequences_found;
         node_coord_pairs.reserve( jointure.second );
 
-        // Due to jointure computation the following is guaranteed to be positive or null
-        auto coord_vec_it = coord_vec.cbegin() + ( jointure.first - first_index );
-        const auto coord_vec_end = coord_vec.cend();
-        assert( jointure.second <= std::distance( coord_vec_it, coord_vec_end ) );
+        const auto skip = jointure.first - first_index;
+        assert( 0 <= skip &&
+            static_cast< std::size_t >( skip + jointure.second ) <= coord_vec.size() );
+        const auto coord_it = coord_vec.begin() + skip;
 
         if constexpr ( ignore_mask )
         {
             for ( nodeidx_t index = 0; index < jointure.second; ++index )
                 node_coord_pairs.emplace_back(
-                    &( *coord_vec_it++ )
+                    coord_it + index
                 );
         }
         else
         {
             for ( nodeidx_t index = 0; index < jointure.second; ++index )
             {
-                if ( mask.coord_in_mask( coord_vec_it->second ).first )
+                if ( mask.coord_in_mask( ( coord_it + index )->second ).first )
                     node_coord_pairs.emplace_back(
-                        &( *coord_vec_it )
+                        coord_it + index
                     );
-                ++coord_vec_it;
             }
         }
 
@@ -338,7 +340,7 @@ void check_insert_node_coord_pairs(
 template < typename CoordT, bool inverted_source_target, bool filter_source, bool filter_target >
 void aggregate_tile_set_info(
     TileSetInfo< CoordT >& tsi,
-    IndexedCoordPtrMap< CoordT >& icp,
+    FilteredTileNodeCollection< CoordT >& icp,
     const std::vector< std::pair< tileidx_t, TilePairInfo< CoordT > > >& tpi_vec,
     const LeafNodeCollection< CoordT >& leaf_node_col,
     const TAArray< MaskCollection< CoordT > >& mc_array,
@@ -354,17 +356,14 @@ void aggregate_tile_set_info(
     // Hence, tpi_vec is complete and unique
     // to the source/target ranks pair.
 
-    // Keys: leaf sub tile indexes
-    std::unordered_map< tileidx_t,
-        std::vector< const std::pair< nodeidx_t, CoordT >* > >
-        checked_leaves;
+    FilteredLeafNodeCollection < CoordT > checked_leaves;
 
     // At most all the leaves will be used
     checked_leaves.reserve( leaf_node_col.size() );
 
     for ( const auto& tpi_pair : tpi_vec )
         for ( const auto& leaf_map : tpi_pair.second.aggregated_leaf_pairs_ )
-            checked_leaves.emplace( leaf_map.first, std::vector< const std::pair< nodeidx_t, CoordT >* >() );
+            checked_leaves.emplace( leaf_map.first, FilteredIndexedCoordinates< CoordT >() );
 
 #pragma omp taskgroup
     for ( auto leaf_it = checked_leaves.begin();

@@ -24,14 +24,9 @@
 #define CONNECTION_CONTAINERS_H
 
 #include <map>
-#include <deque>
-#include <tuple>
-#include <vector>
 #include <limits>
-#include <algorithm>
-#include <unordered_map>
 
-#include "sapi_config.h"
+#include "node_containers.h"
 
 
 namespace sapi
@@ -206,15 +201,11 @@ inline void DistributedConnectionInfo::clear()
 
 
 template < typename CoordT >
-using CoordDataVector = std::vector< const std::pair< nodeidx_t, CoordT >* >;
-
-
-template < typename CoordT >
 struct PossibleConnections
 {
     count_t used_displacements_;
     const std::vector< CoordT >* image_displacements_;
-    const CoordDataVector< CoordT >* possible_pairs_;
+    FilteredLeafView< CoordT > possible_pairs_;
 };
 
 
@@ -222,9 +213,10 @@ template < typename CoordT >
 inline PossibleConnections< CoordT > construct_possible_connections(
     const count_t used_displacements,
     const std::vector< CoordT >* const image_displacements,
-    const CoordDataVector< CoordT >* const possible_pairs
+    const FilteredLeafView< CoordT > possible_pairs
 )
 {
+    static_assert( std::is_trivially_copyable_v< FilteredLeafView< CoordT > > );
     PossibleConnections< CoordT > cp;
     cp.used_displacements_ = used_displacements;
     cp.image_displacements_ = image_displacements;
@@ -237,7 +229,7 @@ template < typename CoordT >
 struct ConnectionTask
 {
     nodeidx_t total_possible_combinations_ = 0;
-    const CoordDataVector< CoordT >* const pivot_vector_;
+    const FilteredLeafView< CoordT > pivot_view_;
     // Sorted for reproducibility
     std::map< combined_idx_t, PossibleConnections< CoordT > > possible_combinations_;
 
@@ -246,7 +238,7 @@ struct ConnectionTask
     ConnectionTask( ConnectionTask&& ) noexcept = default;
     ~ConnectionTask() noexcept = default;
 
-    ConnectionTask( const CoordDataVector< CoordT >* const pivot_vector ) noexcept;
+    ConnectionTask( const FilteredLeafView< CoordT > pivot_view ) noexcept;
 
     ConnectionTask& operator=( const ConnectionTask& ) = delete;
     ConnectionTask& operator=( ConnectionTask&& ) = delete;
@@ -255,9 +247,9 @@ struct ConnectionTask
 
 template < typename CoordT >
 ConnectionTask< CoordT >::ConnectionTask(
-    const CoordDataVector< CoordT >* const pivot_vector
+    const FilteredLeafView< CoordT > pivot_view
 ) noexcept
-    : pivot_vector_( pivot_vector )
+    : pivot_view_( pivot_view )
 {}
 
 

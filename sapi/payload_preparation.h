@@ -234,7 +234,7 @@ void reconstruct_received_info(
                 // Read node idx and coord data
                 ncp_it->first = header_read( info_reading_pos, header_pos++ );
                 ncp_it->second = CoordT::bit_copy_from_vec( content_reading_pos );
-                leaf_vec.emplace_back( &( *ncp_it++ ) );
+                leaf_vec.emplace_back( ncp_it++ );
             }
         }
     }
