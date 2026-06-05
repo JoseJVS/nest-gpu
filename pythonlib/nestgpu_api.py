@@ -3770,13 +3770,10 @@ def view_connection_counts(conn_index: int) -> typing.Tuple[
     return pair
 
 
-def get_grid_vertices() -> typing.List[
-    typing.Tuple[
-        typing.List[int],
-        typing.List[int],
-        typing.List[float],
-        typing.List[float],
-    ]
+def get_grid_vertices() -> typing.Tuple[
+    typing.List[int],
+    typing.List[typing.List[typing.List[float]]],
+    typing.List[typing.List[typing.List[typing.List[float]]]],
 ]:
     ret = _nestgpu.view_grid_vertices()
     if GetErrorCode() != 0:
@@ -3787,7 +3784,7 @@ def get_grid_vertices() -> typing.List[
     return gv
 
 
-def view_grid_vertices() -> typing.List[tuple]:
+def view_grid_vertices() -> tuple:
     ret = _nestgpu.view_grid_vertices()
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
