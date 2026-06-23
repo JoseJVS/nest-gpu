@@ -51,6 +51,7 @@ enum ConnectionRules
   FIXED_INDEGREE,
   FIXED_OUTDEGREE,
   ASSIGNED_NODES,
+  ASSIGNED_CONNECTIONS,
   N_CONN_RULE
 };
 
@@ -59,7 +60,9 @@ const std::string conn_rule_name[ N_CONN_RULE ] = { "one_to_one",
   "fixed_total_number",
   "fixed_indegree",
   "fixed_outdegree",
-  "assigned_nodes" };
+  "assigned_nodes",
+  "assigned_connections"
+};
 
 class ConnSpec
 {
@@ -69,6 +72,7 @@ public:
   int indegree_;
   int outdegree_;
   bool use_all_remote_source_nodes_;
+  uint64_t assigned_connections_;
 
   ConnSpec();
   ConnSpec( int rule, int degree = 0 );

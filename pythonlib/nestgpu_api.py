@@ -1,10 +1,16 @@
 """ Python interface for NESTGPU"""
-import sys, platform
-import ctypes, ctypes.util
-import os
-import unicodedata
+import ctypes
+import ctypes.util
 import gc
+import os
+import pathlib
+import platform
+import sys
+import typing
+import unicodedata
+from functools import wraps
 
+from . import ll_sapi
 
 print('\n              -- NEST GPU --\n')
 print('  Copyright (C) 2021 The NEST Initiative\n')
@@ -14,8 +20,7 @@ print(' Homepage: https://github.com/nest/nest-gpu')
 print()
 
 
-lib_path=os.environ["NESTGPU_LIB"]
-_nestgpu=ctypes.CDLL(lib_path)
+_nestgpu = ctypes.CDLL(str(pathlib.Path(__file__).parent / "libnestgpu.so"))
 
 c_float_p = ctypes.POINTER(ctypes.c_float)
 c_int_p = ctypes.POINTER(ctypes.c_int)
@@ -106,7 +111,7 @@ class NestedLoopAlgo:
   Smart1D = 7
   Smart2D = 8
 
-        
+
 def to_byte_str(s):
     if type(s)==str:
         return s.encode('ascii')
@@ -126,30 +131,28 @@ def waitenter(val):
         return input(val)
     else:
         return raw_input(val)
-    
+
 conn_rule_name = ("one_to_one", "all_to_all", "fixed_total_number",
                   "fixed_indegree", "fixed_outdegree")
-    
+
 NESTGPU_GetErrorMessage = _nestgpu.NESTGPU_GetErrorMessage
 NESTGPU_GetErrorMessage.restype = ctypes.POINTER(ctypes.c_char)
 def GetErrorMessage():
     "Get error message from NESTGPU exception"
     message = ctypes.cast(NESTGPU_GetErrorMessage(), ctypes.c_char_p).value
     return message
- 
+
 NESTGPU_GetErrorCode = _nestgpu.NESTGPU_GetErrorCode
 NESTGPU_GetErrorCode.restype = ctypes.c_ubyte
 def GetErrorCode():
     "Get error code from NESTGPU exception"
     return NESTGPU_GetErrorCode()
- 
+
 NESTGPU_SetOnException = _nestgpu.NESTGPU_SetOnException
 NESTGPU_SetOnException.argtypes = (ctypes.c_int,)
 def SetOnException(on_exception):
     "Define whether handle exceptions (1) or exit (0) in case of errors"
     return NESTGPU_SetOnException(ctypes.c_int(on_exception))
-
-SetOnException(1)
 
 NESTGPU_SetRandomSeed = _nestgpu.NESTGPU_SetRandomSeed
 NESTGPU_SetRandomSeed.argtypes = (ctypes.c_ulonglong,)
@@ -619,10 +622,10 @@ def SetNeuronPortVarDistr(i_node, n_node, var_name):
 
 #####################################################################
 
-#SetNeuronPtScalParamDistr(nodes, var_name)
-#SetNeuronPtScalVarDistr(nodes, var_name)
-#SetNeuronPtPortParamDistr(nodes, var_name)
-#SetNeuronPtPortVarDistr(nodes, var_name)
+# SetNeuronPtScalParamDistr(nodes, var_name)
+# SetNeuronPtScalVarDistr(nodes, var_name)
+# SetNeuronPtPortParamDistr(nodes, var_name)
+# SetNeuronPtPortVarDistr(nodes, var_name)
 
 NESTGPU_SetNeuronPtScalParamDistr = _nestgpu.NESTGPU_SetNeuronPtScalParamDistr
 NESTGPU_SetNeuronPtScalParamDistr.argtypes = (ctypes.c_void_p, ctypes.c_int,
@@ -658,7 +661,6 @@ def SetNeuronPtScalVarDistr(nodes, var_name):
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
-
 
 
 NESTGPU_SetNeuronPtPortParamDistr = _nestgpu.NESTGPU_SetNeuronPtPortParamDistr
@@ -741,7 +743,7 @@ def SetDistributionVectParam(param_name, val, i):
     return ret
 
 
-#SetDistributionFloatPtParam("array_pt", array_pt)
+# SetDistributionFloatPtParam("array_pt", array_pt)
 NESTGPU_SetDistributionFloatPtParam = \
     _nestgpu.NESTGPU_SetDistributionFloatPtParam
 NESTGPU_SetDistributionFloatPtParam.argtypes = (c_char_p, ctypes.c_void_p)
@@ -951,8 +953,7 @@ def GetNeuronGroupParam(i_node, param_name):
     return ret
 
 
-
-#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NESTGPU_GetNeuronVarSize = _nestgpu.NESTGPU_GetNeuronVarSize
 NESTGPU_GetNeuronVarSize.argtypes = (ctypes.c_int, c_char_p)
 NESTGPU_GetNeuronVarSize.restype = ctypes.c_int
@@ -1387,8 +1388,6 @@ def GetArrayVarNames(i_node):
     return var_name_list
 
 
-
-
 def SetNeuronStatus(nodes, var_name, val):
     "Set neuron group scalar or array variable or parameter"
     if (type(nodes)!=list) & (type(nodes)!=tuple) & (type(nodes)!=NodeSeq):
@@ -1551,7 +1550,6 @@ def SetConnectionStatus(conn, param_name, val):
 ######################################################################
 
 
-
 NESTGPU_Calibrate = _nestgpu.NESTGPU_Calibrate
 NESTGPU_Calibrate.restype = ctypes.c_int
 def Calibrate():
@@ -1574,6 +1572,10 @@ def Simulate(sim_time=1000.0):
 
 
 NESTGPU_ConnectMpiInit = _nestgpu.NESTGPU_ConnectMpiInit
+NESTGPU_ConnectMpiInit.argtypes = (
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.c_char_p),
+)
 NESTGPU_ConnectMpiInit.restype = ctypes.c_int
 def ConnectMpiInit():
     "Initialize MPI connectivity"
@@ -1725,7 +1727,6 @@ def RandomNormalClipped(n, mean, stddev, vmin, vmax, vstep=0):
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
     return ret
-
 
 
 NESTGPU_ConnSpecInit = _nestgpu.NESTGPU_ConnSpecInit
@@ -1915,7 +1916,7 @@ def SetSynParamFromArray(param_name, par_dict, array_size):
     array_pt = ctypes.cast(arr, ctypes.c_void_p)
     SetSynSpecFloatPtParam(arr_param_name, array_pt)
 
-    
+
 NESTGPU_ConnectSeqSeq = _nestgpu.NESTGPU_ConnectSeqSeq
 NESTGPU_ConnectSeqSeq.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                     ctypes.c_int)
@@ -2147,7 +2148,6 @@ def CreateHostGroup(host_list):
     return ret
 
 
-
 def SetStatus(gen_object, params, val=None):
     "Set neuron, connections or synapse group parameters or variables"
     " using dictionaries"
@@ -2198,7 +2198,7 @@ def SetStatus(gen_object, params, val=None):
         raise ValueError(GetErrorMessage())
     gc.enable()
 
-#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 NESTGPU_GetSeqSeqConnections = _nestgpu.NESTGPU_GetSeqSeqConnections
 NESTGPU_GetSeqSeqConnections.argtypes = (ctypes.c_int, ctypes.c_int,
@@ -2281,7 +2281,7 @@ def GetConnections(source=None, target=None, syn_group=-1):
         raise ValueError(GetErrorMessage())
     return ret
 
- 
+
 NESTGPU_GetConnectionStatus = _nestgpu.NESTGPU_GetConnectionStatus
 NESTGPU_GetConnectionStatus.argtypes = (c_int64_p, ctypes.c_int64,
                                         c_int_p, c_int_p,
@@ -2584,7 +2584,6 @@ def GetStatus(gen_object, var_key=None):
         raise ValueError("Unknown key type in GetStatus", type(var_key))
 
 
-
 NESTGPU_CreateSynGroup = _nestgpu.NESTGPU_CreateSynGroup
 NESTGPU_CreateSynGroup.argtypes = (c_char_p,)
 NESTGPU_CreateSynGroup.restype = ctypes.c_int
@@ -2604,7 +2603,7 @@ def CreateSynGroup(model_name, status_dict=None):
         raise ValueError(GetErrorMessage())
     return SynGroup(i_syn_group)
 
-  
+
 NESTGPU_GetSynGroupNParam = _nestgpu.NESTGPU_GetSynGroupNParam
 NESTGPU_GetSynGroupNParam.argtypes = (ctypes.c_int,)
 NESTGPU_GetSynGroupNParam.restype = ctypes.c_int
@@ -2619,7 +2618,7 @@ def GetSynGroupNParam(syn_group):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_GetSynGroupParamNames = _nestgpu.NESTGPU_GetSynGroupParamNames
 NESTGPU_GetSynGroupParamNames.argtypes = (ctypes.c_int,)
 NESTGPU_GetSynGroupParamNames.restype = ctypes.POINTER(c_char_p)
@@ -2660,7 +2659,7 @@ def IsSynGroupParam(syn_group, param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetSynGroupParam = _nestgpu.NESTGPU_GetSynGroupParam
 NESTGPU_GetSynGroupParam.argtypes = (ctypes.c_int, c_char_p)
 NESTGPU_GetSynGroupParam.restype = ctypes.c_float
@@ -2680,7 +2679,7 @@ def GetSynGroupParam(syn_group, param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetSynGroupParam = _nestgpu.NESTGPU_SetSynGroupParam
 NESTGPU_SetSynGroupParam.argtypes = (ctypes.c_int, c_char_p,
                                        ctypes.c_float)
@@ -2893,7 +2892,7 @@ def IsBoolParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetBoolParam = _nestgpu.NESTGPU_GetBoolParam
 NESTGPU_GetBoolParam.argtypes = (c_char_p,)
 NESTGPU_GetBoolParam.restype = ctypes.c_bool
@@ -2909,7 +2908,7 @@ def GetBoolParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetBoolParam = _nestgpu.NESTGPU_SetBoolParam
 NESTGPU_SetBoolParam.argtypes = (c_char_p, ctypes.c_bool)
 NESTGPU_SetBoolParam.restype = ctypes.c_int
@@ -2967,7 +2966,7 @@ def IsFloatParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetFloatParam = _nestgpu.NESTGPU_GetFloatParam
 NESTGPU_GetFloatParam.argtypes = (c_char_p,)
 NESTGPU_GetFloatParam.restype = ctypes.c_float
@@ -2983,7 +2982,7 @@ def GetFloatParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetFloatParam = _nestgpu.NESTGPU_SetFloatParam
 NESTGPU_SetFloatParam.argtypes = (c_char_p, ctypes.c_float)
 NESTGPU_SetFloatParam.restype = ctypes.c_int
@@ -3042,7 +3041,7 @@ def IsIntParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-    
+
 NESTGPU_GetIntParam = _nestgpu.NESTGPU_GetIntParam
 NESTGPU_GetIntParam.argtypes = (c_char_p,)
 NESTGPU_GetIntParam.restype = ctypes.c_int
@@ -3058,7 +3057,7 @@ def GetIntParam(param_name):
         raise ValueError(GetErrorMessage())
     return ret
 
-  
+
 NESTGPU_SetIntParam = _nestgpu.NESTGPU_SetIntParam
 NESTGPU_SetIntParam.argtypes = (c_char_p, ctypes.c_int)
 NESTGPU_SetIntParam.restype = ctypes.c_int
@@ -3144,9 +3143,6 @@ def RemoteCreate(i_host, model_name, n_node=1, n_ports=1, status_dict=None):
     return ret
 
 
-
-
-
 NESTGPU_ConnectDistributedFixedIndegreeSeqSeq = _nestgpu.NESTGPU_ConnectDistributedFixedIndegreeSeqSeq
 NESTGPU_ConnectDistributedFixedIndegreeSeqSeq.argtypes = (ctypes.c_void_p, ctypes.c_int,
                                                           ctypes.c_void_p, ctypes.c_void_p,
@@ -3205,7 +3201,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
                 raise ValueError("Inconsistent source group types")
     else:
         raise ValueError("Unknown source node type")
-        
+
     if (type(target_group_list)!=list) and (type(target_group_list)!=tuple):
         raise ValueError("Unknown target group list type")
     if len(target_host_list) != len(target_group_list):
@@ -3224,19 +3220,19 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     gc.disable() # temporarily disable garbage collection
     SynSpecInit()
-        
-    #array_size = RuleArraySize(conn_dict, source, target)    # not used for now
-        
+
+    # array_size = RuleArraySize(conn_dict, source, target)    # not used for now
+
     for param_name in syn_dict:
         if SynSpecIsIntParam(param_name):
             SetSynSpecIntParam(param_name, syn_dict[param_name])
         elif SynSpecIsFloatParam(param_name):
             fpar = syn_dict[param_name]
-            #if (type(fpar)==dict): # not used for now
+            # if (type(fpar)==dict): # not used for now
             #    SetSynParamFromArray(param_name, fpar, array_size)
-            #else:
+            # else:
             SetSynSpecFloatParam(param_name, fpar)
-                
+
         elif SynSpecIsFloatPtParam(param_name):
             SetSynSpecFloatPtParam(param_name, syn_dict[param_name])
         else:
@@ -3246,14 +3242,14 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
     source_host_arr_pt = ctypes.cast(source_host_arr, ctypes.c_void_p)
     target_host_arr = (ctypes.c_int * len(target_host_list))(*target_host_list)
     target_host_arr_pt = ctypes.cast(target_host_arr, ctypes.c_void_p)
-    
+
     if (type(source_group_list[0])==NodeSeq):
         source_i0_list = []
         source_n_list = []
         for source_seq in source_group_list:
             source_i0_list.append(source_seq.i0)
             source_n_list.append(source_seq.n)    
-        
+
         source_i0_arr = (ctypes.c_int * len(source_i0_list))(*source_i0_list)
         source_i0_arr_pt = ctypes.cast(source_i0_arr, ctypes.c_void_p)
     else:
@@ -3265,7 +3261,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
             source_pt_list.append(source_arr_pt)
             source_n_list.append(len(source_group))
         source_pt_arr = (ctypes.c_void_p * len(source_pt_list))(*source_pt_list)
-        
+
     source_n_arr = (ctypes.c_int * len(source_n_list))(*source_n_list)
     source_n_arr_pt = ctypes.cast(source_n_arr, ctypes.c_void_p)
 
@@ -3275,7 +3271,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
         for target_seq in target_group_list:
             target_i0_list.append(target_seq.i0)
             target_n_list.append(target_seq.n)    
-        
+
         target_i0_arr = (ctypes.c_int * len(target_i0_list))(*target_i0_list)
         target_i0_arr_pt = ctypes.cast(target_i0_arr, ctypes.c_void_p)
     else:
@@ -3290,7 +3286,7 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     target_n_arr = (ctypes.c_int * len(target_n_list))(*target_n_list) 
     target_n_arr_pt = ctypes.cast(target_n_arr, ctypes.c_void_p)
-        
+
     if (type(source_group_list[0])==NodeSeq) and (type(target_group_list[0])==NodeSeq):
         ret = NESTGPU_ConnectDistributedFixedIndegreeSeqSeq \
             (source_host_arr_pt, len(source_host_list), source_i0_arr_pt, source_n_arr_pt, \
@@ -3317,7 +3313,514 @@ def ConnectDistributedFixedIndegree(source_host_list, source_group_list, target_
 
     if GetErrorCode() != 0:
         raise ValueError(GetErrorMessage())
-    
+
     gc.enable()
     return ret
 
+
+_nestgpu.get_parameter_names.restype = ctypes.POINTER(ll_sapi.ParameterNamesPairArray)
+_nestgpu.free_gc.restype = ctypes.c_bool
+_nestgpu.free_view_gc.restype = ctypes.c_bool
+_nestgpu.get_rank.restype = ll_sapi.OptionalIndex
+_nestgpu.get_num_processes.restype = ll_sapi.OptionalIndex
+_nestgpu.get_num_threads.restype = ll_sapi.OptionalIndex
+_nestgpu.set_num_threads.argtypes = (ll_sapi.vp_t,)
+_nestgpu.set_num_threads.restype = ctypes.c_bool
+_nestgpu.get_rng_seed.restype = ll_sapi.OptionalIndex
+_nestgpu.set_rng_seed.argtypes = (ll_sapi.rng_seed_t,)
+_nestgpu.set_rng_seed.restype = ctypes.c_bool
+_nestgpu.get_rng_type.restype = ctypes.POINTER(ll_sapi.CharArray)
+_nestgpu.set_rng_type.argtypes = (ctypes.POINTER(ll_sapi.CharArray),)
+_nestgpu.set_rng_type.restype = ctypes.c_bool
+
+_nestgpu.generate_tile_grid.argtypes = (
+    ctypes.POINTER(ll_sapi.NestedTileIdxArray),
+    ctypes.POINTER(ll_sapi.GPStruct),
+)
+_nestgpu.generate_tile_grid.restype = ctypes.c_bool
+
+_nestgpu.generate_nodes_in_grid.argtypes = (
+    ctypes.POINTER(ll_sapi.CharArray),
+    ll_sapi.lnix_t,
+    ctypes.POINTER(ll_sapi.TileIdxArray),
+    ctypes.c_int,
+    ctypes.c_uint8,
+    ctypes.c_uint8,
+)
+_nestgpu.generate_nodes_in_grid.restype = ll_sapi.pair_template(
+    ctypes.c_bool, ll_sapi.SpatialNodeSequence
+)
+
+_nestgpu.insert_positions_in_grid.argtypes = (
+    ctypes.POINTER(ll_sapi.CharArray),
+    ctypes.POINTER(ll_sapi.PositionViewStruct),
+    ctypes.c_int,
+)
+_nestgpu.insert_positions_in_grid.restype = ll_sapi.triplet_template(
+    ctypes.c_bool,
+    ll_sapi.SpatialNodeSequence,
+    ctypes.POINTER(ll_sapi.PositionViewStruct),
+)
+
+_nestgpu.compute_spatial_connections.argtypes = (
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+    ctypes.POINTER(ll_sapi.MPStruct),
+    ctypes.POINTER(ll_sapi.CPStruct),
+)
+_nestgpu.compute_spatial_connections.restype = ll_sapi.OptionalIndex
+
+_nestgpu.view_node_positions.argtypes = (
+    ll_sapi.OptionalIndex,
+    ctypes.POINTER(ll_sapi.MPStruct),
+)
+_nestgpu.view_node_positions.restype = ctypes.POINTER(ll_sapi.NodesViewStruct)
+
+_nestgpu.view_spatial_connections.argtypes = (ctypes.c_size_t,)
+_nestgpu.view_spatial_connections.restype = ctypes.POINTER(
+    ll_sapi.RemoteConnectionViewPair
+)
+
+_nestgpu.view_connection_counts.argtypes = (ctypes.c_size_t,)
+_nestgpu.view_connection_counts.restype = ctypes.POINTER(
+    ll_sapi.ConnectionCountsViewStruct
+)
+
+_nestgpu.view_grid_vertices.restype = ctypes.POINTER(ll_sapi.GridViewStruct)
+
+_nestgpu.get_distributed_node_sequences.argtypes = (ctypes.c_size_t,)
+_nestgpu.get_distributed_node_sequences.restype = ctypes.POINTER(
+    ll_sapi.TiledNodeSequencePairArray
+)
+
+_nestgpu.get_timer_data.restype = ctypes.POINTER(ll_sapi.RecordedTimesArrayPair)
+
+_nestgpu.clear_spatial_connections.argtypes = (ctypes.c_size_t,)
+_nestgpu.clear_spatial_connections.restype = ctypes.c_bool
+
+
+def get_parameter_names() -> typing.Dict[str, typing.List[str]]:
+    ret = _nestgpu.get_parameter_names()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.parameter_name_pair_array_to_dict(ll_sapi.safe_ptr_deref(ret))
+
+
+_PARAMS = get_parameter_names()
+
+
+def free_gc() -> None:
+    ret = _nestgpu.free_gc()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def free_view_gc() -> None:
+    ret = _nestgpu.free_view_gc()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def get_rank() -> int:
+    ret = _nestgpu.get_rank()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(ret)
+
+
+def get_num_processes() -> int:
+    ret = _nestgpu.get_num_processes()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(ret)
+
+
+def get_num_threads() -> int:
+    ret = _nestgpu.get_num_threads()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(ret)
+
+
+def set_num_threads(num_threads: int) -> None:
+    if not (0 < num_threads < (1 << 32)):
+        raise ValueError("Invalid num threads")
+    ret = _nestgpu.set_num_threads(ll_sapi.vp_t(num_threads))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def get_rng_seed() -> int:
+    ret = _nestgpu.get_rng_seed()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(ret)
+
+
+def set_rng_seed(seed: int) -> None:
+    if not (0 < seed < (1 << 32)):
+        raise ValueError("Invalid seed")
+    ret = _nestgpu.set_rng_seed(ll_sapi.rng_seed_t(seed))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def get_rng_type() -> str:
+    ret = _nestgpu.get_rng_type()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ret = ll_sapi.carr_to_str(ll_sapi.safe_ptr_deref(ret))
+    free_gc()
+    return ret
+
+
+def set_rng_type(rng_type: str) -> None:
+    ll_sapi.test_param("rng_type", rng_type, "random_generators", _PARAMS)
+    carr = ll_sapi.str_to_carr(rng_type)
+    ret = _nestgpu.set_rng_type(ctypes.byref(carr))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def generate_tile_grid(
+    grid_params: dict,
+    rank_tile_ownership: str | typing.Sequence[typing.Set[int]] = "unique",
+    num_splits: int = 0,
+    expected_total_nodes: int = 0,
+    expected_nodes_per_leaf: int = 100,
+) -> None:
+    if (0 < expected_total_nodes) and not (0 < expected_nodes_per_leaf):
+        raise ValueError(
+            "Need to set both expected total nodes and nodes per leaf to compute splits"
+        )
+    gps = ll_sapi.GPStruct()
+    gps.from_dict(
+        grid_params
+        | {
+            "compute_splits": (0 < expected_total_nodes),
+            "num_splits": num_splits,
+            "expected_total_nodes": expected_total_nodes,
+            "expected_nodes_per_leaf": expected_nodes_per_leaf,
+        },
+        _PARAMS,
+    )
+    rank_tile_ownership = ll_sapi.check_rank_tile_ownership(
+        rank_tile_ownership, grid_params["grid_dimensions"], get_num_processes()
+    )
+    rto_arr = ll_sapi.nested_num_seq_to_nested_arr(
+        ll_sapi.NestedTileIdxArray, rank_tile_ownership
+    )
+    ret = _nestgpu.generate_tile_grid(ctypes.byref(rto_arr), ctypes.byref(gps))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
+
+
+def generate_nodes_in_grid(
+    model_name: str,
+    num_nodes: int = 1,
+    num_ports: int = 1,
+    status_dict: dict | None = None,
+    tiles: typing.Set[int] | None = None,
+    grid_distribution_mode: str | int = "balanced",
+    tile_distribution_mode: str | int = "squeezed",
+) -> ll_sapi.SpatialNodeSeq:
+    if num_nodes < 1:
+        raise ValueError("Invalid number of nodes")
+    if num_ports < 0:
+        raise ValueError("Invalid number of ports")
+    c_mname = ll_sapi.str_to_carr(model_name)
+    tiles_arr = ll_sapi.TileIdxArray()
+    tiles_arr.size_ = 0
+    if tiles is not None and len(tiles) > 0:
+        if not all(0 <= t for t in tiles):
+            raise ValueError("Invalid tile index in tile set")
+        tiles_arr = ll_sapi.num_seq_to_num_arr(ll_sapi.TileIdxArray, tiles)
+    ret = _nestgpu.generate_nodes_in_grid(
+        ctypes.byref(c_mname),
+        ll_sapi.lnix_t(num_nodes),
+        ctypes.byref(tiles_arr),
+        ctypes.c_int(num_ports),
+        ll_sapi.parse_distribution_mode(grid_distribution_mode, _PARAMS),
+        ll_sapi.parse_distribution_mode(tile_distribution_mode, _PARAMS),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret.first_)
+    local_sequence = False
+    if 0 <= ret.second_.second_:
+        if ret.second_.third_ < 1:
+            raise ValueError("Malformed spatial node sequence")
+        local_sequence = True
+    if local_sequence and status_dict is not None:
+        SetStatus(NodeSeq(ret.second_.second_, ret.second_.third_), status_dict)
+    return ll_sapi.SpatialNodeSeq(
+        ret.second_.first_,
+        num_nodes,
+        ret.second_.second_ if local_sequence else None,
+        ret.second_.third_ if local_sequence else None,
+    )
+
+
+def insert_positions_in_grid(
+    model_name: str,
+    positions: typing.Sequence[typing.Sequence[float]],
+    num_ports: int = 1,
+    status_dict: dict | None = None,
+) -> typing.Tuple[ll_sapi.SpatialNodeSeq, typing.List[typing.List[float]]]:
+    num_pos = len(positions)
+    if positions is None or num_pos < 1:
+        raise ValueError("Cannot insert empty position collection")
+    if num_ports < 0:
+        raise ValueError("Invalid number of ports")
+    c_mname = ll_sapi.str_to_carr(model_name)
+    c_pos = ll_sapi.PositionViewStruct()
+    c_pos.from_tuple(positions)  # copy 1
+    ret = _nestgpu.insert_positions_in_grid(
+        ctypes.byref(c_mname),
+        ctypes.byref(c_pos),
+        ctypes.c_int(num_ports),
+    )  # internal cpp copy 2 + C leftovers
+    del c_pos  # delete copy 1
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret.first_)
+    leftovers = ll_sapi.safe_ptr_deref(ret.third_).to_tuple()
+    free_gc()  # clean C leftover positions
+    local_sequence = False
+    if 0 <= ret.second_.second_:
+        if ret.second_.third_ < 1:
+            raise ValueError("Malformed spatial node sequence")
+        local_sequence = True
+    sp_ns = ll_sapi.SpatialNodeSeq(
+        ret.second_.first_,
+        num_pos - len(leftovers),
+        ret.second_.second_ if local_sequence else None,
+        ret.second_.third_ if local_sequence else None,
+    )
+    if local_sequence and status_dict is not None:
+        SetStatus(NodeSeq(ret.second_.second_, ret.second_.third_), status_dict)
+    return sp_ns, leftovers
+
+
+def compute_spatial_connections(
+    sp_ns_source: ll_sapi.SpatialNodeSeq,
+    sp_ns_target: ll_sapi.SpatialNodeSeq,
+    mask_params: dict,
+    conn_params: dict,
+    synspec_params: dict | None = None,
+) -> int:
+    if synspec_params is not None:
+        for param_name in synspec_params:
+            if param_name == "receptor" or param_name == "synapse_group":
+                val = synspec_params[param_name]
+                if (param_name == "synapse_group") and isinstance(val, SynGroup):
+                    val = val.i_syn_group
+                SetSynSpecIntParam(param_name, val)
+            else:
+                raise ValueError(
+                    "Only receptor port or synapse group parameters are possible SynSpec arguments for spatial connections"
+                )
+    mps = ll_sapi.MPStruct()
+    mps.from_dict(mask_params, _PARAMS)
+    cps = ll_sapi.CPStruct()
+    cps.from_dict(conn_params, _PARAMS)
+    ret = _nestgpu.compute_spatial_connections(
+        ctypes.c_size_t(sp_ns_source.spatial_index),
+        ctypes.c_size_t(sp_ns_target.spatial_index),
+        ctypes.byref(mps),
+        ctypes.byref(cps),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    return ll_sapi.check_optional(ret)
+
+
+def get_node_positions(
+    sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
+) -> typing.Tuple[
+    typing.List[int],
+    typing.List[typing.List[float]],
+]:
+    c_opt = ll_sapi.OptionalIndex()
+    if sp_node_seq is not None:
+        c_opt.first_ = True
+        c_opt.second_ = sp_node_seq.spatial_index
+    mps = ll_sapi.MPStruct()
+    if mask_params is not None:
+        mps.from_dict(mask_params, _PARAMS)
+    ret = _nestgpu.view_node_positions(c_opt, ctypes.byref(mps))
+    res = ll_sapi.safe_ptr_deref(ret).to_tuple()
+    free_gc()
+    free_view_gc()
+    return res
+
+
+def view_node_positions(
+    sp_node_seq: ll_sapi.SpatialNodeSeq | None = None, mask_params: dict | None = None
+) -> tuple:
+    c_opt = ll_sapi.OptionalIndex()
+    if sp_node_seq is not None:
+        c_opt.first_ = True
+        c_opt.second_ = sp_node_seq.spatial_index
+    mps = ll_sapi.MPStruct()
+    if mask_params is not None:
+        mps.from_dict(mask_params, _PARAMS)
+    ret = _nestgpu.view_node_positions(c_opt, ctypes.byref(mps))
+    res = ll_sapi.safe_ptr_deref(ret).to_np_data()
+    free_gc()
+    return res
+
+
+def get_spatial_connections(conn_index: int) -> typing.Tuple[
+    typing.Dict[
+        int,
+        typing.List[
+            typing.Tuple[
+                typing.List[int],
+                typing.List[int],
+                typing.List[float],
+                typing.List[float],
+            ]
+        ],
+    ],
+    typing.Dict[
+        int,
+        typing.List[
+            typing.Tuple[
+                typing.List[int],
+                typing.List[int],
+                typing.List[float],
+                typing.List[float],
+            ]
+        ],
+    ],
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_spatial_connections(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret)
+    res = (
+        ll_sapi.connection_view_pair_array_to_dict(pair.first_),
+        ll_sapi.connection_view_pair_array_to_dict(pair.second_),
+    )
+    free_gc()
+    return res
+
+
+def view_spatial_connections(conn_index: int) -> typing.Tuple[
+    typing.Dict[int, typing.List[tuple]],
+    typing.Dict[int, typing.List[tuple]],
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_spatial_connections(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret)
+    res = (
+        ll_sapi.connection_view_pair_array_to_np_dict(pair.first_),
+        ll_sapi.connection_view_pair_array_to_np_dict(pair.second_),
+    )
+    free_gc()
+    return res
+
+
+def get_connection_counts(conn_index: int) -> typing.Tuple[
+    typing.Tuple[typing.List[int], typing.List[int]],
+    typing.Tuple[typing.List[int], typing.List[int]],
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_connection_counts(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret).to_tuple()
+    free_gc()
+    free_view_gc()
+    return pair
+
+
+def view_connection_counts(conn_index: int) -> typing.Tuple[
+    tuple,
+    tuple,
+]:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.view_connection_counts(
+        ctypes.c_size_t(conn_index),
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret).to_np_data()
+    free_gc()
+    return pair
+
+
+def get_grid_vertices() -> typing.Tuple[
+    typing.List[int],
+    typing.List[typing.List[typing.List[float]]],
+    typing.List[typing.List[typing.List[typing.List[float]]]],
+]:
+    ret = _nestgpu.view_grid_vertices()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    gv = ll_sapi.safe_ptr_deref(ret).to_tuple()
+    free_gc()
+    free_view_gc()
+    return gv
+
+
+def view_grid_vertices() -> tuple:
+    ret = _nestgpu.view_grid_vertices()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    gv = ll_sapi.safe_ptr_deref(ret).to_np_data()
+    free_gc()
+    return gv
+
+
+def get_distributed_node_sequences(
+    sp_node_seq: ll_sapi.SpatialNodeSeq,
+) -> typing.Dict[int, typing.Dict[int, typing.Tuple[int, int]]]:
+    ret = _nestgpu.get_distributed_node_sequences(
+        ctypes.c_size_t(sp_node_seq.spatial_index)
+    )
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    dtns = ll_sapi.tiled_node_sequence_pair_array_to_dict(ll_sapi.safe_ptr_deref(ret))
+    free_gc()
+    return dtns
+
+
+def get_timer_data() -> typing.Dict[str, float | typing.List[float]]:
+    ret = _nestgpu.get_timer_data()
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    pair = ll_sapi.safe_ptr_deref(ret)
+    td = ll_sapi.rank_timer_data_pair_array_to_dict(pair.first_)
+    td |= ll_sapi.thread_timer_data_pair_array_to_dict(pair.second_)
+    free_gc()
+    return td
+
+
+def clear_spatial_connections(conn_index: int) -> None:
+    if conn_index < 0:
+        raise ValueError("Invalid connection index")
+    ret = _nestgpu.clear_spatial_connections(ctypes.c_size_t(conn_index))
+    if GetErrorCode() != 0:
+        raise ValueError(GetErrorMessage())
+    ll_sapi.check_bool(ret)
