@@ -25,7 +25,16 @@ set( nestgpu_lib_sources
 add_library( nestgpu SHARED ${nestgpu_lib_sources} )
 set_target_properties( nestgpu PROPERTIES POSITION_INDEPENDENT_CODE ON )
 
-target_link_libraries( nestgpu PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
+target_link_libraries( nestgpu PRIVATE
+    nestgpu_kernel
+    sapi_kernel
+    m
+    cuda
+    CUDA::cudart
+    CUDA::curand
+    MPI::MPI_CXX
+    OpenMP::OpenMP_CXX
+)
 
 target_include_directories( nestgpu PRIVATE
     ${PROJECT_SOURCE_DIR}/nestgpu

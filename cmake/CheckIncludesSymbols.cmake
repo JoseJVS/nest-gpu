@@ -18,8 +18,8 @@
 # along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
 
 # Here we check for all required include headers, types, symbols and functions.
-find_package( CUDAToolkit REQUIRED )
-find_library( MATH_LIBRARY m REQUIRED )
+find_package( CUDAToolkit REQUIRED COMPONENTS CXX )
+find_library( MATH_LIBRARY m REQUIRED COMPONENTS CXX )
 
 
 # Localize the Python interpreter and ABI

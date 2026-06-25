@@ -162,7 +162,7 @@ utilities.cu
 add_library( nestgpu_kernel STATIC ${nestgpu_kernel_sources} )
 set_target_properties( nestgpu_kernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON POSITION_INDEPENDENT_CODE ON )
 
-target_link_libraries( nestgpu_kernel PUBLIC
+target_link_libraries( nestgpu_kernel PRIVATE
     ${LTDL_LIBRARIES}
     m
     cuda
