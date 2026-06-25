@@ -103,13 +103,13 @@ spatial_manager.cpp
 add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
 set_target_properties( sapi_kernel PROPERTIES POSITION_INDEPENDENT_CODE ON )
 
-target_link_libraries( sapi_kernel PRIVATE
+target_link_libraries( sapi_kernel PUBLIC
     m
     MPI::MPI_CXX
     OpenMP::OpenMP_CXX
 )
 
-target_include_directories( sapi_kernel PRIVATE
+target_include_directories( sapi_kernel PUBLIC
     ${PROJECT_SOURCE_DIR}/sapi
     ${PROJECT_SOURCE_DIR}/sapi/thirdparty
     ${PROJECT_BINARY_DIR}/libnestutil

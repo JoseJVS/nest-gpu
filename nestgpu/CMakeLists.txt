@@ -28,20 +28,6 @@ set_target_properties( nestgpu PROPERTIES POSITION_INDEPENDENT_CODE ON )
 target_link_libraries( nestgpu PRIVATE
     nestgpu_kernel
     sapi_kernel
-    m
-    cuda
-    CUDA::cudart
-    CUDA::curand
-    MPI::MPI_CXX
-    OpenMP::OpenMP_CXX
-)
-
-target_include_directories( nestgpu PRIVATE
-    ${PROJECT_SOURCE_DIR}/nestgpu
-    ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/sapi
-    ${PROJECT_SOURCE_DIR}/sapi/thirdparty
-    ${PROJECT_BINARY_DIR}/libnestutil
 )
 
 install( TARGETS nestgpu
