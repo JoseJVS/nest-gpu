@@ -51,6 +51,7 @@ endif()
 set( with-gpu-arch 80 CACHE STRING "Specify specific the GPU compute architecture [default=80]." )
 set( with-mpi ON CACHE STRING "Build with MPI parallelization [default=ON]." )
 set( with-openmp ON CACHE STRING "Build with OpenMP parallelization [default=ON]." )
+set( with-static-libc OFF CACHE STRING "Statically link to libc and libc++ [default=OFF]" )
 
 # external libraries
 # libltdl not yet needed but will be useful for NESTML

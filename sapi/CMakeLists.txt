@@ -103,6 +103,10 @@ spatial_manager.cpp
 add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
 set_target_properties( sapi_kernel PROPERTIES POSITION_INDEPENDENT_CODE ON )
 
+if ( with-static-libc )
+    target_link_options( sapi_kernel PUBLIC -static-libstdc++ -static-libgcc )
+endif()
+
 target_link_libraries( sapi_kernel PUBLIC
     m
     MPI::MPI_CXX
