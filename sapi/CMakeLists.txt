@@ -106,6 +106,7 @@ set_target_properties( sapi_kernel PROPERTIES POSITION_INDEPENDENT_CODE ON )
 target_link_libraries( sapi_kernel PUBLIC
     m
     MPI::MPI_CXX
+    OpenMP::OpenMP_CXX
 )
 
 target_include_directories( sapi_kernel PRIVATE

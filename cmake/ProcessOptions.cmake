@@ -53,10 +53,6 @@ function( NEST_PROCESS_WITH_MPI )
 
     if( MPI_CXX_FOUND )
       set( HAVE_MPI ON PARENT_SCOPE )
-
-      foreach( flag ${MPI_CXX_COMPILE_OPTIONS} )
-        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${flag} )
-      endforeach()
     
       include_directories( ${MPI_CXX_INCLUDE_DIRS} )
       add_definitions( ${MPI_CXX_COMPILE_DEFINITIONS} )
@@ -105,11 +101,8 @@ function( NEST_PROCESS_WITH_OPENMP )
     if ( OpenMP_CXX_FOUND )
       set( HAVE_OMP ON PARENT_SCOPE )
 
-      foreach( flag ${OpenMP_CXX_FLAGS} )
-        add_compile_options( $<$<COMPILE_LANGUAGE:CXX>:${flag}> )
-      endforeach()
-
       include_directories( ${OpenMP_CXX_INCLUDE_DIRS} )
+      add_definitions( ${OpenMP_CXX_COMPILE_DEFINITIONS} )
 
       # export found variables to parent scope
       set( OpenMP_CXX_FOUND "${OpenMP_CXX_FOUND}" PARENT_SCOPE )
