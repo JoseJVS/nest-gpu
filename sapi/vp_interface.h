@@ -146,7 +146,7 @@ struct OmpLock
 #ifdef HAVE_OMP
     omp_lock_t lock_{};
 #else
-    T lock{};
+    int lock_{};
 #endif
 
     OmpLock() noexcept
