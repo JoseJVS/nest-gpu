@@ -51,7 +51,6 @@ endif()
 set( with-gpu-arch 80 CACHE STRING "Specify specific the GPU compute architecture [default=80]." )
 set( with-mpi ON CACHE STRING "Build with MPI parallelization [default=ON]." )
 set( with-openmp ON CACHE STRING "Build with OpenMP parallelization [default=ON]." )
-set( with-static-libc OFF CACHE STRING "Statically link to libc and libc++ [default=OFF]" )
 
 # external libraries
 # libltdl not yet needed but will be useful for NESTML
@@ -67,6 +66,7 @@ set( with-ptxas-options OFF CACHE STRING "Options for ptxas compiling [default=O
 set( with-optimize ON CACHE STRING "Enable user defined optimizations [default=ON (uses '-O3')]. When OFF, no '-O' flag is passed to the compiler. Separate multiple flags by ';'." )
 set( with-warning ON CACHE STRING "Enable user defined warnings [default=ON (uses '-Wall')]. Separate  multiple flags by ';'." )
 set( with-debug OFF CACHE STRING "Enable user defined debug flags [default=OFF]. When ON, '-g' is used. Separate  multiple flags by ';'." )
+set( with-static-libc OFF CACHE STRING "Statically link to libc and libc++ [default=OFF]" )
 
 # generic build configuration
 set( with-version-suffix OFF CACHE STRING "Set a user defined version suffix [default='']." )
