@@ -145,8 +145,6 @@ struct OmpLock
 {
 #ifdef HAVE_OMP
     omp_lock_t lock_{};
-#else
-    int lock_{};
 #endif
 
     OmpLock() noexcept
