@@ -104,7 +104,7 @@ add_library( sapi_kernel STATIC ${sapi_kernel_sources} )
 set_target_properties( sapi_kernel PROPERTIES POSITION_INDEPENDENT_CODE ON )
 
 target_link_libraries( sapi_kernel PUBLIC
-    ${MATH_LIBRARY}
+    m
     MPI::MPI_CXX
 )
 

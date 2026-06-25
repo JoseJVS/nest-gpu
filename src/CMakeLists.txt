@@ -164,7 +164,7 @@ set_target_properties( nestgpu_kernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON P
 
 target_link_libraries( nestgpu_kernel PUBLIC
     ${LTDL_LIBRARIES}
-    ${MATH_LIBRARY}
+    m
     cuda
     CUDA::cudart
     CUDA::curand

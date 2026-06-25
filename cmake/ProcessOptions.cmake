@@ -49,7 +49,7 @@ function( NEST_PROCESS_WITH_MPI )
       set( MPI_ROOT "${with-mpi}" )
     endif ()
 
-    find_package( MPI REQUIRED )
+    find_package( MPI REQUIRED COMPONENTS CXX )
 
     if( MPI_CXX_FOUND )
       set( HAVE_MPI ON PARENT_SCOPE )
@@ -100,7 +100,7 @@ function( NEST_PROCESS_WITH_OPENMP )
       set( OpenMP_ROOT "${with-openmp}" )
     endif ()
 
-    find_package( OpenMP REQUIRED )
+    find_package( OpenMP REQUIRED COMPONENTS CXX )
 
     if ( OpenMP_CXX_FOUND )
       set( HAVE_OMP ON PARENT_SCOPE )
@@ -146,6 +146,7 @@ function( NEST_PROCESS_WITH_LIBLTDL )
 
     if ( LTDL_FOUND )
       set( HAVE_LIBLTDL ON PARENT_SCOPE )
+
       include_directories( ${LTDL_INCLUDE_DIRS} )
 
       # export found variables to parent scope
@@ -358,7 +359,7 @@ function( NEST_PROCESS_WITH_MPI4PY )
   if ( HAVE_MPI AND HAVE_PYTHON )
 
     include( FindPythonModule )
-    find_python_module(mpi4py)
+    find_python_module( mpi4py )
 
     if ( HAVE_MPI4PY )
       include_directories( "${PY_MPI4PY}/include" )
