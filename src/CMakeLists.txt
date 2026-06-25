@@ -160,7 +160,7 @@ utilities.cu
 )
 
 add_library( nestgpu_kernel STATIC ${nestgpu_kernel_sources} )
-set_target_properties( nestgpu_kernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON )
+set_target_properties( nestgpu_kernel PROPERTIES CUDA_SEPARABLE_COMPILATION ON POSITION_INDEPENDENT_CODE ON )
 
 target_link_libraries( nestgpu_kernel PUBLIC
     ${LTDL_LIBRARIES}
@@ -173,8 +173,6 @@ target_link_libraries( nestgpu_kernel PUBLIC
 
 target_include_directories( nestgpu_kernel PRIVATE
     ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/sapi
-    ${PROJECT_SOURCE_DIR}/sapi/thirdparty
     ${PROJECT_BINARY_DIR}/libnestutil
 )
 

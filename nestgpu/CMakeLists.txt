@@ -23,6 +23,7 @@ set( nestgpu_lib_sources
 )
 
 add_library( nestgpu SHARED ${nestgpu_lib_sources} )
+set_target_properties( nestgpu PROPERTIES POSITION_INDEPENDENT_CODE ON )
 
 target_link_libraries( nestgpu PUBLIC nestgpu_kernel sapi_kernel OpenMP::OpenMP_CXX )
 

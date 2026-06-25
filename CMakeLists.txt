@@ -25,12 +25,6 @@ list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 project( nestgpu LANGUAGES CUDA CXX )
 set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
 
-# Set PIC compilation
-set( CMAKE_POSITION_INDEPENDENT_CODE ON )
-
-# Enable dynamic library compiling with run-time search PATH
-set( BUILD_SHARED_LIBS ON )
-
 # reverse the search order for lib extensions
 set( CMAKE_FIND_LIBRARY_SUFFIXES ".so;.dylib;.a;.lib" )
 
