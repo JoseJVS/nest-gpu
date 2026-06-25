@@ -53,9 +53,6 @@ function( NEST_PROCESS_WITH_MPI )
 
     if( MPI_CXX_FOUND )
       set( HAVE_MPI ON PARENT_SCOPE )
-    
-      include_directories( ${MPI_CXX_INCLUDE_DIRS} )
-      add_definitions( ${MPI_CXX_COMPILE_DEFINITIONS} )
 
       # export found variables to parent scope
       set( MPI_CXX_FOUND "${MPI_CXX_FOUND}" PARENT_SCOPE )
@@ -100,9 +97,6 @@ function( NEST_PROCESS_WITH_OPENMP )
 
     if ( OpenMP_CXX_FOUND )
       set( HAVE_OMP ON PARENT_SCOPE )
-
-      include_directories( ${OpenMP_CXX_INCLUDE_DIRS} )
-      add_definitions( ${OpenMP_CXX_COMPILE_DEFINITIONS} )
 
       # export found variables to parent scope
       set( OpenMP_CXX_FOUND "${OpenMP_CXX_FOUND}" PARENT_SCOPE )
