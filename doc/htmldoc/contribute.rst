@@ -13,6 +13,7 @@ NEST GPU users and developers are encouraged to get in touch via the routes esta
   Both were added as `pre-commit <https://pre-commit.com>`_ hooks.
   Check `here <https://pre-commit.com/#quick-start>`_ to install these hooks into your development
   and get started with your contributions.
+  See also `this short guide <https://nest-simulator.readthedocs.io/en/stable/developer_space/guidelines/coding_guidelines_check.html#pre-commit>`_ on how does a regular development workflow using pre-commit look like.
 * You can also contact the NEST community through the :ref:`mailing list <contribute_mailing_list>`
   or in the :ref:`open video conference <contribute_video_conference>`,
   where NEST GPU-specific topics are equally welcome to discuss.
