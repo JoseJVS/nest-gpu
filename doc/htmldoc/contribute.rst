@@ -8,7 +8,7 @@ NEST GPU users and developers are encouraged to get in touch via the routes esta
 * You can directly contact us on the :ref:`NEST GPU GitHub repository <contribute_github>`
   by submitting issues for reporting bugs and requesting features.
 * We also welcome pull requests for contributing to the source code or the documentation.
-  To improve our code quality we use `clang-format <http://clang.llvm.org/docs/ClangFormat.html>`_ for C++/CUDA code
+  To improve our code quality we use `clang-format <https://clang.llvm.org/docs/ClangFormat.html>`_ for C++/CUDA code
   and `ruff-format <https://docs.astral.sh/ruff/formatter>`_ for Python code.
   Both were added as `pre-commit <https://pre-commit.com>`_ hooks.
   Check `here <https://pre-commit.com/#quick-start>`_ to install these hooks into your development
