@@ -24,120 +24,106 @@
 #define SPATIAL_CONTAINERS_H
 
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "sapi_config.h"
 
-
-namespace sapi
-{
+namespace sapi {
 // This structure is used to export tiled node coordinates
 // using a contiguous flat coordinates array
-struct IndexedNodeCoordinates
-{
-    dim_t dimensions_ = 0;
-    std::vector< nodeidx_t > indexes_;
-    std::vector< space_t > coordinates_;
+struct IndexedNodeCoordinates {
+  dim_t dimensions_ = 0;
+  std::vector<nodeidx_t> indexes_;
+  std::vector<space_t> coordinates_;
 };
-
 
 // This map is used to export tile vertices
-struct GridVertexMap
-{
-    dim_t dimensions_ = 0;
-    std::size_t num_tiles_ = 0;
-    std::size_t leaves_per_tile_ = 0;
-    std::size_t vertices_per_tile_ = 0;
-    std::size_t vertices_per_leaf_ = 0;
+struct GridVertexMap {
+  dim_t dimensions_ = 0;
+  std::size_t num_tiles_ = 0;
+  std::size_t leaves_per_tile_ = 0;
+  std::size_t vertices_per_tile_ = 0;
+  std::size_t vertices_per_leaf_ = 0;
 
-    std::vector< tileidx_t > tile_indexes_;
-    std::vector< space_t > tile_vertices_;
-    std::vector< space_t > leaf_vertices_;
+  std::vector<tileidx_t> tile_indexes_;
+  std::vector<space_t> tile_vertices_;
+  std::vector<space_t> leaf_vertices_;
 };
-
 
 // This map is used to export connection counts
-struct ConnectionCounts
-{
-    std::size_t incoming_ranks_ = 0;
-    std::size_t outgoing_ranks_ = 0;
-    std::vector< vp_t > source_ranks_;
-    std::vector< std::size_t > incoming_counts_;
-    std::vector< vp_t > target_ranks_;
-    std::vector< std::size_t > outgoing_counts_;
+struct ConnectionCounts {
+  std::size_t incoming_ranks_ = 0;
+  std::size_t outgoing_ranks_ = 0;
+  std::vector<vp_t> source_ranks_;
+  std::vector<std::size_t> incoming_counts_;
+  std::vector<vp_t> target_ranks_;
+  std::vector<std::size_t> outgoing_counts_;
 };
-
 
 // ----- Input parameters -----
-struct GridParameters
-{
-    // Grid size and origin
-    std::vector< space_t > grid_origin_;
-    std::vector< tileidx_t > grid_dimensions_;
+struct GridParameters {
+  // Grid size and origin
+  std::vector<space_t> grid_origin_;
+  std::vector<tileidx_t> grid_dimensions_;
 
-    // Tile type and size
-    std::string tile_type_;
-    std::vector< space_t > tile_side_lengths_;
-    std::vector< angle_t > tile_angular_offsets_;
+  // Tile type and size
+  std::string tile_type_;
+  std::vector<space_t> tile_side_lengths_;
+  std::vector<angle_t> tile_angular_offsets_;
 
-    // Split parameters
-    bool compute_splits_ = false;
-    split_t num_splits_ = 0;
-    nodeidx_t expected_total_nodes_ = 0;
-    nodeidx_t expected_nodes_per_leaf_ = 0;
+  // Split parameters
+  bool compute_splits_ = false;
+  split_t num_splits_ = 0;
+  nodeidx_t expected_total_nodes_ = 0;
+  nodeidx_t expected_nodes_per_leaf_ = 0;
 };
 
-
-struct MaskParameters
-{
-    // At least one required
-    std::string mask_blueprint_name_;
-    std::vector< space_t > mask_blueprint_params_;
-    std::vector< space_t > mask_blueprint_offset_;
-    std::string source_mask_name_;
-    std::vector< space_t > source_mask_origin_;
-    std::vector< space_t > source_mask_params_;
-    std::vector< space_t > source_mask_offset_;
-    std::string target_mask_name_;
-    std::vector< space_t > target_mask_origin_;
-    std::vector< space_t > target_mask_params_;
-    std::vector< space_t > target_mask_offset_;
+struct MaskParameters {
+  // At least one required
+  std::string mask_blueprint_name_;
+  std::vector<space_t> mask_blueprint_params_;
+  std::vector<space_t> mask_blueprint_offset_;
+  std::string source_mask_name_;
+  std::vector<space_t> source_mask_origin_;
+  std::vector<space_t> source_mask_params_;
+  std::vector<space_t> source_mask_offset_;
+  std::string target_mask_name_;
+  std::vector<space_t> target_mask_origin_;
+  std::vector<space_t> target_mask_params_;
+  std::vector<space_t> target_mask_offset_;
 };
 
+struct ConnectionParameters {
+  // Control parameters
+  bool edge_wrap_ = false;
+  bool only_neighborhood_ = false;
+  bool allow_multiplicity_ = false;
+  bool allow_self_connections_ = false;
+  bool partition_connections_ = false;
+  count_t connection_counts_ = 0;
 
-struct ConnectionParameters
-{
-    // Control parameters
-    bool edge_wrap_ = false;
-    bool only_neighborhood_ = false;
-    bool allow_multiplicity_ = false;
-    bool allow_self_connections_ = false;
-    bool partition_connections_ = false;
-    count_t connection_counts_ = 0;
+  // Connection generation
+  std::string rule_;
 
-    // Connection generation
-    std::string rule_;
+  // Weight computation
+  std::string weight_df_name_;
+  std::vector<space_t> weight_df_params_;
+  std::vector<std::string> weight_ufs_names_;
+  std::vector<std::vector<space_t>> weight_ufs_params_;
 
-    // Weight computation
-    std::string weight_df_name_;
-    std::vector< space_t > weight_df_params_;
-    std::vector< std::string > weight_ufs_names_;
-    std::vector< std::vector< space_t > > weight_ufs_params_;
+  // Delay computation
+  std::string delay_df_name_;
+  std::vector<space_t> delay_df_params_;
+  std::vector<std::string> delay_ufs_names_;
+  std::vector<std::vector<space_t>> delay_ufs_params_;
 
-    // Delay computation
-    std::string delay_df_name_;
-    std::vector< space_t > delay_df_params_;
-    std::vector< std::string > delay_ufs_names_;
-    std::vector< std::vector< space_t > > delay_ufs_params_;
-
-    // Probability drawing
-    std::string prob_df_name_;
-    std::vector< space_t > prob_df_params_;
-    std::vector< std::string > prob_ufs_names_;
-    std::vector< std::vector< space_t > > prob_ufs_params_;
+  // Probability drawing
+  std::string prob_df_name_;
+  std::vector<space_t> prob_df_params_;
+  std::vector<std::string> prob_ufs_names_;
+  std::vector<std::vector<space_t>> prob_ufs_params_;
 };
-}
-
+} // namespace sapi
 
 #endif

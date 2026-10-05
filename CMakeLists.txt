@@ -222,7 +222,7 @@ set( ALL_LIBS
 if ( with-libraries )
   set( ALL_LIBS "${ALL_LIBS};${with-libraries}" )
 endif ()
- 
+
 string( REPLACE ";" " " ALL_LIBS "-lnestgpu;${ALL_LIBS}" )
 string( STRIP "${ALL_LIBS}" ALL_LIBS )
 

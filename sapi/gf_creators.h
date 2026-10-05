@@ -23,33 +23,29 @@
 #ifndef GF_CREATORS_H
 #define GF_CREATORS_H
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to creator_registry.h
-template < typename RT >
-class CreatorRegistry;
+template <typename RT> class CreatorRegistry;
 
 // Forward definition to coordinates.h
 struct Coord2D;
 struct Coord3D;
 
 // Forward definition to grid_functors.h
-template < typename CoordT >
-struct GridTargetPositionShifts;
-template < typename CoordT >
-struct ShiftedOriginCreator;
-template < typename CoordT >
-struct CachedTileCreator;
+template <typename CoordT> struct GridTargetPositionShifts;
+template <typename CoordT> struct ShiftedOriginCreator;
+template <typename CoordT> struct CachedTileCreator;
 
-
-void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< Coord2D > >& gscr );
-void initialize_gsc_registry( CreatorRegistry< GridTargetPositionShifts< Coord3D > >& gscr );
-void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord2D > >& socr );
-void initialize_soc_registry( CreatorRegistry< ShiftedOriginCreator< Coord3D > >& socr );
-void initialize_ctc_registry( CreatorRegistry< CachedTileCreator< Coord2D > >& ctcr );
-void initialize_ctc_registry( CreatorRegistry< CachedTileCreator< Coord3D > >& ctcr );
-}
-
+void initialize_gsc_registry(
+    CreatorRegistry<GridTargetPositionShifts<Coord2D>> &gscr);
+void initialize_gsc_registry(
+    CreatorRegistry<GridTargetPositionShifts<Coord3D>> &gscr);
+void initialize_soc_registry(
+    CreatorRegistry<ShiftedOriginCreator<Coord2D>> &socr);
+void initialize_soc_registry(
+    CreatorRegistry<ShiftedOriginCreator<Coord3D>> &socr);
+void initialize_ctc_registry(CreatorRegistry<CachedTileCreator<Coord2D>> &ctcr);
+void initialize_ctc_registry(CreatorRegistry<CachedTileCreator<Coord3D>> &ctcr);
+} // namespace sapi
 
 #endif

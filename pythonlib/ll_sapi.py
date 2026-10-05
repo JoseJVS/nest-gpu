@@ -150,7 +150,9 @@ class NodesViewStruct(ctypes.Structure):
             self.coordinates_ = None
             raise e
 
-    def to_tuple(self) -> typing.Tuple[
+    def to_tuple(
+        self,
+    ) -> typing.Tuple[
         typing.List[int],
         typing.List[typing.List[float]],
     ]:
@@ -207,9 +209,7 @@ class NodesViewStruct(ctypes.Structure):
             self.indexes_, (self.node_count_,)
         ), NP.ctypeslib.as_array(
             self.coordinates_, (self.dimensions_ * self.node_count_,)
-        ).reshape(
-            (self.dimensions_, self.node_count_), copy=False
-        )
+        ).reshape((self.dimensions_, self.node_count_), copy=False)
 
 
 class PositionViewStruct(ctypes.Structure):
@@ -365,7 +365,9 @@ class ConnectionViewStruct(ctypes.Structure):
             self.delays_ = None
             raise e
 
-    def to_tuple(self) -> typing.List[
+    def to_tuple(
+        self,
+    ) -> typing.List[
         typing.Tuple[
             typing.List[int],
             typing.List[int],
@@ -543,7 +545,9 @@ class ConnectionCountsViewStruct(ctypes.Structure):
             self.target_ranks_ = None
             self.outgoing_counts_ = None
 
-    def to_tuple(self) -> typing.Tuple[
+    def to_tuple(
+        self,
+    ) -> typing.Tuple[
         typing.Tuple[typing.List[int], typing.List[int]],
         typing.Tuple[typing.List[int], typing.List[int]],
     ]:
@@ -711,7 +715,9 @@ class GridViewStruct(ctypes.Structure):
             self.leaf_vertices_ = None
             raise e
 
-    def to_tuple(self) -> typing.Tuple[
+    def to_tuple(
+        self,
+    ) -> typing.Tuple[
         typing.List[int],
         typing.List[typing.List[typing.List[float]]],
         typing.List[typing.List[typing.List[typing.List[float]]]],
@@ -1501,7 +1507,7 @@ def check_rank_tile_ownership(
 ) -> typing.Sequence[typing.Set[int]]:
     total_tiles = functools.reduce(lambda x, y: x * y, grid_dimensions, 1)
     if isinstance(rank_tile_ownership, str):
-        match (rank_tile_ownership.lower()):
+        match rank_tile_ownership.lower():
             case "unique":
                 if total_tiles != num_processes:
                     raise ValueError(

@@ -23,18 +23,14 @@
 #ifndef CG_CREATORS_H
 #define CG_CREATORS_H
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to creator_registry.h
-template < typename RT >
-class CreatorRegistry;
+template <typename RT> class CreatorRegistry;
 
 // Forward definition to connection_generator.h
 struct ConnectionGenerator;
 
-void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr );
-}
-
+void initialize_cg_registry(CreatorRegistry<ConnectionGenerator> &cgr);
+} // namespace sapi
 
 #endif

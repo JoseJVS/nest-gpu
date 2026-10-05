@@ -21,38 +21,28 @@
  */
 
 #include "cg_creators.h"
-#include "creator_registry.h"
 #include "connection_generator.h"
+#include "creator_registry.h"
 #include "type_erasure_helpers.h"
 
-
-namespace sapi
-{
-template < CONNECTION_RULE method >
-struct BaseGCCreator final : public StateLessCreator< ConnectionGenerator >
-{
-    ConnectionGenerator create() const override
-    {
-        ConnectionGenerator cg;
-        cg.rule_ = method;
-        return cg;
-    }
+namespace sapi {
+template <CONNECTION_RULE method>
+struct BaseGCCreator final : public StateLessCreator<ConnectionGenerator> {
+  ConnectionGenerator create() const override {
+    ConnectionGenerator cg;
+    cg.rule_ = method;
+    return cg;
+  }
 };
 
-
-void initialize_cg_registry( CreatorRegistry< ConnectionGenerator >& cgr )
-{
-    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::PAIRWISE_BERNOULLI > >(
-        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::PAIRWISE_BERNOULLI ) ]
-    );
-    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::PAIRWISE_POISSON > >(
-        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::PAIRWISE_POISSON ) ]
-    );
-    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::FIXED_IN_DEGREE > >(
-        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::FIXED_IN_DEGREE ) ]
-    );
-    cgr.register_creator< BaseGCCreator< CONNECTION_RULE::FIXED_OUT_DEGREE > >(
-        CONNECTION_RULE_NAMES[ uint8_t( CONNECTION_RULE::FIXED_OUT_DEGREE ) ]
-    );
+void initialize_cg_registry(CreatorRegistry<ConnectionGenerator> &cgr) {
+  cgr.register_creator<BaseGCCreator<CONNECTION_RULE::PAIRWISE_BERNOULLI>>(
+      CONNECTION_RULE_NAMES[uint8_t(CONNECTION_RULE::PAIRWISE_BERNOULLI)]);
+  cgr.register_creator<BaseGCCreator<CONNECTION_RULE::PAIRWISE_POISSON>>(
+      CONNECTION_RULE_NAMES[uint8_t(CONNECTION_RULE::PAIRWISE_POISSON)]);
+  cgr.register_creator<BaseGCCreator<CONNECTION_RULE::FIXED_IN_DEGREE>>(
+      CONNECTION_RULE_NAMES[uint8_t(CONNECTION_RULE::FIXED_IN_DEGREE)]);
+  cgr.register_creator<BaseGCCreator<CONNECTION_RULE::FIXED_OUT_DEGREE>>(
+      CONNECTION_RULE_NAMES[uint8_t(CONNECTION_RULE::FIXED_OUT_DEGREE)]);
 }
-}
+} // namespace sapi

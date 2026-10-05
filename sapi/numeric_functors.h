@@ -23,75 +23,52 @@
 #ifndef NUMERIC_FUNCTORS_H
 #define NUMERIC_FUNCTORS_H
 
-#include <vector>
 #include <cassert>
+#include <vector>
 
 #include "algebraic_functors.h"
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to link with creator_registry.h
-template < typename T >
-class CreatorRegistry;
+template <typename T> class CreatorRegistry;
 
+struct NumericFunctor {
+  DisplacementFunctor df_;
+  std::vector<UnaryFunctor> ufs_;
 
-struct NumericFunctor
-{
-    DisplacementFunctor df_;
-    std::vector< UnaryFunctor > ufs_;
+  bool is_initialized() const;
 
-    bool is_initialized() const;
-
-    template < typename CoordT >
-    conn_param_t operator()(
-        const Displacement< CoordT >& d
-        ) const;
+  template <typename CoordT>
+  conn_param_t operator()(const Displacement<CoordT> &d) const;
 };
 
+NumericFunctor
+construct_numeric_functor(const std::string &df_name,
+                          const std::vector<space_t> &df_params,
+                          const CreatorRegistry<DisplacementFunctor> &df_reg,
+                          const std::vector<std::string> &ufs_names,
+                          const std::vector<std::vector<space_t>> &ufs_params,
+                          const CreatorRegistry<UnaryFunctor> &uf_reg);
 
-NumericFunctor construct_numeric_functor(
-    const std::string& df_name,
-    const std::vector< space_t >& df_params,
-    const CreatorRegistry< DisplacementFunctor >& df_reg,
-    const std::vector< std::string >& ufs_names,
-    const std::vector< std::vector< space_t > >& ufs_params,
-    const CreatorRegistry< UnaryFunctor >& uf_reg
-);
-
-
-inline bool NumericFunctor::is_initialized() const
-{
-    return df_.func_ != DISPLACEMENT_FUNCTION::NULL_DF;
+inline bool NumericFunctor::is_initialized() const {
+  return df_.func_ != DISPLACEMENT_FUNCTION::NULL_DF;
 }
 
+template <typename CoordT>
+conn_param_t NumericFunctor::operator()(const Displacement<CoordT> &dc) const {
+  auto val = df_(dc);
+  for (const auto &uf : ufs_)
+    val = uf(val);
 
-template < typename CoordT >
-conn_param_t NumericFunctor::operator()(
-    const Displacement< CoordT >& dc
-    ) const
-{
-    auto val = df_( dc );
-    for ( const auto& uf : ufs_ )
-        val = uf( val );
-
-    return std::fmin(
-        std::fmax(
-            val,
-            std::numeric_limits< conn_param_t >::lowest()
-        ),
-        std::numeric_limits< conn_param_t >::max()
-    );
+  return std::fmin(std::fmax(val, std::numeric_limits<conn_param_t>::lowest()),
+                   std::numeric_limits<conn_param_t>::max());
 }
 
-
-struct NFCollection
-{
-    NumericFunctor weight_functor_;
-    NumericFunctor delay_functor_;
-    NumericFunctor probability_functor_;
+struct NFCollection {
+  NumericFunctor weight_functor_;
+  NumericFunctor delay_functor_;
+  NumericFunctor probability_functor_;
 };
-}
-
+} // namespace sapi
 
 #endif

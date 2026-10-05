@@ -20,52 +20,42 @@
  *
  */
 
-#include "grid_neighborhood.h"
 #include "node_distribution.h"
+#include "grid_neighborhood.h"
 
+namespace sapi {
+DistributedTiledNodeSequenceMap consolidate_node_sequences_per_tile_per_rank(
+    const RankNodeSequenceMap &node_sequences_per_rank,
+    const RankTileIdxNodeCountPairs &node_counts_per_tile_per_rank) {
+  nodeidx_t first_node_idx;
+  DistributedTiledNodeSequenceMap dist_tns;
+  for (const auto &[rank, node_sequence] : node_sequences_per_rank) {
+    if (node_sequence.first < 0 || node_sequence.second < 1)
+      throw std::invalid_argument("Invalid node sequence");
 
-namespace sapi
-{
-DistributedTiledNodeSequenceMap
-consolidate_node_sequences_per_tile_per_rank(
-    const RankNodeSequenceMap& node_sequences_per_rank,
-    const RankTileIdxNodeCountPairs& node_counts_per_tile_per_rank
-)
-{
-    nodeidx_t first_node_idx;
-    DistributedTiledNodeSequenceMap dist_tns;
-    for ( const auto& [rank, node_sequence] : node_sequences_per_rank )
-    {
-        if ( node_sequence.first < 0 ||
-            node_sequence.second < 1 )
-            throw std::invalid_argument( "Invalid node sequence" );
+    first_node_idx = node_sequence.first;
+    TileIdxNodeSequenceMap tile_idx_node_sequence_map;
+    for (const auto &[tile_index, node_count] :
+         node_counts_per_tile_per_rank.at(rank)) {
+      if (node_count < 1)
+        continue;
 
-        first_node_idx = node_sequence.first;
-        TileIdxNodeSequenceMap tile_idx_node_sequence_map;
-        for ( const auto& [tile_index, node_count]
-            : node_counts_per_tile_per_rank.at( rank ) )
-        {
-            if ( node_count < 1 )
-                continue;
+      const bool emplace_res =
+          tile_idx_node_sequence_map
+              .emplace(tile_index, NodeSequence(first_node_idx, node_count))
+              .second;
+      assert(emplace_res);
 
-            const bool emplace_res = tile_idx_node_sequence_map.emplace(
-                tile_index,
-                NodeSequence(
-                    first_node_idx,
-                    node_count
-                )
-            ).second;
-            assert( emplace_res );
-
-            first_node_idx += node_count;
-        }
-        assert( ( first_node_idx - node_sequence.first ) == node_sequence.second );
-
-        if ( !tile_idx_node_sequence_map.empty() )
-            // Rank value guaranteed to be unique from RankNodeSequenceMap implementation
-            dist_tns[ rank ].swap( tile_idx_node_sequence_map );
+      first_node_idx += node_count;
     }
+    assert((first_node_idx - node_sequence.first) == node_sequence.second);
 
-    return dist_tns;
+    if (!tile_idx_node_sequence_map.empty())
+      // Rank value guaranteed to be unique from RankNodeSequenceMap
+      // implementation
+      dist_tns[rank].swap(tile_idx_node_sequence_map);
+  }
+
+  return dist_tns;
 }
-}
+} // namespace sapi

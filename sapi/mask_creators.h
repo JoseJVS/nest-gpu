@@ -23,25 +23,19 @@
 #ifndef MASK_CREATORS_H
 #define MASK_CREATORS_H
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to creator_registry.h
-template < typename RT >
-class CreatorRegistry;
+template <typename RT> class CreatorRegistry;
 
 // Forward definition to coordinates.h
 struct Coord2D;
 struct Coord3D;
 
 // Forward definition to mask.h
-template < typename CoordT >
-struct Mask;
+template <typename CoordT> struct Mask;
 
-
-void initialize_mk_registry( CreatorRegistry< Mask< Coord2D > >& mkr );
-void initialize_mk_registry( CreatorRegistry< Mask< Coord3D > >& mkr );
-}
-
+void initialize_mk_registry(CreatorRegistry<Mask<Coord2D>> &mkr);
+void initialize_mk_registry(CreatorRegistry<Mask<Coord3D>> &mkr);
+} // namespace sapi
 
 #endif

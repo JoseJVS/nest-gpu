@@ -22,39 +22,33 @@
 
 #include "grid_neighborhood.h"
 
+namespace sapi {
+std::string GridNeighborhood::to_string() const {
+  assert(has_owners_);
+  std::string res = "Tile ranks ownership:\n";
+  for (std::size_t tix = 0; tix < tile_ranks_ownership_map_.size(); ++tix) {
+    res += "{ " + std::to_string(tix) + " : (";
+    for (const auto &rix : tile_ranks_ownership_map_[tix])
+      res += " " + std::to_string(rix) + ",";
+    res += ") }, ";
+  }
 
-namespace sapi
-{
-std::string GridNeighborhood::to_string() const
-{
-    assert( has_owners_ );
-    std::string res = "Tile ranks ownership:\n";
-    for ( std::size_t tix = 0; tix < tile_ranks_ownership_map_.size(); ++tix )
-    {
-        res += "{ " + std::to_string( tix ) + " : (";
-        for ( const auto& rix : tile_ranks_ownership_map_[ tix ] )
-            res += " " + std::to_string( rix ) + ",";
-        res += ") }, ";
-    }
+  res += "\nRank tiles ownership:\n";
+  for (vp_t rix = 0; rix < num_processes_; ++rix) {
+    res += "{ " + std::to_string(rix) + " : (";
+    for (const auto &tix : rank_tiles_ownership_map_[rix])
+      res += " " + std::to_string(tix) + ",";
+    res += ") }, ";
+  }
 
-    res += "\nRank tiles ownership:\n";
-    for ( vp_t rix = 0; rix < num_processes_; ++rix )
-    {
-        res += "{ " + std::to_string( rix ) + " : (";
-        for ( const auto& tix : rank_tiles_ownership_map_[ rix ] )
-            res += " " + std::to_string( tix ) + ",";
-        res += ") }, ";
-    }
+  res += "\nRank neighborhood:\n";
+  for (vp_t rix = 0; rix < num_processes_; ++rix) {
+    res += "{ " + std::to_string(rix) + " : (";
+    for (const auto &nix : rank_neighbors_map_[rix].second)
+      res += " " + std::to_string(nix) + ",";
+    res += ") }, ";
+  }
 
-    res += "\nRank neighborhood:\n";
-    for ( vp_t rix = 0; rix < num_processes_; ++rix )
-    {
-        res += "{ " + std::to_string( rix ) + " : (";
-        for ( const auto& nix : rank_neighbors_map_[ rix ].second )
-            res += " " + std::to_string( nix ) + ",";
-        res += ") }, ";
-    }
-
-    return res;
+  return res;
 }
-}
+} // namespace sapi

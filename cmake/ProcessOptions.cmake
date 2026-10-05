@@ -223,7 +223,7 @@ function( NEST_PROCESS_WITH_CPP_STD )
     set( CMAKE_CXX_STANDARD_REQUIRED ON PARENT_SCOPE )
     set( CMAKE_CUDA_STANDARD 17 PARENT_SCOPE )
     set( CMAKE_CUDA_STANDARD_REQUIRED ON PARENT_SCOPE )
-  
+
   endif ()
 endfunction()
 
@@ -251,7 +251,7 @@ function( NESTGPU_PROCESS_WITH_PTXAS_OPTIONS )
     add_compile_options(
       $<$<COMPILE_LANGUAGE:CUDA>:--ptxas-options=${CUDA_PTXAS}>
     )
-  
+
   endif ()
 endfunction()
 
@@ -274,7 +274,7 @@ function( NEST_PROCESS_WITH_OPTIMIZE )
     if ( WITHOPTIMIZE STREQUAL "ON" )
       set( with-optimize "-O3;-march=native;-mtune=native" PARENT_SCOPE )
     endif ()
-  
+
   endif ()
 endfunction()
 
@@ -305,7 +305,7 @@ function( NEST_PROCESS_WITH_DEBUG )
       set( CXX_DBG "${with-debug}" PARENT_SCOPE )
       set( CUDA_DBG "${with-debug}" PARENT_SCOPE )
     endif ()
-  
+
   endif ()
 endfunction()
 
@@ -323,7 +323,7 @@ function( NEST_PROCESS_WITH_WARNING )
         $<$<COMPILE_LANGUAGE:CXX>:${flag}>
       )
     endforeach()
-  
+
     set( CUDA_WARN "" )
     string( JOIN "," CUDA_WARN ${with-warning} )
     add_compile_options(
@@ -333,7 +333,7 @@ function( NEST_PROCESS_WITH_WARNING )
     if ( WITHWARNING STREQUAL "ON" )
       set( with-warning "-Wall" PARENT_SCOPE )
     endif ()
-  
+
   endif ()
 endfunction()
 
@@ -360,6 +360,6 @@ function( NEST_PROCESS_VERSION_SUFFIX )
     foreach ( flag ${with-version-suffix} )
       set( NEST_GPU_VERSION_SUFFIX "${flag}" PARENT_SCOPE )
     endforeach ()
-  
+
   endif ()
 endfunction()

@@ -23,66 +23,46 @@
 #ifndef CREATOR_REGISTRY_H
 #define CREATOR_REGISTRY_H
 
-#include <string>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to type_erasure_helpers.h
-template < typename RT >
-struct StateLessCreator;
+template <typename RT> struct StateLessCreator;
 
-template < typename RT >
-class CreatorRegistry
-{
+template <typename RT> class CreatorRegistry {
 public:
-    template < typename CT,
-        typename std::enable_if_t<
-        std::is_base_of_v< StateLessCreator< RT >, CT >,
-        bool > = true >
-    void register_creator( std::string&& name );
+  template <typename CT,
+            typename std::enable_if_t<
+                std::is_base_of_v<StateLessCreator<RT>, CT>, bool> = true>
+  void register_creator(std::string &&name);
 
-    const std::unique_ptr< StateLessCreator< RT > >&
-        get_creator( const std::string& name ) const;
+  const std::unique_ptr<StateLessCreator<RT>> &
+  get_creator(const std::string &name) const;
 
 protected:
-    std::unordered_map< std::string,
-        std::unique_ptr< StateLessCreator< RT > > > registry_;
+  std::unordered_map<std::string, std::unique_ptr<StateLessCreator<RT>>>
+      registry_;
 };
 
-
-template < typename RT >
-template < typename CT,
-    typename std::enable_if_t<
-    std::is_base_of_v< StateLessCreator< RT >, CT >,
-    bool > >
-inline void CreatorRegistry< RT >::register_creator(
-    std::string&& name
-)
-{
-    if ( registry_.find( name ) != registry_.end() )
-        throw std::invalid_argument( name + " is already registered" );
-    else
-        registry_.emplace(
-            std::move( name ),
-            std::make_unique< CT >()
-        );
+template <typename RT>
+template <typename CT, typename std::enable_if_t<
+                           std::is_base_of_v<StateLessCreator<RT>, CT>, bool>>
+inline void CreatorRegistry<RT>::register_creator(std::string &&name) {
+  if (registry_.find(name) != registry_.end())
+    throw std::invalid_argument(name + " is already registered");
+  else
+    registry_.emplace(std::move(name), std::make_unique<CT>());
 }
 
-
-template < typename RT >
-inline const std::unique_ptr< StateLessCreator< RT > >&
-CreatorRegistry< RT >::get_creator(
-    const std::string& name
-) const
-{
-    return registry_.at( name );
+template <typename RT>
+inline const std::unique_ptr<StateLessCreator<RT>> &
+CreatorRegistry<RT>::get_creator(const std::string &name) const {
+  return registry_.at(name);
 }
-}
-
+} // namespace sapi
 
 #endif

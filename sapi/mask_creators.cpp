@@ -21,46 +21,32 @@
  */
 
 #include "mask_creators.h"
-#include "mask2d_geometry.h"
 #include "creator_registry.h"
+#include "mask2d_geometry.h"
 #include "type_erasure_helpers.h"
 
-
-namespace sapi
-{
-template < typename CoordT, MASK_SHAPE shape >
-struct MaskCreator final : public StateLessCreator< Mask< CoordT > >
-{
-    Mask< CoordT > create(
-        const std::vector< space_t >& origin,
-        const std::vector< space_t >& params,
-        const std::vector< space_t >& offset
-    ) const override
-    {
-        return construct_mask< CoordT >( shape, origin, params, offset );
-    }
+namespace sapi {
+template <typename CoordT, MASK_SHAPE shape>
+struct MaskCreator final : public StateLessCreator<Mask<CoordT>> {
+  Mask<CoordT> create(const std::vector<space_t> &origin,
+                      const std::vector<space_t> &params,
+                      const std::vector<space_t> &offset) const override {
+    return construct_mask<CoordT>(shape, origin, params, offset);
+  }
 };
 
-
-void initialize_mk_registry( CreatorRegistry< Mask< Coord2D > >& mkr )
-{
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::CIRCULAR > >(
-        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::CIRCULAR ) ]
-    );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::ELLIPTICAL > >(
-        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::ELLIPTICAL ) ]
-    );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::PARALLELOGRAM > >(
-        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::PARALLELOGRAM ) ]
-    );
-    mkr.register_creator< MaskCreator< Coord2D, MASK_SHAPE::TRIANGULAR > >(
-        MASK_SHAPE_NAMES[ uint8_t( MASK_SHAPE::TRIANGULAR ) ]
-    );
+void initialize_mk_registry(CreatorRegistry<Mask<Coord2D>> &mkr) {
+  mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::CIRCULAR>>(
+      MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::CIRCULAR)]);
+  mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::ELLIPTICAL>>(
+      MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::ELLIPTICAL)]);
+  mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::PARALLELOGRAM>>(
+      MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::PARALLELOGRAM)]);
+  mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::TRIANGULAR>>(
+      MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::TRIANGULAR)]);
 }
 
-
-void initialize_mk_registry( CreatorRegistry< Mask< Coord3D > >& )
-{
-    throw std::runtime_error( "3D Masks not yet implemented" );
+void initialize_mk_registry(CreatorRegistry<Mask<Coord3D>> &) {
+  throw std::runtime_error("3D Masks not yet implemented");
 }
-}
+} // namespace sapi

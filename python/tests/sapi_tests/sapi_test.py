@@ -157,9 +157,9 @@ def main() -> None:
                 source_map = gpu_conn_map[source] = {}
                 source_map[target] = (weight, delay)
 
-        assert len(spatial_conn_map) == len(
-            gpu_conn_map
-        ), f"sapi: {len(spatial_conn_map)}, gpu: {len(gpu_conn_map)}"
+        assert len(spatial_conn_map) == len(gpu_conn_map), (
+            f"sapi: {len(spatial_conn_map)}, gpu: {len(gpu_conn_map)}"
+        )
 
         for source, target_map in gpu_conn_map.items():
             assert source in spatial_conn_map

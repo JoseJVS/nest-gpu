@@ -23,21 +23,16 @@
 #ifndef CF_CREATORS_H
 #define CF_CREATORS_H
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to creator_registry.h
-template < typename RT >
-class CreatorRegistry;
+template <typename RT> class CreatorRegistry;
 
 // Forward definition to algebraic_functors.h
 struct UnaryFunctor;
 struct DisplacementFunctor;
 
-
-void initialize_uf_registry( CreatorRegistry< UnaryFunctor >& ufr );
-void initialize_df_registry( CreatorRegistry< DisplacementFunctor >& dfr );
-}
-
+void initialize_uf_registry(CreatorRegistry<UnaryFunctor> &ufr);
+void initialize_df_registry(CreatorRegistry<DisplacementFunctor> &dfr);
+} // namespace sapi
 
 #endif

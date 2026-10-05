@@ -20,77 +20,61 @@
  *
  */
 
-#include "vp_interface.h"
-#include "rng_creators.h"
 #include "random_manager.h"
+#include "rng_creators.h"
+#include "vp_interface.h"
 
-
-namespace sapi
-{
+namespace sapi {
 RandomManager::RandomManager()
-    : local_rank_( static_cast< rng_seed_t >( get_mpi_rank() ) )
-    , num_processes_( static_cast< rng_seed_t >( get_num_mpi_processes() ) )
-{
-    initialize_rng_registry( rng_registry_ );
-    current_creator_ = rng_registry_.get_creator( current_rng_type_ ).get();
+    : local_rank_(static_cast<rng_seed_t>(get_mpi_rank())),
+      num_processes_(static_cast<rng_seed_t>(get_num_mpi_processes())) {
+  initialize_rng_registry(rng_registry_);
+  current_creator_ = rng_registry_.get_creator(current_rng_type_).get();
 }
 
-
-RandomManager::RandomManager( const vp_t local_rank, const vp_t num_processes )
-    : local_rank_( static_cast< rng_seed_t >( local_rank ) )
-    , num_processes_( static_cast< rng_seed_t >( num_processes ) )
-{
-    initialize_rng_registry( rng_registry_ );
-    current_creator_ = rng_registry_.get_creator( current_rng_type_ ).get();
+RandomManager::RandomManager(const vp_t local_rank, const vp_t num_processes)
+    : local_rank_(static_cast<rng_seed_t>(local_rank)),
+      num_processes_(static_cast<rng_seed_t>(num_processes)) {
+  initialize_rng_registry(rng_registry_);
+  current_creator_ = rng_registry_.get_creator(current_rng_type_).get();
 }
 
+void RandomManager::initialize() {
+  if (!rank_paired_seeds_.empty() || rank_synced_rng_ || rank_specific_rng_ ||
+      tid_synced_rng_vec_.is_initialized() ||
+      tid_specific_rng_vec_.is_initialized() ||
+      tid_rank_paired_rng_vec_.is_initialized()) {
+    rank_synced_rng_.release();
+    rank_specific_rng_.release();
+    tid_synced_rng_vec_.prepare();
+    tid_specific_rng_vec_.prepare();
+    tid_rank_paired_rng_vec_.prepare();
+    rank_paired_seeds_.clear();
+  }
 
-void RandomManager::initialize()
-{
-    if (
-        !rank_paired_seeds_.empty() ||
-        rank_synced_rng_ ||
-        rank_specific_rng_ ||
-        tid_synced_rng_vec_.is_initialized() ||
-        tid_specific_rng_vec_.is_initialized() ||
-        tid_rank_paired_rng_vec_.is_initialized()
-        )
-    {
-        rank_synced_rng_.release();
-        rank_specific_rng_.release();
-        tid_synced_rng_vec_.prepare();
-        tid_specific_rng_vec_.prepare();
-        tid_rank_paired_rng_vec_.prepare();
-        rank_paired_seeds_.clear();
-    }
+  rank_paired_seeds_.resize(num_processes_, 0);
 
-    rank_paired_seeds_.resize( num_processes_, 0 );
+  const AnyRNG rng(current_creator_->create());
+  rank_synced_rng_ = std::make_unique<AnyRNG>(rng);
+  rank_synced_rng_->seed({base_seed_, RANK_SEEDER_});
+  rank_specific_rng_ = std::make_unique<AnyRNG>(rng);
+  rank_specific_rng_->seed(
+      {base_seed_, RANK_SEEDER_, PARITY_SEEDER_, local_rank_});
 
-    const AnyRNG rng( current_creator_->create() );
-    rank_synced_rng_ = std::make_unique< AnyRNG >( rng );
-    rank_synced_rng_->seed(
-        { base_seed_, RANK_SEEDER_ }
-    );
-    rank_specific_rng_ = std::make_unique< AnyRNG >( rng );
-    rank_specific_rng_->seed(
-        { base_seed_, RANK_SEEDER_, PARITY_SEEDER_, local_rank_ }
-    );
+  tid_synced_rng_vec_.clone(rng);
+  tid_specific_rng_vec_.clone(rng);
+  tid_rank_paired_rng_vec_.clone(rng);
 
-    tid_synced_rng_vec_.clone( rng );
-    tid_specific_rng_vec_.clone( rng );
-    tid_rank_paired_rng_vec_.clone( rng );
-
-#pragma omp parallel default( none )\
-shared( tid_synced_rng_vec_, tid_specific_rng_vec_ )\
-firstprivate( base_seed_, local_rank_, current_creator_ )
-    {
-        const auto tid = get_thread_num();
-        tid_synced_rng_vec_.get_thread_item( tid )->seed(
-            { base_seed_, THREAD_SEEDER_, static_cast< rng_seed_t >( tid ) }
-        );
-        tid_specific_rng_vec_.get_thread_item( tid )->seed(
-            { base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, static_cast< rng_seed_t >( tid ) }
-        );
-    }
+#pragma omp parallel default(none)                                             \
+    shared(tid_synced_rng_vec_, tid_specific_rng_vec_)                         \
+    firstprivate(base_seed_, local_rank_, current_creator_)
+  {
+    const auto tid = get_thread_num();
+    tid_synced_rng_vec_.get_thread_item(tid)->seed(
+        {base_seed_, THREAD_SEEDER_, static_cast<rng_seed_t>(tid)});
+    tid_specific_rng_vec_.get_thread_item(tid)->seed(
+        {base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_,
+         static_cast<rng_seed_t>(tid)});
+  }
 }
-}
+} // namespace sapi

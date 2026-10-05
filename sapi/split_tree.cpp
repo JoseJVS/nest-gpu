@@ -24,39 +24,27 @@
 
 #include "split_tree.h"
 
-
-namespace sapi
-{
-tileidx_t collapse_dimensions(
-    const std::vector< split_t >& branch_sequence,
-    const std::vector< split_t >& split_sequence
-)
-{
-    assert( branch_sequence.size() == split_sequence.size() );
-    auto bs_it = branch_sequence.begin();
-    tileidx_t index = *bs_it++;
-    for ( auto ss_it = split_sequence.begin() + 1;
-        ss_it != split_sequence.end();
-        ++ss_it )
-        index = *bs_it++ + *ss_it * index;
-    return index;
+namespace sapi {
+tileidx_t collapse_dimensions(const std::vector<split_t> &branch_sequence,
+                              const std::vector<split_t> &split_sequence) {
+  assert(branch_sequence.size() == split_sequence.size());
+  auto bs_it = branch_sequence.begin();
+  tileidx_t index = *bs_it++;
+  for (auto ss_it = split_sequence.begin() + 1; ss_it != split_sequence.end();
+       ++ss_it)
+    index = *bs_it++ + *ss_it * index;
+  return index;
 }
 
-
-tileidx_t get_index_from_branches(
-    const SplitBranch* from_node,
-    const std::vector< split_t >& possible_branches
-)
-{
-    std::vector< split_t > branches( possible_branches.size() );
-    for ( auto rev_it = branches.rbegin();
-        rev_it != branches.rend();
-        ++rev_it )
-    {
-        assert( from_node != nullptr );
-        *rev_it = from_node->index_;
-        from_node = from_node->parent_;
-    }
-    return collapse_dimensions( branches, possible_branches );
+tileidx_t
+get_index_from_branches(const SplitBranch *from_node,
+                        const std::vector<split_t> &possible_branches) {
+  std::vector<split_t> branches(possible_branches.size());
+  for (auto rev_it = branches.rbegin(); rev_it != branches.rend(); ++rev_it) {
+    assert(from_node != nullptr);
+    *rev_it = from_node->index_;
+    from_node = from_node->parent_;
+  }
+  return collapse_dimensions(branches, possible_branches);
 }
-}
+} // namespace sapi

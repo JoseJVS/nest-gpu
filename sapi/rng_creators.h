@@ -27,27 +27,20 @@
 
 #include "sapi_config.h"
 
-
-namespace sapi
-{
+namespace sapi {
 // Forward definition to creator_registry.h
-template < typename RT >
-class CreatorRegistry;
+template <typename RT> class CreatorRegistry;
 
 // Forward definition to link with type_erasure_helpers.h
-template < typename RT,
-    typename std::enable_if_t<
-    std::disjunction_v<
-    std::is_same< RT, uint32_t >,
-    std::is_same< RT, uint64_t >
-    >
-    , bool > b
->
+template <typename RT, typename std::enable_if_t<
+                           std::disjunction_v<std::is_same<RT, uint32_t>,
+                                              std::is_same<RT, uint64_t>>,
+                           bool>
+                           b>
 class AnyRNG_T;
 
-
-void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint32_t, true > >& anr );
-void initialize_rng_registry( CreatorRegistry< AnyRNG_T< uint64_t, true > >& anr );
-}
+void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint32_t, true>> &anr);
+void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint64_t, true>> &anr);
+} // namespace sapi
 
 #endif

@@ -25,51 +25,42 @@
 
 #include "mask_containers.h"
 
-
-namespace sapi
-{
-template < typename CoordT >
+namespace sapi {
+template <typename CoordT>
 bool compare_indexed_node_ptr_maps(
-    const FilteredTileNodeCollection< CoordT >& left,
-    const FilteredTileNodeCollection< CoordT >& right
-)
-{
-    if ( left.size() != right.size() )
+    const FilteredTileNodeCollection<CoordT> &left,
+    const FilteredTileNodeCollection<CoordT> &right) {
+  if (left.size() != right.size())
+    return false;
+
+  for (const auto &left_tile : left) {
+    const auto right_tile_it = right.find(left_tile.first);
+    if (right_tile_it == right.end())
+      return false;
+
+    if (left_tile.second.size() != right_tile_it->second.size())
+      return false;
+
+    for (const auto &left_leaf : left_tile.second) {
+      const auto right_leaf_it = right_tile_it->second.find(left_leaf.first);
+      if (right_leaf_it == right_tile_it->second.end())
         return false;
 
-    for ( const auto& left_tile : left )
-    {
-        const auto right_tile_it = right.find( left_tile.first );
-        if ( right_tile_it == right.end() )
-            return false;
+      if (left_leaf.second.size() != right_leaf_it->second.size())
+        return false;
 
-        if ( left_tile.second.size() != right_tile_it->second.size() )
-            return false;
-
-        for ( const auto& left_leaf : left_tile.second )
-        {
-            const auto right_leaf_it = right_tile_it->second.find( left_leaf.first );
-            if ( right_leaf_it == right_tile_it->second.end() )
-                return false;
-
-            if ( left_leaf.second.size() != right_leaf_it->second.size() )
-                return false;
-
-            auto right_view_it = right_leaf_it->second.cbegin();
-            for ( const auto& left_view : left_leaf.second )
-            {
-                if (
-                    left_view->first != ( *right_view_it )->first ||
-                    !( left_view->second == ( *right_view_it )->second )
-                    )
-                    return false;
-                ++right_view_it;
-            }
-        }
+      auto right_view_it = right_leaf_it->second.cbegin();
+      for (const auto &left_view : left_leaf.second) {
+        if (left_view->first != (*right_view_it)->first ||
+            !(left_view->second == (*right_view_it)->second))
+          return false;
+        ++right_view_it;
+      }
     }
+  }
 
-    return true;
+  return true;
 }
-}
+} // namespace sapi
 
 #endif
