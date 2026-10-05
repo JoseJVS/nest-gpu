@@ -20,25 +20,20 @@
  *
  */
 
-
-
-
-
 #ifndef AEIFCONDBETAKERNEL_H
 #define AEIFCONDBETAKERNEL_H
 
-#include <string>
-#include <cmath>
-#include "spike_buffer.h"
-#include "node_group.h"
 #include "aeif_cond_beta.h"
+#include "node_group.h"
+#include "spike_buffer.h"
+#include <cmath>
+#include <string>
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 extern __constant__ float NESTGPUTimeResolution;
 
-namespace aeif_cond_beta_ns
-{
+namespace aeif_cond_beta_ns {
 enum ScalVarIndexes {
   i_g_ex = 0,
   i_g_in,
@@ -76,50 +71,40 @@ enum ScalParamIndexes {
 };
 
 enum GroupParamIndexes {
-  i_h_min_rel = 0,  // Min. step in ODE integr. relative to time resolution
-  i_h0_rel,         // Starting step in ODE integr. relative to time resolution
+  i_h_min_rel = 0, // Min. step in ODE integr. relative to time resolution
+  i_h0_rel,        // Starting step in ODE integr. relative to time resolution
   N_GROUP_PARAM
 };
 
-
 const std::string aeif_cond_beta_scal_var_name[N_SCAL_VAR] = {
-  "g_ex",
-  "g_in",
-  "g1_ex",
-  "g1_in",
-  "V_m",
-  "w"
-};
+    "g_ex", "g_in", "g1_ex", "g1_in", "V_m", "w"};
 
 const std::string aeif_cond_beta_scal_param_name[N_SCAL_PARAM] = {
-  "g0_ex",
-  "g0_in",
-  "E_rev_ex",
-  "E_rev_in",
-  "tau_rise_ex",
-  "tau_rise_in",
-  "tau_decay_ex",
-  "tau_decay_in",
-  "V_th",
-  "Delta_T",
-  "g_L",
-  "E_L",
-  "C_m",
-  "a",
-  "b",
-  "tau_w",
-  "I_e",
-  "V_peak",
-  "V_reset",
-  "t_ref",
-  "refractory_step",
-  "den_delay"
-};
+    "g0_ex",
+    "g0_in",
+    "E_rev_ex",
+    "E_rev_in",
+    "tau_rise_ex",
+    "tau_rise_in",
+    "tau_decay_ex",
+    "tau_decay_in",
+    "V_th",
+    "Delta_T",
+    "g_L",
+    "E_L",
+    "C_m",
+    "a",
+    "b",
+    "tau_w",
+    "I_e",
+    "V_peak",
+    "V_reset",
+    "t_ref",
+    "refractory_step",
+    "den_delay"};
 
-const std::string aeif_cond_beta_group_param_name[N_GROUP_PARAM] = {
-  "h_min_rel",
-  "h0_rel"
-};
+const std::string aeif_cond_beta_group_param_name[N_GROUP_PARAM] = {"h_min_rel",
+                                                                    "h0_rel"};
 
 //
 // I know that defines are "bad", but the defines below make the
@@ -166,47 +151,44 @@ const std::string aeif_cond_beta_group_param_name[N_GROUP_PARAM] = {
 #define h_min_rel_ group_param_[i_h_min_rel]
 #define h0_rel_ group_param_[i_h0_rel]
 
- 
- template<int NVAR, int NPARAM> //, class DataStruct>
-__device__
-    void Derivatives(double x, float *y, float *dydx, float *param,
-		     aeif_cond_beta_rk5 data_struct)
-{
+template <int NVAR, int NPARAM> //, class DataStruct>
+__device__ void Derivatives(double x, float *y, float *dydx, float *param,
+                            aeif_cond_beta_rk5 data_struct) {
   float I_syn_in = 0.0;
   float I_syn_ex = 0.0;
 
-  float V = ( refractory_step > 0 ) ? V_reset :  MIN(V_m, V_peak);
-  I_syn_ex += g_ex*(E_rev_ex - V);
-  I_syn_in += g_in*(E_rev_in - V);
+  float V = (refractory_step > 0) ? V_reset : MIN(V_m, V_peak);
+  I_syn_ex += g_ex * (E_rev_ex - V);
+  I_syn_in += g_in * (E_rev_in - V);
 
-  float V_spike = Delta_T*exp((V - V_th)/Delta_T);
+  float V_spike = Delta_T * exp((V - V_th) / Delta_T);
 
-  dVdt = ( refractory_step > 0 ) ? 0 :
-    ( -g_L*(V - E_L - V_spike) + I_syn_ex + I_syn_in - w + I_e) / C_m;
+  dVdt =
+      (refractory_step > 0)
+          ? 0
+          : (-g_L * (V - E_L - V_spike) + I_syn_ex + I_syn_in - w + I_e) / C_m;
   // Adaptation current w.
-  dwdt = (a*(V - E_L) - w) / tau_w;
+  dwdt = (a * (V - E_L) - w) / tau_w;
   dg1_exdt = -g1_ex / tau_rise_ex;
   dg_exdt = g1_ex - g_ex / tau_decay_ex;
   dg1_indt = -g1_in / tau_rise_in;
   dg_indt = g1_in - g_in / tau_decay_in;
 }
 
- template<int NVAR, int NPARAM> //, class DataStruct>
-__device__
-    void ExternalUpdate
-    (double x, float *y, float *param, bool end_time_step,
-			aeif_cond_beta_rk5 data_struct)
-{
-  if ( V_m < -1.0e3) { // numerical instability
+template <int NVAR, int NPARAM> //, class DataStruct>
+__device__ void ExternalUpdate(double x, float *y, float *param,
+                               bool end_time_step,
+                               aeif_cond_beta_rk5 data_struct) {
+  if (V_m < -1.0e3) { // numerical instability
     printf("V_m out of lower bound\n");
     V_m = V_reset;
-    w=0;
+    w = 0;
     return;
   }
-  if ( w < -1.0e6 || w > 1.0e6) { // numerical instability
+  if (w < -1.0e6 || w > 1.0e6) { // numerical instability
     printf("w out of bound\n");
     V_m = V_reset;
-    w=0;
+    w = 0;
     return;
   }
   if (refractory_step > 0.0) {
@@ -214,44 +196,36 @@ __device__
     if (end_time_step) {
       refractory_step -= 1.0;
     }
-  }
-  else {
-    if ( V_m >= V_peak ) { // send spike
+  } else {
+    if (V_m >= V_peak) { // send spike
       int neuron_idx = threadIdx.x + blockIdx.x * blockDim.x;
       PushSpike(data_struct.i_node_0_ + neuron_idx, 1.0);
       V_m = V_reset;
       w += b; // spike-driven adaptation
-      refractory_step = (int)round(t_ref/NESTGPUTimeResolution);
-      if (refractory_step<0) {
-	refractory_step = 0;
+      refractory_step = (int)round(t_ref / NESTGPUTimeResolution);
+      if (refractory_step < 0) {
+        refractory_step = 0;
       }
     }
   }
 }
 
-
-};
+}; // namespace aeif_cond_beta_ns
 
 int Update(long long it, double t1);
 
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives(double x, float *y, float *dydx, float *param,
-		 aeif_cond_beta_rk5 data_struct)
-{
-    aeif_cond_beta_ns::Derivatives<NVAR, NPARAM>(x, y, dydx, param,
-						 data_struct);
+template <int NVAR, int NPARAM>
+__device__ void Derivatives(double x, float *y, float *dydx, float *param,
+                            aeif_cond_beta_rk5 data_struct) {
+  aeif_cond_beta_ns::Derivatives<NVAR, NPARAM>(x, y, dydx, param, data_struct);
 }
 
-template<int NVAR, int NPARAM>
-__device__
-void ExternalUpdate(double x, float *y, float *param, bool end_time_step,
-		    aeif_cond_beta_rk5 data_struct)
-{
-    aeif_cond_beta_ns::ExternalUpdate<NVAR, NPARAM>(x, y, param,
-						    end_time_step,
-						    data_struct);
+template <int NVAR, int NPARAM>
+__device__ void ExternalUpdate(double x, float *y, float *param,
+                               bool end_time_step,
+                               aeif_cond_beta_rk5 data_struct) {
+  aeif_cond_beta_ns::ExternalUpdate<NVAR, NPARAM>(x, y, param, end_time_step,
+                                                  data_struct);
 }
-
 
 #endif

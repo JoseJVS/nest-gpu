@@ -20,17 +20,12 @@
  *
  */
 
-
-
-
-
 #ifndef NODEGROUP_H
 #define NODEGROUP_H
 
-#define MAX_N_NODE_GROUPS 128
+#define MAX_N_NODE_GROUPS 512
 
-struct NodeGroupStruct
-{
+struct NodeGroupStruct {
   int node_type_;
   int i_node_0_;
   int n_node_;

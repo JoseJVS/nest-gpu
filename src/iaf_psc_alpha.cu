@@ -20,19 +20,15 @@
  *
  */
 
-
-
-
-
 // adapted from:
 // https://github.com/nest/nest-simulator/blob/master/models/iaf_psc_alpha.cpp
 
-#include <config.h>
-#include <cmath>
-#include <iostream>
 #include "iaf_psc_alpha.h"
 #include "propagator_stability.h"
 #include "spike_buffer.h"
+#include <cmath>
+#include <config.h>
+#include <iostream>
 
 using namespace iaf_psc_alpha_ns;
 
@@ -74,52 +70,46 @@ extern __device__ double propagator_32(double, double, double, double);
 #define EPSCInitialValue param[i_EPSCInitialValue]
 #define IPSCInitialValue param[i_IPSCInitialValue]
 
-
 __global__ void iaf_psc_alpha_Calibrate(int n_node, float *param_arr,
-				      int n_param, float h)
-{
+                                        int n_param, float h) {
   int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i_neuron<n_node) {
-    float *param = param_arr + n_param*i_neuron;
-    
-    P11ex = P22ex = exp( -h / tau_ex );
-    P11in = P22in = exp( -h / tau_in );
-    P33 = exp( -h / tau_m );
-    expm1_tau_m = expm1( -h / tau_m );
+  if (i_neuron < n_node) {
+    float *param = param_arr + n_param * i_neuron;
 
-    P30 = -tau_m / C_m * expm1( -h / tau_m );
+    P11ex = P22ex = exp(-h / tau_ex);
+    P11in = P22in = exp(-h / tau_in);
+    P33 = exp(-h / tau_m);
+    expm1_tau_m = expm1(-h / tau_m);
+
+    P30 = -tau_m / C_m * expm1(-h / tau_m);
     P21ex = h * P11ex;
     P21in = h * P11in;
 
-    P31ex = (float)propagator_31( tau_ex, tau_m, C_m, h );
-    P32ex = (float)propagator_32( tau_ex, tau_m, C_m, h );
-    P31in = (float)propagator_31( tau_in, tau_m, C_m, h );
-    P32in = (float)propagator_32( tau_in, tau_m, C_m, h );
+    P31ex = (float)propagator_31(tau_ex, tau_m, C_m, h);
+    P32ex = (float)propagator_32(tau_ex, tau_m, C_m, h);
+    P31in = (float)propagator_31(tau_in, tau_m, C_m, h);
+    P32in = (float)propagator_32(tau_in, tau_m, C_m, h);
 
     EPSCInitialValue = M_E / tau_ex;
     IPSCInitialValue = M_E / tau_in;
-
   }
 }
 
-
 __global__ void iaf_psc_alpha_Update(int n_node, int i_node_0, float *var_arr,
-				   float *param_arr, int n_var, int n_param)
-{
+                                     float *param_arr, int n_var, int n_param) {
   int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i_neuron<n_node) {
-    float *var = var_arr + n_var*i_neuron;
-    float *param = param_arr + n_param*i_neuron;
+  if (i_neuron < n_node) {
+    float *var = var_arr + n_var * i_neuron;
+    float *param = param_arr + n_param * i_neuron;
 
-    if ( refractory_step > 0.0 ) {
+    if (refractory_step > 0.0) {
       // neuron is absolute refractory
       refractory_step -= 1.0;
+    } else { // neuron is not refractory, so evolve V
+      V_m_rel = P30 * I_e + P31ex * dI_ex + P32ex * I_ex + P31in * dI_in +
+                P32in * I_in + expm1_tau_m * V_m_rel + V_m_rel;
     }
-    else { // neuron is not refractory, so evolve V
-      V_m_rel = P30 * I_e + P31ex * dI_ex + P32ex * I_ex
-               + P31in * dI_in + P32in * I_in + expm1_tau_m * V_m_rel + V_m_rel;
-    }
-  
+
     // alpha shape PSCs
     I_ex = P21ex * dI_ex + P22ex * I_ex;
     dI_ex *= P11ex;
@@ -127,47 +117,44 @@ __global__ void iaf_psc_alpha_Update(int n_node, int i_node_0, float *var_arr,
     I_in = P21in * dI_in + P22in * I_in;
     dI_in *= P11in;
 
-    if (V_m_rel >= Theta_rel ) { // threshold crossing
+    if (V_m_rel >= Theta_rel) { // threshold crossing
       PushSpike(i_node_0 + i_neuron, 1.0);
       V_m_rel = V_reset_rel;
-      refractory_step = (int)round(t_ref/NESTGPUTimeResolution);
+      refractory_step = (int)round(t_ref / NESTGPUTimeResolution);
     }
   }
 }
 
-iaf_psc_alpha::~iaf_psc_alpha()
-{
+iaf_psc_alpha::~iaf_psc_alpha() {
   FreeVarArr();
   FreeParamArr();
 }
 
-int iaf_psc_alpha::Init(int i_node_0, int n_node, int /*n_port*/,
-			 int i_group, unsigned long long *seed)
-{
-  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
+int iaf_psc_alpha::Init(int i_node_0, int n_node, int n_port, int i_group) {
+  BaseNeuron::Init(i_node_0, n_node, n_port, i_group);
   node_type_ = i_iaf_psc_alpha_model;
 
   n_scal_var_ = N_SCAL_VAR;
   n_var_ = n_scal_var_;
   n_scal_param_ = N_SCAL_PARAM;
   n_param_ = n_scal_param_;
-  
+
   AllocParamArr();
   AllocVarArr();
 
   scal_var_name_ = iaf_psc_alpha_scal_var_name;
   scal_param_name_ = iaf_psc_alpha_scal_param_name;
 
-  SetScalParam(0, n_node, "tau_m", 10.0 );           // in ms
-  SetScalParam(0, n_node, "C_m", 250.0 );            // in pF
-  SetScalParam(0, n_node, "E_L", -70.0 );            // in mV
-  SetScalParam(0, n_node, "I_e", 0.0 );              // in pA
-  SetScalParam(0, n_node, "Theta_rel", -55.0 - (-70.0) );   // relative to E_L_
-  SetScalParam(0, n_node, "V_reset_rel", -70.0 - (-70.0) ); // relative to E_L_
-  SetScalParam(0, n_node, "tau_syn_ex", 2.0 );           // in ms
-  SetScalParam(0, n_node, "tau_syn_in", 2.0 );           // in ms
-  SetScalParam(0, n_node, "t_ref",  2.0 );           // in ms
-  SetScalParam(0, n_node, "den_delay", 0.0);         // in ms
+  SetScalParam(0, n_node, "tau_m", 10.0);                  // in ms
+  SetScalParam(0, n_node, "C_m", 250.0);                   // in pF
+  SetScalParam(0, n_node, "E_L", -70.0);                   // in mV
+  SetScalParam(0, n_node, "I_e", 0.0);                     // in pA
+  SetScalParam(0, n_node, "Theta_rel", -55.0 - (-70.0));   // relative to E_L_
+  SetScalParam(0, n_node, "V_reset_rel", -70.0 - (-70.0)); // relative to E_L_
+  SetScalParam(0, n_node, "tau_syn_ex", 2.0);              // in ms
+  SetScalParam(0, n_node, "tau_syn_in", 2.0);              // in ms
+  SetScalParam(0, n_node, "t_ref", 2.0);                   // in ms
+  SetScalParam(0, n_node, "den_delay", 0.0);               // in ms
   SetScalParam(0, n_node, "P11ex", 0.0);
   SetScalParam(0, n_node, "P11in", 0.0);
   SetScalParam(0, n_node, "P21ex", 0.0);
@@ -183,13 +170,13 @@ int iaf_psc_alpha::Init(int i_node_0, int n_node, int /*n_port*/,
   SetScalParam(0, n_node, "EPSCInitialValue", 0.0);
   SetScalParam(0, n_node, "IPSCInitialValue", 0.0);
 
-  SetScalVar(0, n_node, "I_syn_ex", 0.0 );
-  SetScalVar(0, n_node, "dI_ex", 0.0 );
-  SetScalVar(0, n_node, "I_syn_in", 0.0 );
-  SetScalVar(0, n_node, "dI_in", 0.0 );
-  SetScalVar(0, n_node, "V_m_rel", -70.0 - (-70.0) ); // in mV, relative to E_L
-  SetScalVar(0, n_node, "refractory_step", 0 );
-  
+  SetScalVar(0, n_node, "I_syn_ex", 0.0);
+  SetScalVar(0, n_node, "dI_ex", 0.0);
+  SetScalVar(0, n_node, "I_syn_in", 0.0);
+  SetScalVar(0, n_node, "dI_in", 0.0);
+  SetScalVar(0, n_node, "V_m_rel", -70.0 - (-70.0)); // in mV, relative to E_L
+  SetScalVar(0, n_node, "refractory_step", 0);
+
   port_weight_arr_ = GetParamArr() + GetScalParamIdx("EPSCInitialValue");
   port_weight_arr_step_ = n_param_;
   port_weight_port_step_ = 1;
@@ -198,33 +185,30 @@ int iaf_psc_alpha::Init(int i_node_0, int n_node, int /*n_port*/,
   port_input_arr_step_ = n_var_;
   port_input_port_step_ = 1;
 
-  den_delay_arr_ =  GetParamArr() + GetScalParamIdx("den_delay");
-  
+  den_delay_arr_ = GetParamArr() + GetScalParamIdx("den_delay");
+
   return 0;
 }
 
-int iaf_psc_alpha::Update(long long it, double t1)
-{
+int iaf_psc_alpha::Update(long long it, double t1) {
   // std::cout << "iaf_psc_alpha neuron update\n";
-  iaf_psc_alpha_Update<<<(n_node_+1023)/1024, 1024>>>
-    (n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
-  // gpuErrchk( cudaDeviceSynchronize() );
-  
+  iaf_psc_alpha_Update<<<(n_node_ + 1023) / 1024, 1024>>>(
+      n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
+  DBGCUDASYNC;
+
   return 0;
 }
 
-int iaf_psc_alpha::Free()
-{
-  FreeVarArr();  
+int iaf_psc_alpha::Free() {
+  FreeVarArr();
   FreeParamArr();
-  
+
   return 0;
 }
 
-int iaf_psc_alpha::Calibrate(double, float time_resolution)
-{
-  iaf_psc_alpha_Calibrate<<<(n_node_+1023)/1024, 1024>>>
-    (n_node_, param_arr_, n_param_, time_resolution);
+int iaf_psc_alpha::Calibrate(double, float time_resolution) {
+  iaf_psc_alpha_Calibrate<<<(n_node_ + 1023) / 1024, 1024>>>(
+      n_node_, param_arr_, n_param_, time_resolution);
 
   return 0;
 }

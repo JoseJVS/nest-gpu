@@ -20,34 +20,23 @@
  *
  */
 
-
-
-
-
 #ifndef USERM1PSCDELTAKERNEL_H
 #define USERM1PSCDELTAKERNEL_H
 
-#include <string>
-#include <cmath>
-#include "spike_buffer.h"
 #include "node_group.h"
+#include "spike_buffer.h"
 #include "user_m1.h"
+#include <cmath>
+#include <string>
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 extern __constant__ float NESTGPUTimeResolution;
 
-namespace user_m1_ns
-{
-enum ScalVarIndexes {
-  i_V_m = 0,
-  i_w,
-  N_SCAL_VAR
-};
+namespace user_m1_ns {
+enum ScalVarIndexes { i_V_m = 0, i_w, N_SCAL_VAR };
 
-enum PortVarIndexes {
-  N_PORT_VAR = 0
-};
+enum PortVarIndexes { N_PORT_VAR = 0 };
 
 enum ScalParamIndexes {
   i_V_th = 0,
@@ -68,39 +57,30 @@ enum ScalParamIndexes {
 };
 
 enum GroupParamIndexes {
-  i_h_min_rel = 0,  // Min. step in ODE integr. relative to time resolution
-  i_h0_rel,         // Starting step in ODE integr. relative to time resolution
+  i_h_min_rel = 0, // Min. step in ODE integr. relative to time resolution
+  i_h0_rel,        // Starting step in ODE integr. relative to time resolution
   N_GROUP_PARAM
 };
 
+const std::string user_m1_scal_var_name[N_SCAL_VAR] = {"V_m", "w"};
 
-const std::string user_m1_scal_var_name[N_SCAL_VAR] = {
-  "V_m",
-  "w"
-};
+const std::string user_m1_scal_param_name[N_SCAL_PARAM] = {"V_th",
+                                                           "Delta_T",
+                                                           "g_L",
+                                                           "E_L",
+                                                           "C_m",
+                                                           "a",
+                                                           "b",
+                                                           "tau_w",
+                                                           "I_e",
+                                                           "V_peak",
+                                                           "V_reset",
+                                                           "t_ref",
+                                                           "refractory_step",
+                                                           "den_delay"};
 
-const std::string user_m1_scal_param_name[N_SCAL_PARAM] = {
-  "V_th",
-  "Delta_T",
-  "g_L",
-  "E_L",
-  "C_m",
-  "a",
-  "b",
-  "tau_w",
-  "I_e",
-  "V_peak",
-  "V_reset",
-  "t_ref",
-  "refractory_step",
-  "den_delay"
-};
-
-const std::string user_m1_group_param_name[N_GROUP_PARAM] = {
-  "h_min_rel",
-  "h0_rel"
-};
-
+const std::string user_m1_group_param_name[N_GROUP_PARAM] = {"h_min_rel",
+                                                             "h0_rel"};
 
 //
 // I know that defines are "bad", but the defines below make the
@@ -131,39 +111,33 @@ const std::string user_m1_group_param_name[N_GROUP_PARAM] = {
 #define h_min_rel_ group_param_[i_h_min_rel]
 #define h0_rel_ group_param_[i_h0_rel]
 
- 
- template<int NVAR, int NPARAM> //, class DataStruct>
-__device__
-    void Derivatives(double x, float *y, float *dydx, float *param,
-		     user_m1_rk5 data_struct)
-{
-  
-  float V = ( refractory_step > 0 ) ? V_reset :  MIN(V_m, V_peak);
+template <int NVAR, int NPARAM> //, class DataStruct>
+__device__ void Derivatives(double x, float *y, float *dydx, float *param,
+                            user_m1_rk5 data_struct) {
 
-  float V_spike = Delta_T == 0. ? 0. : Delta_T*exp((V - V_th)/Delta_T);
+  float V = (refractory_step > 0) ? V_reset : MIN(V_m, V_peak);
 
-  dVdt = ( refractory_step > 0 ) ? 0 :
-    ( -g_L*(V - E_L - V_spike) - w + I_e) / C_m;
+  float V_spike = Delta_T == 0. ? 0. : Delta_T * exp((V - V_th) / Delta_T);
+
+  dVdt =
+      (refractory_step > 0) ? 0 : (-g_L * (V - E_L - V_spike) - w + I_e) / C_m;
   // Adaptation current w.
-  dwdt = (a*(V - E_L) - w) / tau_w;
+  dwdt = (a * (V - E_L) - w) / tau_w;
 }
 
- template<int NVAR, int NPARAM> //, class DataStruct>
-__device__
-    void ExternalUpdate
-    (double x, float *y, float *param, bool end_time_step,
-			user_m1_rk5 data_struct)
-{
-  if ( V_m < -1.0e3) { // numerical instability
+template <int NVAR, int NPARAM> //, class DataStruct>
+__device__ void ExternalUpdate(double x, float *y, float *param,
+                               bool end_time_step, user_m1_rk5 data_struct) {
+  if (V_m < -1.0e3) { // numerical instability
     printf("V_m out of lower bound\n");
     V_m = V_reset;
-    w=0;
+    w = 0;
     return;
   }
-  if ( w < -1.0e6 || w > 1.0e6) { // numerical instability
+  if (w < -1.0e6 || w > 1.0e6) { // numerical instability
     printf("w out of bound\n");
     V_m = V_reset;
-    w=0;
+    w = 0;
     return;
   }
   if (refractory_step > 0.0) {
@@ -171,43 +145,33 @@ __device__
     if (end_time_step) {
       refractory_step -= 1.0;
     }
-  }
-  else {
-    if ( V_m >= V_peak ) { // send spike
+  } else {
+    if (V_m >= V_peak) { // send spike
       int neuron_idx = threadIdx.x + blockIdx.x * blockDim.x;
       PushSpike(data_struct.i_node_0_ + neuron_idx, 1.0);
       V_m = V_reset;
       w += b; // spike-driven adaptation
-      refractory_step = (int)round(t_ref/NESTGPUTimeResolution);
-      if (refractory_step<0) {
-	refractory_step = 0;
+      refractory_step = (int)round(t_ref / NESTGPUTimeResolution);
+      if (refractory_step < 0) {
+        refractory_step = 0;
       }
     }
   }
 }
 
+}; // namespace user_m1_ns
 
-};
-
-
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives(double x, float *y, float *dydx, float *param,
-		 user_m1_rk5 data_struct)
-{
-    user_m1_ns::Derivatives<NVAR, NPARAM>(x, y, dydx, param,
-						 data_struct);
+template <int NVAR, int NPARAM>
+__device__ void Derivatives(double x, float *y, float *dydx, float *param,
+                            user_m1_rk5 data_struct) {
+  user_m1_ns::Derivatives<NVAR, NPARAM>(x, y, dydx, param, data_struct);
 }
 
-template<int NVAR, int NPARAM>
-__device__
-void ExternalUpdate(double x, float *y, float *param, bool end_time_step,
-		    user_m1_rk5 data_struct)
-{
-    user_m1_ns::ExternalUpdate<NVAR, NPARAM>(x, y, param,
-						    end_time_step,
-						    data_struct);
+template <int NVAR, int NPARAM>
+__device__ void ExternalUpdate(double x, float *y, float *param,
+                               bool end_time_step, user_m1_rk5 data_struct) {
+  user_m1_ns::ExternalUpdate<NVAR, NPARAM>(x, y, param, end_time_step,
+                                           data_struct);
 }
-
 
 #endif

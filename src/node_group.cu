@@ -20,33 +20,26 @@
  *
  */
 
-
-
-
-
 #include <config.h>
 #include <iostream>
 
 #include "cuda_error.h"
-#include "node_group.h"
 #include "nestgpu.h"
+#include "node_group.h"
 
 __constant__ NodeGroupStruct NodeGroupArray[MAX_N_NODE_GROUPS];
-__device__ signed char *NodeGroupMap;
+__device__ int16_t *NodeGroupMap;
 
-__global__
-void NodeGroupMapInit(signed char *node_group_map)
-{
+__global__ void NodeGroupMapInit(int16_t *node_group_map) {
   NodeGroupMap = node_group_map;
 }
 
-int NESTGPU::NodeGroupArrayInit()
-{
-  gpuErrchk(cudaMalloc(&d_node_group_map_,
-		       node_group_map_.size()*sizeof(signed char)));
+int NESTGPU::NodeGroupArrayInit() {
+  CUDAMALLOCCTRL("&d_node_group_map_", &d_node_group_map_,
+                 node_group_map_.size() * sizeof(int16_t));
 
   std::vector<NodeGroupStruct> ngs_vect;
-  for (unsigned int i=0; i<node_vect_.size(); i++) {
+  for (unsigned int i = 0; i < node_vect_.size(); i++) {
     NodeGroupStruct ngs;
     ngs.node_type_ = node_vect_[i]->node_type_;
     ngs.i_node_0_ = node_vect_[i]->i_node_0_;
@@ -60,36 +53,49 @@ int NESTGPU::NodeGroupArrayInit()
     ngs.n_rec_spike_times_ = node_vect_[i]->n_rec_spike_times_;
     ngs.max_n_rec_spike_times_ = node_vect_[i]->max_n_rec_spike_times_;
     ngs.den_delay_arr_ = node_vect_[i]->den_delay_arr_;
-    
+
     ngs_vect.push_back(ngs);
   }
+
+  //  gpuErrchk( cudaPeekAtLastError() );
+  //  gpuErrchk( cudaDeviceSynchronize() );
+
+  //  std::cout << this_host_ << "ngs_vect.data(): " << ngs_vect.data() << "\n";
+  //  std::cout << this_host_ << "ngs_vect.size(): " << ngs_vect.size() << "\n";
+  //  std::cout << this_host_ << "NodeGroupArray: " << NodeGroupArray << "\n";
+
+  if (ngs_vect.size() > MAX_N_NODE_GROUPS) {
+    throw ngpu_exception("Number of neuron groups larger than limit.");
+  }
+
   gpuErrchk(cudaMemcpyToSymbolAsync(NodeGroupArray, ngs_vect.data(),
-			       ngs_vect.size()*sizeof(NodeGroupStruct)));
+                                    ngs_vect.size() * sizeof(NodeGroupStruct)));
 
   // Memcopy will be synchronized with NodeGroupMapInit kernel
   gpuErrchk(cudaMemcpyAsync(d_node_group_map_, node_group_map_.data(),
-		       node_group_map_.size()*sizeof(signed char),
-		       cudaMemcpyHostToDevice));
+                            node_group_map_.size() * sizeof(int16_t),
+                            cudaMemcpyHostToDevice));
+  // temporary
+  gpuErrchk(cudaPeekAtLastError());
+  gpuErrchk(cudaDeviceSynchronize());
   NodeGroupMapInit<<<1, 1>>>(d_node_group_map_);
-  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk(cudaPeekAtLastError());
 
   return 0;
 }
 
-double *NESTGPU::InitGetSpikeArray (int n_node, int n_port)
-{
-  double *d_get_spike_array = NULL;
-  if (n_node*n_port > 0) {
-    gpuErrchk(cudaMalloc(&d_get_spike_array, n_node*n_port
-			 *sizeof(double)));
+double *NESTGPU::InitGetSpikeArray(uint n_node, int n_port) {
+  double *d_get_spike_array = nullptr;
+  if (n_node * n_port > 0) {
+    CUDAMALLOCCTRL("&d_get_spike_array", &d_get_spike_array,
+                   n_node * n_port * sizeof(double));
   }
-  
+
   return d_get_spike_array;
 }
 
-int NESTGPU::FreeNodeGroupMap()
-{
-  gpuErrchk(cudaFree(d_node_group_map_));
-	    
+int NESTGPU::FreeNodeGroupMap() {
+  CUDAFREECTRL("d_node_group_map_", d_node_group_map_);
+
   return 0;
 }

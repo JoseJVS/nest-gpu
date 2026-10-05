@@ -20,25 +20,18 @@
  *
  */
 
-
-
-
-
-#include <config.h>
-#include <cmath>
-#include <iostream>
+#include "aeif_cond_alpha.h"
 #include "aeif_cond_alpha_kernel.h"
 #include "rk5.h"
-#include "aeif_cond_alpha.h"
+#include <cmath>
+#include <config.h>
+#include <iostream>
 
-namespace aeif_cond_alpha_ns
-{
+namespace aeif_cond_alpha_ns {
 
-__device__
-void NodeInit(int n_var, int n_param, double x, float *y, float *param,
-	      aeif_cond_alpha_rk5 data_struct)
-{
-  //int array_idx = threadIdx.x + blockIdx.x * blockDim.x;
+__device__ void NodeInit(int n_var, int n_param, double x, float *y,
+                         float *param, aeif_cond_alpha_rk5 data_struct) {
+  // int array_idx = threadIdx.x + blockIdx.x * blockDim.x;
 
   V_th = -50.4;
   Delta_T = 2.0;
@@ -67,11 +60,9 @@ void NodeInit(int n_var, int n_param, double x, float *y, float *param,
   g1_in = 0;
 }
 
-__device__
-void NodeCalibrate(int n_var, int n_param, double x, float *y,
-		       float *param, aeif_cond_alpha_rk5 data_struct)
-{
-  //int array_idx = threadIdx.x + blockIdx.x * blockDim.x;
+__device__ void NodeCalibrate(int n_var, int n_param, double x, float *y,
+                              float *param, aeif_cond_alpha_rk5 data_struct) {
+  // int array_idx = threadIdx.x + blockIdx.x * blockDim.x;
 
   refractory_step = 0;
   // use normalization for alpha function
@@ -79,28 +70,24 @@ void NodeCalibrate(int n_var, int n_param, double x, float *y,
   g0_in = M_E / tau_syn_in;
 }
 
-}
-			    
-__device__
-void NodeInit(int n_var, int n_param, double x, float *y,
-	     float *param, aeif_cond_alpha_rk5 data_struct)
-{
-    aeif_cond_alpha_ns::NodeInit(n_var, n_param, x, y, param, data_struct);
+} // namespace aeif_cond_alpha_ns
+
+__device__ void NodeInit(int n_var, int n_param, double x, float *y,
+                         float *param, aeif_cond_alpha_rk5 data_struct) {
+  aeif_cond_alpha_ns::NodeInit(n_var, n_param, x, y, param, data_struct);
 }
 
-__device__
-void NodeCalibrate(int n_var, int n_param, double x, float *y,
-		  float *param, aeif_cond_alpha_rk5 data_struct)
+__device__ void NodeCalibrate(int n_var, int n_param, double x, float *y,
+                              float *param, aeif_cond_alpha_rk5 data_struct)
 
 {
-    aeif_cond_alpha_ns::NodeCalibrate(n_var, n_param, x, y, param, data_struct);
+  aeif_cond_alpha_ns::NodeCalibrate(n_var, n_param, x, y, param, data_struct);
 }
 
 using namespace aeif_cond_alpha_ns;
 
-int aeif_cond_alpha::Init(int i_node_0, int n_node, int n_port,
-			 int i_group, unsigned long long *seed) {
-  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
+int aeif_cond_alpha::Init(int i_node_0, int n_node, int n_port, int i_group) {
+  BaseNeuron::Init(i_node_0, n_node, n_port, i_group);
   node_type_ = i_aeif_cond_alpha_model;
   n_scal_var_ = N_SCAL_VAR;
   n_var_ = n_scal_var_;
@@ -109,17 +96,17 @@ int aeif_cond_alpha::Init(int i_node_0, int n_node, int n_port,
   n_group_param_ = N_GROUP_PARAM;
 
   group_param_ = new float[N_GROUP_PARAM];
-  
+
   scal_var_name_ = aeif_cond_alpha_scal_var_name;
   scal_param_name_ = aeif_cond_alpha_scal_param_name;
   group_param_name_ = aeif_cond_alpha_group_param_name;
-  //rk5_data_struct_.node_type_ = i_aeif_cond_alpha_model;
+  // rk5_data_struct_.node_type_ = i_aeif_cond_alpha_model;
   rk5_data_struct_.i_node_0_ = i_node_0_;
 
   SetGroupParam("h_min_rel", 1.0e-3);
-  SetGroupParam("h0_rel",  1.0e-2);
-  h_ = h0_rel_* 0.1;
-  
+  SetGroupParam("h0_rel", 1.0e-2);
+  h_ = h0_rel_ * 0.1;
+
   rk5_.Init(n_node, n_var_, n_param_, 0.0, h_, rk5_data_struct_);
   var_arr_ = rk5_.GetYArr();
   param_arr_ = rk5_.GetParamArr();
@@ -131,17 +118,16 @@ int aeif_cond_alpha::Init(int i_node_0, int n_node, int n_port,
   port_input_arr_ = GetVarArr() + GetScalVarIdx("g1_ex");
   port_input_arr_step_ = n_var_;
   port_input_port_step_ = 1;
-  den_delay_arr_ =  GetParamArr() + GetScalParamIdx("den_delay");
+  den_delay_arr_ = GetParamArr() + GetScalParamIdx("den_delay");
 
   return 0;
 }
 
-int aeif_cond_alpha::Calibrate(double time_min, float time_resolution)
-{
-  h_min_ = h_min_rel_* time_resolution;
-  h_ = h0_rel_* time_resolution;
+int aeif_cond_alpha::Calibrate(double time_min, float time_resolution) {
+  h_min_ = h_min_rel_ * time_resolution;
+  h_ = h0_rel_ * time_resolution;
   rk5_.Calibrate(time_min, h_, rk5_data_struct_);
-  
+
   return 0;
 }
 

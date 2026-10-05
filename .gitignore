@@ -37,4 +37,17 @@ libtool
 /.settings/
 doxygen
 python/test/log.txt
+python/Potjans_2014/data/
+python/Potjans_2014_tmp/data/
+python/mpi_mem_check/test_*.dat
+python/mpi_mem_check/req_mem_*.dat
+python/mpi_mem_check/full_*.dat
+python/mpi_mem_check/log*.txt
+python/mpi_mem_check/report.nsys-rep
 .vscode/
+
+# Sphinx documentation build output and model pages
+doc/_build/
+doc/models/
+doc/htmldoc/_build/
+doc/htmldoc/models/

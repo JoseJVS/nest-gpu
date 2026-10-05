@@ -20,61 +20,63 @@
  *
  */
 
-
-
-
-
 #ifndef NESTGPU_H
 #define NESTGPU_H
 
-#include <iostream>
-#include <vector>
-#include <string>
 #include <algorithm>
+#include <iostream>
 #include <numeric>
+#include <string>
+#include <vector>
 
-#include "ngpu_exception.h"
-#include "node_group.h"
 #include "base_neuron.h"
 #include "connect_spec.h"
-#include "connect.h"
-#include "syn_model.h"
+#include "ngpu_exception.h"
+#include "node_group.h"
+// #include "connect.h"
+// #include "syn_model.h"
+// #include "distribution.h"
 
-#ifdef HAVE_MPI
-class ConnectMpi;
-#endif
-
-class PoissonGenerator;
 class Multimeter;
-class NetConnection;
+
 struct curandGenerator_st;
-typedef struct curandGenerator_st* curandGenerator_t;
+
+typedef struct curandGenerator_st *curandGenerator_t;
+
 class ConnSpec;
+
 class SynSpec;
 
-class Sequence
-{
- public:
+class SynModel;
+
+class Connection;
+
+typedef uint inode_t;
+
+typedef uint iconngroup_t;
+
+class Sequence {
+public:
   int i0;
   int n;
-  
- Sequence(int i0=0, int n=0) : i0(i0), n(n) {}
-  
+
+  Sequence(int i0 = 0, int n = 0) : i0(i0), n(n) {}
+
   inline int operator[](int i) {
-    if (i<0) {
+    if (i < 0) {
       throw ngpu_exception("Sequence index cannot be negative");
     }
-    if (i>=n) {
+    if (i >= n) {
       throw ngpu_exception("Sequence index out of range");
     }
     return i0 + i;
   }
 
   inline Sequence Subseq(int first, int last) {
-    if (first<0 || first>last) {
+    if (first < 0 || first > last) {
       throw ngpu_exception("Sequence subset range error");
     }
-    if (last>=n) {
+    if (last >= n) {
       throw ngpu_exception("Sequence subset out of range");
     }
     return Sequence(i0 + first, last - first + 1);
@@ -91,212 +93,265 @@ class Sequence
 
 typedef Sequence NodeSeq;
 
-class RemoteNodeSeq
-{
- public:
+class RemoteNodeSeq {
+public:
   int i_host;
   NodeSeq node_seq;
-  
-  RemoteNodeSeq(int i_host=0, NodeSeq node_seq=NodeSeq(0,0)) :
-    i_host(i_host), node_seq(node_seq) {}
+
+  RemoteNodeSeq(int i_host = 0, NodeSeq node_seq = NodeSeq(0, 0))
+      : i_host(i_host), node_seq(node_seq) {}
 };
 
-enum {ON_EXCEPTION_EXIT=0, ON_EXCEPTION_HANDLE};
+enum { ON_EXCEPTION_EXIT = 0, ON_EXCEPTION_HANDLE };
 
-class NESTGPU
-{
+class NESTGPU {
   float time_resolution_; // time resolution in ms
+
   curandGenerator_t *random_generator_;
+
   unsigned long long kernel_seed_;
+
   bool calibrate_flag_; // becomes true after calibration
 
-  PoissonGenerator *poiss_generator_;
+  bool create_flag_; // becomes true just before creation of the first node
+
+  // Pointer to the connection object. Note that conn_ is of the type
+  // pointer-to-the(abstract)-base class
+  // while the object it will point to should be an instance of a derived class
+  Connection *conn_;
+
+  Distribution *distribution_;
+
   Multimeter *multimeter_;
-  std::vector<BaseNeuron*> node_vect_; // -> node_group_vect
-  std::vector<SynModel*> syn_group_vect_;
-  
-  NetConnection *net_connection_;
+
+  int conn_struct_type_;
+
+  std::vector<BaseNeuron *> node_vect_; // -> node_group_vect
+
+  std::vector<SynModel *> syn_group_vect_;
+
+  int this_host_;
+
+  int n_hosts_;
+
+  // if true it is possible to send spikes across different hosts
+  bool external_spike_flag_;
 
   bool mpi_flag_; // true if MPI is initialized
-#ifdef HAVE_MPI
-  ConnectMpi *connect_mpi_;
-#endif
-  
-  std::vector<signed char> node_group_map_;
-  signed char *d_node_group_map_;
 
+  bool mpi_bitpack_;
+
+  bool max_n_ports_warning_;
+
+  bool remote_spike_mul_;
+
+  std::vector<int16_t> node_group_map_;
+
+  int16_t *d_node_group_map_;
 
   int max_spike_buffer_size_;
+
   int max_spike_num_;
+
   int max_spike_per_host_;
 
+  int max_remote_spike_num_;
+
   double max_spike_num_fact_;
+
   double max_spike_per_host_fact_;
 
+  double max_remote_spike_num_fact_;
+
   double t_min_;
+
   double neural_time_; // Neural activity time
+
   double sim_time_; // Simulation time in ms
+
   double neur_t0_; // Neural activity simulation time origin
+
   long long it_; // simulation time index
+
   long long Nt_; // number of simulation time steps
-  int n_poiss_node_;
-  int n_remote_node_;
-  int i_remote_node_0_;
+
+  // int n_poiss_nodes_;
+
+  std::vector<int> n_remote_nodes_;
+
+  // int n_ext_nodes_;
+
+  // int i_ext_node_0_;
+
+  // int i_remote_node_0_;
 
   double start_real_time_;
+
   double build_real_time_;
+
   double end_real_time_;
 
   bool error_flag_;
+
   std::string error_message_;
+
   unsigned char error_code_;
+
   int on_exception_;
 
   int verbosity_level_;
+
   bool print_time_;
 
-  std::vector<RemoteConnection> remote_connection_vect_;
-  std::vector<int> ext_neuron_input_spike_node_;
-  std::vector<int> ext_neuron_input_spike_port_;
-  std::vector<float> ext_neuron_input_spike_height_;
+  bool remove_conn_key_;
 
-  int CreateNodeGroup(int n_neuron, int n_port);
+  int nested_loop_algo_;
+
+  int spike_buffer_algo_;
+
+  bool check_node_maps_;
+
+  bool first_out_conn_in_device_;
+
+  bool have_n_out_conn_;
+
+  bool delete_remote_node_map_;
+
+  bool delete_image_node_map_;
+
+  float use_all_source_node_fact_;
+
+  std::vector<int> ext_neuron_input_spike_node_;
+
+  std::vector<int> ext_neuron_input_spike_port_;
+
+  std::vector<float> ext_neuron_input_spike_mul_;
+
+  uint CreateNodeGroup(uint n_nodes, int n_ports);
+
   int CheckUncalibrated(std::string message);
-  double *InitGetSpikeArray(int n_node, int n_port);
+
+  double *InitGetSpikeArray(uint n_nodes, int n_ports);
+
   int NodeGroupArrayInit();
+
   int ClearGetSpikeArrays();
+
   int FreeGetSpikeArrays();
+
   int FreeNodeGroupMap();
 
+  uint CheckImageNodes(uint n_nodes);
 
-  template <class T1, class T2>
-    int _Connect(T1 source, int n_source, T2 target, int n_target,
-		 ConnSpec &conn_spec, SynSpec &syn_spec);
-  
-  template<class T1, class T2>
-    int _SingleConnect(T1 source, int i_source, T2 target, int i_target,
-		       int i_array, SynSpec &syn_spec);
-  template<class T1, class T2>
-    int _SingleConnect(T1 source, int i_source, T2 target, int i_target,
-		       float weight, float delay, int i_array,
-		       SynSpec &syn_spec);
-
-  template<class T>
-    int _RemoteSingleConnect(int i_source, T target, int i_target,
-			     int i_array, SynSpec &syn_spec);
-  template<class T>
-    int _RemoteSingleConnect(int i_source, T target, int i_target,
-			     float weight, float delay, int i_array,
-			     SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _ConnectOneToOne(T1 source, T2 target, int n_node, SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _ConnectAllToAll
-    (T1 source, int n_source, T2 target, int n_target, SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _ConnectFixedTotalNumber
-    (T1 source, int n_source, T2 target, int n_target, int n_conn,
-     SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _ConnectFixedIndegree
-    (
-     T1 source, int n_source, T2 target, int n_target, int indegree,
-     SynSpec &syn_spec
-     );
-
-  template <class T1, class T2>
-    int _ConnectFixedOutdegree
-    (
-     T1 source, int n_source, T2 target, int n_target, int outdegree,
-     SynSpec &syn_spec
-     );
-
-#ifdef HAVE_MPI
-  template <class T1, class T2>
-    int _RemoteConnect(RemoteNode<T1> source, int n_source,
-		       RemoteNode<T2> target, int n_target,
-		       ConnSpec &conn_spec, SynSpec &syn_spec);
-  
-  template <class T1, class T2>
-    int _RemoteConnectOneToOne
-    (RemoteNode<T1> source, RemoteNode<T2> target, int n_node,
-     SynSpec &syn_spec);
-  
-  template <class T1, class T2>
-    int _RemoteConnectAllToAll
-    (RemoteNode<T1> source, int n_source, RemoteNode<T2> target, int n_target,
-     SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _RemoteConnectFixedTotalNumber
-    (RemoteNode<T1> source, int n_source, RemoteNode<T2> target, int n_target,
-     int n_conn, SynSpec &syn_spec);
-  
-  template <class T1, class T2>
-    int _RemoteConnectFixedIndegree
-    (RemoteNode<T1> source, int n_source, RemoteNode<T2> target, int n_target,
-     int indegree, SynSpec &syn_spec);
-
-  template <class T1, class T2>
-    int _RemoteConnectFixedOutdegree
-    (RemoteNode<T1> source, int n_source, RemoteNode<T2> target, int n_target,
-     int outdegree, SynSpec &syn_spec);
-#endif
-  int ConnectRemoteNodes();
+  NodeSeq _Create(std::string model_name, uint n_nodes, int n_ports);
 
   double SpikeBufferUpdate_time_;
+
   double poisson_generator_time_;
+
   double neuron_Update_time_;
+
   double copy_ext_spike_time_;
-  double SendExternalSpike_time_;
+
+  double organizeExternalSpike_time_;
+
   double SendSpikeToRemote_time_;
+
   double RecvSpikeFromRemote_time_;
+
+  double CopySpikeFromRemote_time_;
+
+  double DeliverSpikesToInputBuffers_time_;
+
   double NestedLoop_time_;
+
   double GetSpike_time_;
+
   double SpikeReset_time_;
+
   double ExternalSpikeReset_time_;
+
+  double SendSpikeToRemote_comm_time_;
+
+  double RecvSpikeFromRemote_comm_time_;
+
+  double SendSpikeToRemote_CUDAcp_time_;
+
+  double RecvSpikeFromRemote_CUDAcp_time_;
+
+  double MpiBitPack_time_;
+
+  double MpiBitUnpack_time_;
+
+  int64_t SpikeNumAllgather_send_;
+  int64_t SpikeNumAllgather_send_packed_;
+  int64_t SpikeNumAllgather_recv_;
+  int64_t SpikeNumAllgather_recv_packed_;
 
   bool first_simulation_flag_;
 
- public:
+public:
   NESTGPU();
 
   ~NESTGPU();
 
+  int setNHosts(int n_hosts);
+
+  int setThisHost(int i_host);
+
   int SetRandomSeed(unsigned long long seed);
 
   int SetTimeResolution(float time_res);
-  
-  inline float GetTimeResolution() {
-    return time_resolution_;
-  }
+
+  inline float GetTimeResolution() { return time_resolution_; }
 
   inline int SetSimTime(float sim_time) {
     sim_time_ = sim_time;
     return 0;
   }
 
-  inline float GetSimTime() {
-    return sim_time_;
-  }
+  inline float GetSimTime() { return sim_time_; }
 
   inline int SetVerbosityLevel(int verbosity_level) {
     verbosity_level_ = verbosity_level;
+    verbose_print_ns::verbosity_level_ = verbosity_level;
     return 0;
   }
+
+  int SetNestedLoopAlgo(int nested_loop_algo);
 
   inline int SetPrintTime(bool print_time) {
     print_time_ = print_time;
     return 0;
   }
 
+  inline int SetCheckNodeMaps(bool check_node_maps) {
+    check_node_maps_ = check_node_maps;
+    return 0;
+  }
 
   int SetMaxSpikeBufferSize(int max_size);
   int GetMaxSpikeBufferSize();
+
+  uint GetNLocalNodes();
+
+  uint GetNTotalNodes();
+
+  int setConnStructType(int conn_struct_type);
+
+  int HostNum() { return n_hosts_; }
+
+  int HostId() { return this_host_; }
+
+  std::string HostIdStr();
+
+  size_t getCUDAMemHostUsed();
+
+  size_t getCUDAMemHostPeak();
+
+  size_t getCUDAMemTotal();
+
+  size_t getCUDAMemFree();
 
   int GetNBoolParam();
   std::vector<std::string> GetBoolParamNames();
@@ -319,95 +374,120 @@ class NESTGPU
   int GetIntParam(std::string param_name);
   int SetIntParam(std::string param_name, int val);
 
-  NodeSeq Create(std::string model_name, int n_neuron=1, int n_port=1);
-  NodeSeq CreatePoissonGenerator(int n_node, float rate);
+  NodeSeq Create(std::string model_name, uint n_nodes = 1, int n_ports = 1);
+
   RemoteNodeSeq RemoteCreate(int i_host, std::string model_name,
-			     int n_node=1, int n_port=1);
+                             inode_t n_nodes = 1, int n_ports = 1);
 
   int CreateRecord(std::string file_name, std::string *var_name_arr,
-		   int *i_node_arr, int n_node);  
+                   int *i_node_arr, int n_node);
   int CreateRecord(std::string file_name, std::string *var_name_arr,
-		   int *i_node_arr, int *port_arr, int n_node);
-  std::vector<std::vector<float> > *GetRecordData(int i_record);
+                   int *i_node_arr, int *port_arr, int n_node);
+  std::vector<std::vector<float>> *GetRecordData(int i_record);
 
   int SetNeuronParam(int i_node, int n_neuron, std::string param_name,
-		     float val);
+                     float val);
 
   int SetNeuronParam(int *i_node, int n_neuron, std::string param_name,
-		     float val);
+                     float val);
 
   int SetNeuronParam(int i_node, int n_neuron, std::string param_name,
-		     float *param, int array_size);
+                     float *param, int array_size);
 
   int SetNeuronParam(int *i_node, int n_neuron, std::string param_name,
-		     float *param, int array_size);
+                     float *param, int array_size);
 
   int SetNeuronParam(NodeSeq nodes, std::string param_name, float val) {
     return SetNeuronParam(nodes.i0, nodes.n, param_name, val);
   }
 
   int SetNeuronParam(NodeSeq nodes, std::string param_name, float *param,
-		      int array_size) {
+                     int array_size) {
     return SetNeuronParam(nodes.i0, nodes.n, param_name, param, array_size);
   }
-  
+
   int SetNeuronParam(std::vector<int> nodes, std::string param_name,
-		     float val) {
+                     float val) {
     return SetNeuronParam(nodes.data(), nodes.size(), param_name, val);
   }
 
   int SetNeuronParam(std::vector<int> nodes, std::string param_name,
-		     float *param, int array_size) {
+                     float *param, int array_size) {
     return SetNeuronParam(nodes.data(), nodes.size(), param_name, param,
-			  array_size);
+                          array_size);
   }
 
-  int SetNeuronIntVar(int i_node, int n_neuron, std::string var_name,
-		     int val);
+  int SetNeuronIntVar(int i_node, int n_neuron, std::string var_name, int val);
 
-  int SetNeuronIntVar(int *i_node, int n_neuron, std::string var_name,
-		     int val);
+  int SetNeuronIntVar(int *i_node, int n_neuron, std::string var_name, int val);
 
   int SetNeuronIntVar(NodeSeq nodes, std::string var_name, int val) {
     return SetNeuronIntVar(nodes.i0, nodes.n, var_name, val);
   }
 
-  int SetNeuronIntVar(std::vector<int> nodes, std::string var_name,
-		     int val) {
+  int SetNeuronIntVar(std::vector<int> nodes, std::string var_name, int val) {
     return SetNeuronIntVar(nodes.data(), nodes.size(), var_name, val);
   }
 
-  int SetNeuronVar(int i_node, int n_neuron, std::string var_name,
-		     float val);
+  int SetNeuronVar(int i_node, int n_neuron, std::string var_name, float val);
 
-  int SetNeuronVar(int *i_node, int n_neuron, std::string var_name,
-		     float val);
+  int SetNeuronVar(int *i_node, int n_neuron, std::string var_name, float val);
 
-  int SetNeuronVar(int i_node, int n_neuron, std::string var_name,
-		     float *var, int array_size);
+  int SetNeuronVar(int i_node, int n_neuron, std::string var_name, float *var,
+                   int array_size);
 
-  int SetNeuronVar(int *i_node, int n_neuron, std::string var_name,
-		     float *var, int array_size);
+  int SetNeuronVar(int *i_node, int n_neuron, std::string var_name, float *var,
+                   int array_size);
 
   int SetNeuronVar(NodeSeq nodes, std::string var_name, float val) {
     return SetNeuronVar(nodes.i0, nodes.n, var_name, val);
   }
 
   int SetNeuronVar(NodeSeq nodes, std::string var_name, float *var,
-		      int array_size) {
+                   int array_size) {
     return SetNeuronVar(nodes.i0, nodes.n, var_name, var, array_size);
   }
-  
-  int SetNeuronVar(std::vector<int> nodes, std::string var_name,
-		     float val) {
+
+  int SetNeuronVar(std::vector<int> nodes, std::string var_name, float val) {
     return SetNeuronVar(nodes.data(), nodes.size(), var_name, val);
   }
 
-  int SetNeuronVar(std::vector<int> nodes, std::string var_name,
-		     float *var, int array_size) {
-    return SetNeuronVar(nodes.data(), nodes.size(), var_name, var,
-			  array_size);
+  int SetNeuronVar(std::vector<int> nodes, std::string var_name, float *var,
+                   int array_size) {
+    return SetNeuronVar(nodes.data(), nodes.size(), var_name, var, array_size);
   }
+
+  ////////////////////////////////////////////////////////////////////////
+
+  int SetNeuronScalParamDistr(int i_node, int n_node, std::string param_name);
+
+  int SetNeuronScalVarDistr(int i_node, int n_node, std::string var_name);
+
+  int SetNeuronPortParamDistr(int i_node, int n_node, std::string param_name);
+
+  int SetNeuronPortVarDistr(int i_node, int n_node, std::string var_name);
+
+  int SetNeuronPtScalParamDistr(int *i_node, int n_node,
+                                std::string param_name);
+
+  int SetNeuronPtScalVarDistr(int *i_node, int n_node, std::string var_name);
+
+  int SetNeuronPtPortParamDistr(int *i_node, int n_node,
+                                std::string param_name);
+
+  int SetNeuronPtPortVarDistr(int *i_node, int n_node, std::string var_name);
+
+  int SetDistributionIntParam(std::string param_name, int val);
+
+  int SetDistributionScalParam(std::string param_name, float val);
+
+  int SetDistributionVectParam(std::string param_name, float val, int i);
+
+  int SetDistributionFloatPtParam(std::string param_name, float *array_pt);
+
+  int IsDistributionFloatParam(std::string param_name);
+
+  ////////////////////////////////////////////////////////////////////////
 
   int GetNeuronParamSize(int i_node, std::string param_name);
 
@@ -420,13 +500,13 @@ class NESTGPU
   float *GetNeuronParam(NodeSeq nodes, std::string param_name) {
     return GetNeuronParam(nodes.i0, nodes.n, param_name);
   }
-  
+
   float *GetNeuronParam(std::vector<int> nodes, std::string param_name) {
     return GetNeuronParam(nodes.data(), nodes.size(), param_name);
   }
 
   float *GetArrayParam(int i_node, std::string param_name);
-  
+
   int *GetNeuronIntVar(int i_node, int n_neuron, std::string var_name);
 
   int *GetNeuronIntVar(int *i_node, int n_neuron, std::string var_name);
@@ -434,11 +514,11 @@ class NESTGPU
   int *GetNeuronIntVar(NodeSeq nodes, std::string var_name) {
     return GetNeuronIntVar(nodes.i0, nodes.n, var_name);
   }
-  
+
   int *GetNeuronIntVar(std::vector<int> nodes, std::string var_name) {
     return GetNeuronIntVar(nodes.data(), nodes.size(), var_name);
   }
-  
+
   float *GetNeuronVar(int i_node, int n_neuron, std::string var_name);
 
   float *GetNeuronVar(int *i_node, int n_neuron, std::string var_name);
@@ -446,17 +526,17 @@ class NESTGPU
   float *GetNeuronVar(NodeSeq nodes, std::string var_name) {
     return GetNeuronVar(nodes.i0, nodes.n, var_name);
   }
-  
+
   float *GetNeuronVar(std::vector<int> nodes, std::string var_name) {
     return GetNeuronVar(nodes.data(), nodes.size(), var_name);
   }
 
   float *GetArrayVar(int i_node, std::string param_name);
-  
+
   int GetNodeSequenceOffset(int i_node, int n_node, int &i_group);
 
   std::vector<int> GetNodeArrayWithOffset(int *i_node, int n_node,
-					  int &i_group);
+                                          int &i_group);
 
   int IsNeuronScalParam(int i_node, std::string param_name);
 
@@ -465,18 +545,18 @@ class NESTGPU
   int IsNeuronArrayParam(int i_node, std::string param_name);
 
   int IsNeuronIntVar(int i_node, std::string var_name);
-  
+
   int IsNeuronScalVar(int i_node, std::string var_name);
 
   int IsNeuronPortVar(int i_node, std::string var_name);
 
   int IsNeuronArrayVar(int i_node, std::string var_name);
-  
+
   int SetSpikeGenerator(int i_node, int n_spikes, float *spike_time,
-			float *spike_height);
+                        float *spike_mul);
 
   int Calibrate();
-  
+
   int Simulate();
 
   int Simulate(float sim_time);
@@ -485,130 +565,125 @@ class NESTGPU
 
   int SimulationStep();
 
-  int EndSimulation();
-  
-  int ConnectMpiInit(int argc, char *argv[]);
+  int PrintTimers(int verbosity_level = 5);
 
-  int MpiId();
+  int ConnectMpiInit(int argc, char **argv);
 
-  int MpiNp();
-
-  int ProcMaster();
+  int FakeConnectMpiInit(int n_hosts, int this_host);
 
   int MpiFinalize();
 
-  std::string MpiRankStr();
-  
-  void SetErrorFlag(bool error_flag) {error_flag_ = error_flag;}
-  
-  void SetErrorMessage(std::string error_message) { error_message_
-      = error_message; }
+  void SetErrorFlag(bool error_flag) { error_flag_ = error_flag; }
 
-  void SetErrorCode(unsigned char error_code) {error_code_ = error_code;}
+  void SetErrorMessage(std::string error_message) {
+    error_message_ = error_message;
+  }
 
-  void SetOnException(int on_exception) {on_exception_ = on_exception;}
+  void SetErrorCode(unsigned char error_code) { error_code_ = error_code; }
 
-  bool GetErrorFlag() {return error_flag_;}
+  void SetOnException(int on_exception) { on_exception_ = on_exception; }
 
-  char *GetErrorMessage() {return &error_message_[0];}
+  bool GetErrorFlag() { return error_flag_; }
 
-  unsigned char GetErrorCode() {return error_code_;}
+  char *GetErrorMessage() { return &error_message_[0]; }
 
-  int OnException() {return on_exception_;}
+  unsigned char GetErrorCode() { return error_code_; }
+
+  int OnException() { return on_exception_; }
 
   unsigned int *RandomInt(size_t n);
-  
+
   float *RandomUniform(size_t n);
 
   float *RandomNormal(size_t n, float mean, float stddev);
 
+  float *RandomLognormalClipped(size_t n, float mean, float stddev, float vmin,
+                                float vmax, float vstep);
+
   float *RandomNormalClipped(size_t n, float mean, float stddev, float vmin,
-			     float vmax, float vstep);  
+                             float vmax, float vstep);
 
-  int Connect
-    (
-     int i_source_node, int i_target_node, unsigned char port,
-     unsigned char syn_group, float weight, float delay
-     );
+  int Connect(inode_t i_source, inode_t n_source, inode_t i_target,
+              inode_t n_target, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int Connect(int i_source, int n_source, int i_target, int n_target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(inode_t i_source, inode_t n_source, inode_t *target,
+              inode_t n_target, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int Connect(int i_source, int n_source, int* target, int n_target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(inode_t *source, inode_t n_source, inode_t i_target,
+              inode_t n_target, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int Connect(int* source, int n_source, int i_target, int n_target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(inode_t *source, inode_t n_source, inode_t *target,
+              inode_t n_target, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int Connect(int* source, int n_source, int* target, int n_target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(NodeSeq source, NodeSeq target, ConnSpec &conn_spec,
+              SynSpec &syn_spec);
 
-  int Connect(NodeSeq source, NodeSeq target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(NodeSeq source, std::vector<inode_t> target, ConnSpec &conn_spec,
+              SynSpec &syn_spec);
 
-  int Connect(NodeSeq source, std::vector<int> target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(std::vector<inode_t> source, NodeSeq target, ConnSpec &conn_spec,
+              SynSpec &syn_spec);
 
-  int Connect(std::vector<int> source, NodeSeq target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int Connect(std::vector<inode_t> source, std::vector<inode_t> target,
+              ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int Connect(std::vector<int> source, std::vector<int> target,
-	      ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, inode_t i_source, inode_t n_source,
+                    int i_target_host, inode_t i_target, inode_t n_target,
+                    int i_host_group, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, int i_source, int n_source,
-		    int i_target_host, int i_target, int n_target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, inode_t i_source, inode_t n_source,
+                    int i_target_host, inode_t *target, inode_t n_target,
+                    int i_host_group, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, int i_source, int n_source,
-		    int i_target_host, int* target, int n_target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, inode_t *source, inode_t n_source,
+                    int i_target_host, inode_t i_target, inode_t n_target,
+                    int i_host_group, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, int* source, int n_source,
-		    int i_target_host, int i_target, int n_target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, inode_t *source, inode_t n_source,
+                    int i_target_host, inode_t *target, inode_t n_target,
+                    int i_host_group, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, int* source, int n_source,
-		    int i_target_host, int* target, int n_target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, NodeSeq source, int i_target_host,
+                    NodeSeq target, int i_host_group, ConnSpec &conn_spec,
+                    SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, NodeSeq source,
-		    int i_target_host, NodeSeq target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, NodeSeq source, int i_target_host,
+                    std::vector<inode_t> target, int i_host_group,
+                    ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, NodeSeq source,
-		    int i_target_host, std::vector<int> target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, std::vector<inode_t> source,
+                    int i_target_host, NodeSeq target, int i_host_group,
+                    ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, std::vector<int> source,
-		    int i_target_host, NodeSeq target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
+  int RemoteConnect(int i_source_host, std::vector<inode_t> source,
+                    int i_target_host, std::vector<inode_t> target,
+                    int i_host_group, ConnSpec &conn_spec, SynSpec &syn_spec);
 
-  int RemoteConnect(int i_source_host, std::vector<int> source,
-		    int i_target_host, std::vector<int> target,
-		    ConnSpec &conn_spec, SynSpec &syn_spec);
-
-  int BuildDirectConnections();
+  // Method that creates a group of hosts for remote spike communication (i.e. a
+  // group of MPI processes) host_arr: array of host inexes, n_hosts: nomber of
+  // hosts in the group
+  int CreateHostGroup(int *host_arr, int n_hosts);
 
   std::vector<std::string> GetScalVarNames(int i_node);
 
   int GetNIntVar(int i_node);
-  
+
   std::vector<std::string> GetIntVarNames(int i_node);
 
   int GetNScalVar(int i_node);
-  
+
   std::vector<std::string> GetPortVarNames(int i_node);
 
   int GetNPortVar(int i_node);
-  
+
   std::vector<std::string> GetScalParamNames(int i_node);
 
   int GetNScalParam(int i_node);
-  
+
   std::vector<std::string> GetPortParamNames(int i_node);
 
   int GetNPortParam(int i_node);
-  
+
   std::vector<std::string> GetArrayParamNames(int i_node);
 
   int GetNArrayParam(int i_node);
@@ -618,43 +693,66 @@ class NESTGPU
   std::vector<std::string> GetGroupParamNames(int i_node);
 
   int GetNGroupParam(int i_node);
-  
+
   int GetNArrayVar(int i_node);
 
-  ConnectionStatus GetConnectionStatus(ConnectionId conn_id);
-  
-  std::vector<ConnectionStatus> GetConnectionStatus(std::vector<ConnectionId>
-						    &conn_id_vect);
+  int GetConnectionFloatParamIndex(std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(int i_source, int n_source,
-					   int i_target, int n_target,
-					   int syn_group=-1);
+  int GetConnectionIntParamIndex(std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(int *i_source, int n_source,
-					   int i_target, int n_target,
-					   int syn_group=-1);
+  int IsConnectionFloatParam(std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(int i_source, int n_source,
-					   int *i_target, int n_target,
-					   int syn_group=-1);
+  int IsConnectionIntParam(std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(int *i_source, int n_source,
-					   int *i_target, int n_target,
-					   int syn_group=-1);
-    
-  std::vector<ConnectionId> GetConnections(NodeSeq source, NodeSeq target,
-					   int syn_group=-1);
+  int GetConnectionFloatParam(int64_t *conn_ids, int64_t n_conn,
+                              float *h_param_arr, std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(std::vector<int> source,
-					   NodeSeq target, int syn_group=-1);
+  int GetConnectionIntParam(int64_t *conn_ids, int64_t n_conn, int *h_param_arr,
+                            std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(NodeSeq source,
-					   std::vector<int> target,
-					   int syn_group=-1);
+  int SetConnectionFloatParamDistr(int64_t *conn_ids, int64_t n_conn,
+                                   std::string param_name);
 
-  std::vector<ConnectionId> GetConnections(std::vector<int> source,
-					   std::vector<int> target,
-					   int syn_group=-1);
+  int SetConnectionFloatParam(int64_t *conn_ids, int64_t n_conn, float val,
+                              std::string param_name);
+
+  int SetConnectionIntParamArr(int64_t *conn_ids, int64_t n_conn,
+                               int *h_param_arr, std::string param_name);
+
+  int SetConnectionIntParam(int64_t *conn_ids, int64_t n_conn, int val,
+                            std::string param_name);
+
+  int GetConnectionStatus(int64_t *conn_ids, int64_t n_conn, inode_t *source,
+                          inode_t *target, int *port, int *syn_group,
+                          float *delay, float *weight);
+
+  int64_t *GetConnections(inode_t i_source, inode_t n_source, inode_t i_target,
+                          inode_t n_target, int syn_group, int64_t *n_conn);
+
+  int64_t *GetConnections(inode_t *i_source_pt, inode_t n_source,
+                          inode_t i_target, inode_t n_target, int syn_group,
+                          int64_t *n_conn);
+
+  int64_t *GetConnections(inode_t i_source, inode_t n_source,
+                          inode_t *i_target_pt, inode_t n_target, int syn_group,
+                          int64_t *n_conn);
+
+  int64_t *GetConnections(inode_t *i_source_pt, inode_t n_source,
+                          inode_t *i_target_pt, inode_t n_target, int syn_group,
+                          int64_t *n_conn);
+
+  int64_t *GetConnections(NodeSeq source, NodeSeq target, int syn_group,
+                          int64_t *n_conn);
+
+  int64_t *GetConnections(std::vector<inode_t> source, NodeSeq target,
+                          int syn_group, int64_t *n_conn);
+
+  int64_t *GetConnections(NodeSeq source, std::vector<inode_t> target,
+                          int syn_group, int64_t *n_conn);
+
+  int64_t *GetConnections(std::vector<inode_t> source,
+                          std::vector<inode_t> target, int syn_group,
+                          int64_t *n_conn);
 
   int CreateSynGroup(std::string model_name);
 
@@ -673,13 +771,13 @@ class NESTGPU
   int SynGroupCalibrate();
 
   int ActivateSpikeCount(int i_node, int n_node);
-  
+
   int ActivateSpikeCount(NodeSeq nodes) {
     return ActivateSpikeCount(nodes.i0, nodes.n);
   }
 
   int ActivateRecSpikeTimes(int i_node, int n_node, int max_n_rec_spike_times);
-  
+
   int ActivateRecSpikeTimes(NodeSeq nodes, int max_n_rec_spike_times) {
     return ActivateRecSpikeTimes(nodes.i0, nodes.n, max_n_rec_spike_times);
   }
@@ -693,30 +791,93 @@ class NESTGPU
   int GetNRecSpikeTimes(int i_node);
 
   int GetRecSpikeTimes(int i_node, int n_node, int **n_spike_times_pt,
-		       float ***spike_times_pt);
+                       float ***spike_times_pt);
 
   int GetRecSpikeTimes(NodeSeq nodes, int **n_spike_times_pt,
-		       float ***spike_times_pt) {
+                       float ***spike_times_pt) {
     return GetRecSpikeTimes(nodes.i0, nodes.n, n_spike_times_pt,
-			    spike_times_pt);
+                            spike_times_pt);
   }
 
-  int PushSpikesToNodes(int n_spikes, int *node_id, float *spike_height);
-  
+  int PushSpikesToNodes(int n_spikes, int *node_id, float *spike_mul);
+
   int PushSpikesToNodes(int n_spikes, int *node_id);
 
   int GetExtNeuronInputSpikes(int *n_spikes, int **node, int **port,
-			      float **spike_height, bool include_zeros);
+                              float **spike_mul, bool include_zeros);
 
-  int SetNeuronGroupParam(int i_node, int n_node,
-			  std::string param_name, float val);
-  
+  int SetNeuronGroupParam(int i_node, int n_node, std::string param_name,
+                          float val);
+
   int IsNeuronGroupParam(int i_node, std::string param_name);
 
   float GetNeuronGroupParam(int i_node, std::string param_name);
 
+  int ExternalSpikeInit();
+
+  int ExternalSpikeReset();
+
+  int CopySpikeFromRemote();
+
+  int SendSpikeToRemote(int n_ext_spikes);
+
+  int RecvSpikeFromRemote();
+
+  int organizeExternalSpikes(int n_ext_spikes);
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Build connections with fixed indegree rule for source neurons and target
+  // neurons distributed across MPI processes (hosts) Case with both source and
+  // target nodes contiguous, represented by starting index and number of nodes
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  int ConnectDistributedFixedIndegree(int *source_host_arr, int n_source_host,
+                                      inode_t *source_arr,
+                                      inode_t *n_source_arr,
+                                      int *target_host_arr, int n_target_host,
+                                      inode_t *target_arr,
+                                      inode_t *n_target_arr, int indegree,
+                                      int i_host_group, SynSpec &syn_spec);
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Build connections with fixed indegree rule for source neurons and target
+  // neurons distributed across MPI processes (hosts) Case with source nodes
+  // stored in an array, target nodes contiguous, represented by starting index
+  // and number of nodes
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  int ConnectDistributedFixedIndegree(int *source_host_arr, int n_source_host,
+                                      inode_t **source_arr,
+                                      inode_t *n_source_arr,
+                                      int *target_host_arr, int n_target_host,
+                                      inode_t *target_arr,
+                                      inode_t *n_target_arr, int indegree,
+                                      int i_host_group, SynSpec &syn_spec);
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Build connections with fixed indegree rule for source neurons and target
+  // neurons distributed across MPI processes (hosts) Case with source nodes
+  // contiguous, represented by starting index and number of nodes, target nodes
+  // stored in an array
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  int ConnectDistributedFixedIndegree(int *source_host_arr, int n_source_host,
+                                      inode_t *source_arr,
+                                      inode_t *n_source_arr,
+                                      int *target_host_arr, int n_target_host,
+                                      inode_t **target_arr,
+                                      inode_t *n_target_arr, int indegree,
+                                      int i_host_group, SynSpec &syn_spec);
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Build connections with fixed indegree rule for source neurons and target
+  // neurons distributed across MPI processes (hosts) Case with both source
+  // nodes and target nodes stored in arrays
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  int ConnectDistributedFixedIndegree(int *source_host_arr, int n_source_host,
+                                      inode_t **source_arr,
+                                      inode_t *n_source_arr,
+                                      int *target_host_arr, int n_target_host,
+                                      inode_t **target_arr,
+                                      inode_t *n_target_arr, int indegree,
+                                      int i_host_group, SynSpec &syn_spec);
 };
-
-
 
 #endif
