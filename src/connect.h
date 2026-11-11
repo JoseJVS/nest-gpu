@@ -462,9 +462,11 @@ public:
       inode_t **h_target_arr, inode_t *n_target_arr, int indegree,
       int i_host_group, SynSpec &syn_spec) = 0;
 
-  virtual int manual_assign_connections(inode_t *sources, inode_t *targets,
-                                        float *weights, float *delays,
-                                        uint64_t count, bool remote_source_flag,
+  virtual int manual_assign_connections(inode_t first_source, inode_t *sources,
+                                        inode_t *targets, float *weights,
+                                        float *delays, uint64_t count,
+                                        bool remote_connect_flag,
+                                        bool remote_source_flag,
                                         SynSpec &syn_spec) = 0;
 
   int InitTimers() {
@@ -1262,8 +1264,9 @@ public:
                                        int indegree, int i_host_group,
                                        SynSpec &syn_spec);
 
-  int manual_assign_connections(inode_t *sources, inode_t *targets,
-                                float *weights, float *delays, uint64_t count,
+  int manual_assign_connections(inode_t first_source, inode_t *sources,
+                                inode_t *targets, float *weights, float *delays,
+                                uint64_t count, bool remote_connect_flag,
                                 bool remote_source_flag, SynSpec &syn_spec);
 
   int addOffsetToExternalNodeIds(uint n_local_nodes);
@@ -1626,9 +1629,9 @@ template <class ConnKeyT, class ConnStructT>
 __global__ void
 set_connection_data(ConnKeyT *conn_key_subarray,
                     ConnStructT *conn_struct_subarray, int64_t n_block_conn,
-                    int64_t n_prev_conn, inode_t *sources, inode_t *targets,
-                    float *weights, float *delays, int port, int syn_group,
-                    float time_resolution, int min_allowed_delay,
+                    int64_t n_prev_conn, inode_t first_source, inode_t *sources,
+                    inode_t *targets, float *weights, float *delays, int port,
+                    int syn_group, float time_resolution, int min_allowed_delay,
                     int max_allowed_delay, int *delayError) {
   int64_t i_block_conn = threadIdx.x + blockIdx.x * blockDim.x;
   if (i_block_conn >= n_block_conn) {
@@ -1636,7 +1639,8 @@ set_connection_data(ConnKeyT *conn_key_subarray,
   }
 
   int64_t cidx = n_prev_conn + i_block_conn;
-  setConnSource<ConnKeyT>(conn_key_subarray[i_block_conn], sources[cidx]);
+  setConnSource<ConnKeyT>(conn_key_subarray[i_block_conn],
+                          sources[cidx] - first_source);
   setConnTarget<ConnStructT>(conn_struct_subarray[i_block_conn], targets[cidx]);
 
   int delay = (int)round(delays[cidx] / time_resolution);
@@ -1916,6 +1920,18 @@ __global__ void setOneToOneSource(inode_t *conn_source_ids, int64_t n_conn,
   }
   inode_t i_source = getNodeIndex(source, (int)(i_conn));
   conn_source_ids[i_conn] = i_source;
+}
+
+template <class T>
+__global__ void set_connection_sources(inode_t first_source,
+                                       inode_t *conn_source_ids, int64_t n_conn,
+                                       T source) {
+  int64_t i_conn = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i_conn >= n_conn) {
+    return;
+  }
+  inode_t i_source = getNodeIndex(source, (int)(i_conn));
+  conn_source_ids[i_conn] = i_source - first_source;
 }
 
 template <class T1, class T2, class ConnKeyT, class ConnStructT>
@@ -3144,7 +3160,6 @@ int ConnectionTemplate<ConnKeyT, ConnStructT>::_Connect(
                                         remote_source_flag);
     break;
   case ASSIGNED_CONNECTIONS:
-    conn_spec.use_all_remote_source_nodes_ = false;
     n_conn_ += conn_spec.assigned_connections_;
     break;
   default:
@@ -3660,8 +3675,13 @@ int ConnectionTemplate<ConnKeyT, ConnStructT>::connectFixedOutdegree(
 
 template <class ConnKeyT, class ConnStructT>
 int ConnectionTemplate<ConnKeyT, ConnStructT>::manual_assign_connections(
-    inode_t *sources, inode_t *targets, float *weights, float *delays,
-    uint64_t count, bool remote_source_flag, SynSpec &syn_spec) {
+    inode_t first_source, inode_t *sources, inode_t *targets, float *weights,
+    float *delays, uint64_t count, bool remote_connect_flag,
+    bool remote_source_flag, SynSpec &syn_spec) {
+
+  if (remote_connect_flag && !remote_source_flag)
+    syn_spec.syn_group_ |= 1 << max_syn_nbits_;
+
   // Necessary check as this call is done outside the _Connect switch
   int max_n_ports = (int)(IntPow(2, max_port_nbits_));
   if (syn_spec.port_ >= max_n_ports)
@@ -3704,8 +3724,8 @@ int ConnectionTemplate<ConnKeyT, ConnStructT>::manual_assign_connections(
     gpuErrchk(cudaMemcpyAsync(d_sources, sources, count * sizeof(inode_t),
                               cudaMemcpyHostToDevice));
     reallocConnSourceIds(n_new_conn);
-    setOneToOneSource<inode_t *><<<(n_new_conn + 1023) / 1024, 1024>>>(
-        d_conn_source_ids_, n_new_conn, d_sources);
+    set_connection_sources<inode_t *><<<(n_new_conn + 1023) / 1024, 1024>>>(
+        first_source, d_conn_source_ids_, n_new_conn, d_sources);
     CUDASYNC;
     CUDAFREECTRL("d_sources", d_sources);
 
@@ -3763,9 +3783,10 @@ int ConnectionTemplate<ConnKeyT, ConnStructT>::manual_assign_connections(
         <<<(n_block_conn + 1023) / 1024, 1024>>>(
             static_cast<ConnKeyT *>(conn_key_vect_[ib] + i_conn0),
             static_cast<ConnStructT *>(conn_struct_vect_[ib] + i_conn0),
-            n_block_conn, n_prev_conn, d_sources, d_targets, d_weights,
-            d_delays, syn_spec.port_, syn_spec.syn_group_, time_resolution_,
-            min_allowed_delay_, max_allowed_delay, d_delayError);
+            n_block_conn, n_prev_conn, first_source, d_sources, d_targets,
+            d_weights, d_delays, syn_spec.port_, syn_spec.syn_group_,
+            time_resolution_, min_allowed_delay_, max_allowed_delay,
+            d_delayError);
     DBGCUDASYNC;
     // CUDASYNC;
 

@@ -881,8 +881,9 @@ public:
 
   // Assignment operation for full connection data passed as arrays
   // currently meant to be used only for spatial connectivity generation
-  int manual_assign_connections(inode_t *sources, inode_t *targets,
-                                float *weights, float *delays, uint64_t count,
+  int manual_assign_connections(inode_t first_source, inode_t *sources,
+                                inode_t *targets, float *weights, float *delays,
+                                uint64_t count, bool remote_connect_flag,
                                 bool remote_source_flag, SynSpec &syn_spec);
 };
 

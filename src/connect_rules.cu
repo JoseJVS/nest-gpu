@@ -519,12 +519,15 @@ int NESTGPU::ConnectDistributedFixedIndegree(
   return ret;
 }
 
-int NESTGPU::manual_assign_connections(inode_t *sources, inode_t *targets,
-                                       float *weights, float *delays,
-                                       uint64_t count, bool remote_source_flag,
+int NESTGPU::manual_assign_connections(inode_t first_source, inode_t *sources,
+                                       inode_t *targets, float *weights,
+                                       float *delays, uint64_t count,
+                                       bool remote_connect_flag,
+                                       bool remote_source_flag,
                                        SynSpec &syn_spec) {
   CheckUncalibrated("Connections cannot be created after calibration");
 
-  return conn_->manual_assign_connections(sources, targets, weights, delays,
-                                          count, remote_source_flag, syn_spec);
+  return conn_->manual_assign_connections(
+      first_source, sources, targets, weights, delays, count,
+      remote_connect_flag, remote_source_flag, syn_spec);
 }

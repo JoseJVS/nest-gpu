@@ -34,6 +34,54 @@
 #include "api_converters.h"
 #include "c_api.h"
 
+template <bool is_remote>
+void create_spatial_connections(const int source_rank, const int target_rank,
+                                sapi::ConnectionVectors &conn_vec,
+                                const bool is_remote_source,
+                                ConnSpec &conn_spec, SynSpec &syn_spec,
+                                NESTGPU *ngpu_instance) {
+  if (conn_vec.sizes_ < 1 || ngpu_instance == nullptr)
+    return;
+
+  conn_spec.assigned_connections_ = conn_vec.sizes_;
+
+  if constexpr (is_remote) {
+    const auto syn_group = syn_spec.syn_group_;
+
+    ngpu_instance->manual_assign_connections(
+        conn_vec.bounds_.first_source_index_,
+        conn_vec.connection_sources_.data(),
+        conn_vec.connection_targets_.data(),
+        conn_vec.connection_weights_.data(), conn_vec.connection_delays_.data(),
+        conn_vec.sizes_, true, is_remote_source, syn_spec);
+
+    ngpu_instance->RemoteConnect(
+        source_rank, conn_vec.bounds_.first_source_index_,
+        conn_vec.bounds_.last_source_index_ -
+            conn_vec.bounds_.first_source_index_ + 1,
+        target_rank, conn_vec.bounds_.first_target_index_,
+        conn_vec.bounds_.last_target_index_ -
+            conn_vec.bounds_.first_target_index_ + 1,
+        -1, conn_spec, syn_spec);
+
+    syn_spec.syn_group_ = syn_group;
+  } else {
+    ngpu_instance->manual_assign_connections(
+        0, conn_vec.connection_sources_.data(),
+        conn_vec.connection_targets_.data(),
+        conn_vec.connection_weights_.data(), conn_vec.connection_delays_.data(),
+        conn_vec.sizes_, false, false, syn_spec);
+
+    ngpu_instance->Connect(conn_vec.bounds_.first_source_index_,
+                           conn_vec.bounds_.last_source_index_ -
+                               conn_vec.bounds_.first_source_index_ + 1,
+                           conn_vec.bounds_.first_target_index_,
+                           conn_vec.bounds_.last_target_index_ -
+                               conn_vec.bounds_.first_target_index_ + 1,
+                           conn_spec, syn_spec);
+  }
+}
+
 extern "C" {
 static sapi::CAPI capi;
 static std::unordered_map<std::size_t, sapi::RankNodeSequenceMap>
@@ -1907,54 +1955,6 @@ insert_positions_in_grid(const sapi::CharArray &model_name,
   return triplet;
 }
 
-void create_spatial_connections(const int source_rank, const int target_rank,
-                                sapi::ConnectionVectors &conn_vec,
-                                const bool remote, const bool remote_source) {
-  if (conn_vec.sizes_ < 1)
-    return;
-
-  ConnSpec_instance.rule_ = ConnectionRules::ASSIGNED_CONNECTIONS;
-  ConnSpec_instance.use_all_remote_source_nodes_ = false;
-  ConnSpec_instance.assigned_connections_ = conn_vec.sizes_;
-
-  if (remote) {
-    for (auto &source : conn_vec.connection_sources_)
-      source -= conn_vec.bounds_.first_source_index_;
-
-    NESTGPU_instance->manual_assign_connections(
-        conn_vec.connection_sources_.data(),
-        conn_vec.connection_targets_.data(),
-        conn_vec.connection_weights_.data(), conn_vec.connection_delays_.data(),
-        conn_vec.sizes_, remote_source, SynSpec_instance);
-
-    for (auto &source : conn_vec.connection_sources_)
-      source += conn_vec.bounds_.first_source_index_;
-
-    NESTGPU_instance->RemoteConnect(
-        source_rank, conn_vec.bounds_.first_source_index_,
-        conn_vec.bounds_.last_source_index_ -
-            conn_vec.bounds_.first_source_index_ + 1,
-        target_rank, conn_vec.bounds_.first_target_index_,
-        conn_vec.bounds_.last_target_index_ -
-            conn_vec.bounds_.last_target_index_ + 1,
-        -1, ConnSpec_instance, SynSpec_instance);
-  } else {
-    NESTGPU_instance->manual_assign_connections(
-        conn_vec.connection_sources_.data(),
-        conn_vec.connection_targets_.data(),
-        conn_vec.connection_weights_.data(), conn_vec.connection_delays_.data(),
-        conn_vec.sizes_, false, SynSpec_instance);
-
-    NESTGPU_instance->Connect(conn_vec.bounds_.first_source_index_,
-                              conn_vec.bounds_.last_source_index_ -
-                                  conn_vec.bounds_.first_source_index_ + 1,
-                              conn_vec.bounds_.first_target_index_,
-                              conn_vec.bounds_.last_target_index_ -
-                                  conn_vec.bounds_.last_target_index_ + 1,
-                              ConnSpec_instance, SynSpec_instance);
-  }
-}
-
 sapi::OptionalIndex
 compute_spatial_connections(std::size_t source_index, std::size_t target_index,
                             const sapi::MPStruct &mask_parameters,
@@ -2035,24 +2035,40 @@ compute_spatial_connections(std::size_t source_index, std::size_t target_index,
 
       const auto local_rank = static_cast<int>(capi.get_rank());
 
+      SynSpec syn_spec = SynSpec_instance;
+      ConnSpec conn_spec = ConnSpec_instance;
+      conn_spec.rule_ = ConnectionRules::ASSIGNED_CONNECTIONS;
+      conn_spec.use_all_remote_source_nodes_ = false;
+
       if (!conn_map_ptr->incoming_connections_.empty()) {
         for (auto &[remote_rank, rank_connection_info] :
              conn_map_ptr->incoming_connections_) {
-          const auto is_remote = remote_rank != local_rank;
-          for (auto &conn_vec : rank_connection_info.partitioned_connections_)
-            create_spatial_connections(static_cast<int>(remote_rank),
-                                       local_rank, conn_vec, is_remote, false);
+          if (remote_rank != local_rank)
+            for (auto &conn_vec : rank_connection_info.partitioned_connections_)
+              create_spatial_connections<true>(
+                  static_cast<int>(remote_rank), local_rank, conn_vec, false,
+                  conn_spec, syn_spec, NESTGPU_instance);
+          else
+            for (auto &conn_vec : rank_connection_info.partitioned_connections_)
+              create_spatial_connections<false>(
+                  static_cast<int>(remote_rank), local_rank, conn_vec, false,
+                  conn_spec, syn_spec, NESTGPU_instance);
         }
       }
 
       if (!conn_map_ptr->outgoing_connections_.empty()) {
         for (auto &[remote_rank, rank_connection_info] :
              conn_map_ptr->outgoing_connections_) {
-          const auto is_remote = remote_rank != local_rank;
-          for (auto &conn_vec : rank_connection_info.partitioned_connections_)
-            create_spatial_connections(local_rank,
-                                       static_cast<int>(remote_rank), conn_vec,
-                                       is_remote, is_remote);
+          if (remote_rank != local_rank)
+            for (auto &conn_vec : rank_connection_info.partitioned_connections_)
+              create_spatial_connections<true>(
+                  local_rank, static_cast<int>(remote_rank), conn_vec, true,
+                  conn_spec, syn_spec, NESTGPU_instance);
+          else
+            for (auto &conn_vec : rank_connection_info.partitioned_connections_)
+              create_spatial_connections<false>(
+                  local_rank, static_cast<int>(remote_rank), conn_vec, false,
+                  conn_spec, syn_spec, NESTGPU_instance);
         }
       }
     } catch (const std::exception &e) {
