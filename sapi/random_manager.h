@@ -23,6 +23,8 @@
 #ifndef RANDOM_MANAGER_H
 #define RANDOM_MANAGER_H
 
+#include <limits>
+
 #include "creator_registry.h"
 #include "thread_aligned_array.h"
 #include "type_erasure_helpers.h"
@@ -119,21 +121,17 @@ inline AnyRNG *RandomManager::reseed_rank_paired_rng(
     const combined_idx_t combined_seed) const {
   auto rng = tid_rank_paired_rng_vec_.get_thread_item(tid);
   if (inverted_source_target)
-    rng->seed({
-        base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, rank, local_rank_,
-        rank_paired_seeds_.at(rank),
-        static_cast<rng_seed_t>(combined_seed >> 32),
-        static_cast<rng_seed_t>(combined_seed &
-                                4294967295ul) // ( 1ul << 32 ) - 1ul
-    });
+    rng->seed({base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, rank, local_rank_,
+               rank_paired_seeds_.at(rank),
+               static_cast<rng_seed_t>(combined_seed >> 32),
+               static_cast<rng_seed_t>(combined_seed &
+                                       std::numeric_limits<uint32_t>::max())});
   else
-    rng->seed({
-        base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, rank,
-        rank_paired_seeds_.at(rank),
-        static_cast<rng_seed_t>(combined_seed >> 32),
-        static_cast<rng_seed_t>(combined_seed &
-                                4294967295ul) // ( 1ul << 32 ) - 1ul
-    });
+    rng->seed({base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, rank,
+               rank_paired_seeds_.at(rank),
+               static_cast<rng_seed_t>(combined_seed >> 32),
+               static_cast<rng_seed_t>(combined_seed &
+                                       std::numeric_limits<uint32_t>::max())});
 
   return rng;
 }

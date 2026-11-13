@@ -45,7 +45,7 @@ template <typename I>
   requires std::integral<std::remove_cvref_t<I>>
 NodeCountVector safe_convert_vector(std::vector<I> &&count_vector) {
   if constexpr (std::is_same_v<std::remove_cvref_t<I>, nodeidx_t>)
-    return std::forward<NodeCountVector>(count_vector);
+    return std::move(count_vector);
   else {
     NodeCountVector output_copy(count_vector.size());
     auto out_it = output_copy.begin();

@@ -23,6 +23,7 @@
 #ifndef PAYLOAD_PREPARATION_H
 #define PAYLOAD_PREPARATION_H
 
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -45,7 +46,7 @@ inline int32_t header_read(std::vector<uint64_t>::const_iterator &payload_it,
   if (evenTix(index)) {
     return *payload_it >> 32;
   } else {
-    return (*payload_it++) & 4294967295ul; // ( 1ul << 32 ) - 1ul
+    return (*payload_it++) & std::numeric_limits<uint32_t>::max();
   }
 }
 
