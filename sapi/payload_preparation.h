@@ -104,8 +104,7 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
       header_write(info_writing_pos, leaf_index, header_pos++);
       header_write(info_writing_pos, num_nodes, header_pos++);
 
-      assert(num_nodes <=
-                 static_cast<std::size_t>(_32bit_header_size - header_pos) &&
+      assert(std::cmp_less_equal(num_nodes, _32bit_header_size - header_pos) &&
              std::cmp_less_equal(
                  CoordT::D * num_nodes,
                  std::distance(content_writing_pos, content_writing_end)));
