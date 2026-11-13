@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <random>
+#include <utility>
 
 #include "connection_containers.h"
 #include "numeric_functors.h"
@@ -247,8 +248,7 @@ void compute_fixed_connections(
   selected_connections.resize(connection_counts);
 
   if constexpr (has_kernel) {
-    assert(connection_probabilities.size() ==
-           static_cast<std::size_t>(available_counts));
+    assert(std::cmp_equal(connection_probabilities.size(), available_counts));
 
     if constexpr (allow_multiplicity) {
       std::discrete_distribution<count_t> dist(connection_probabilities.begin(),

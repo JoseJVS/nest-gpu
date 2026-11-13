@@ -24,6 +24,7 @@
 #define GF_COLLECTION_H
 
 #include <algorithm>
+#include <utility>
 
 #include "grid_functors.h"
 #include "sapi_forward_declarations.h"
@@ -54,8 +55,7 @@ GFCollection<CoordT> construct_gf_collection(
     const CreatorRegistry<GridTargetPositionShifts<CoordT>> &gpsr,
     const CreatorRegistry<ShiftedOriginCreator<CoordT>> &socr,
     const CreatorRegistry<CachedTileCreator<CoordT>> &ctcr) {
-  if (grid_origin.empty() ||
-      grid_origin.size() != static_cast<std::size_t>(CoordT::D) ||
+  if (grid_origin.empty() || !std::cmp_equal(grid_origin.size(), CoordT::D) ||
       grid_dimensions.size() != grid_origin.size() ||
       !std::ranges::all_of(grid_dimensions, positiveTix))
     throw std::invalid_argument("Invalid grid params for GFCollection");

@@ -24,6 +24,7 @@
 #define MASK_TILE_PROCESSING_H
 
 #include <memory>
+#include <utility>
 
 #include "enum_store.h"
 #include "grid_neighborhood.h"
@@ -220,8 +221,8 @@ void check_insert_node_coord_pairs(
     node_coord_pairs.reserve(jointure.second);
 
     const auto skip = jointure.first - first_index;
-    assert(0 <= skip && static_cast<std::size_t>(skip + jointure.second) <=
-                            coord_vec.size());
+    assert(0 <= skip &&
+           std::cmp_less_equal(skip + jointure.second, coord_vec.size()));
     const auto coord_it = coord_vec.begin() + skip;
 
     if constexpr (ignore_mask) {

@@ -25,6 +25,7 @@
 
 #include <concepts>
 #include <optional>
+#include <utility>
 
 #include "grid_neighborhood.h"
 #include "node_containers.h"
@@ -179,8 +180,8 @@ distribute_node_counts_in_grid(
 
     assert(tile_set.has_value()
                ? node_counts_per_tile.size() == tile_set->size()
-               : node_counts_per_tile.size() ==
-                     static_cast<std::size_t>(tile_grid.num_tiles_));
+               : std::cmp_equal(node_counts_per_tile.size(),
+                                tile_grid.num_tiles_));
 
     if (grid_neighborhood.rank_tile_bijection_ && !tile_set.has_value()) {
       for (vp_t rank = 0; rank < grid_neighborhood.num_processes_; ++rank) {

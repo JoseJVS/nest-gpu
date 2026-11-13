@@ -24,6 +24,7 @@
 #define NODE_INSERTION_H
 
 #include <tuple>
+#include <utility>
 
 #include "bounding_box.h"
 #include "grid_neighborhood.h"
@@ -76,11 +77,10 @@ void aggregate_local_node_positions(std::deque<CoordT> &coords,
                                     const nodeidx_t copy_count,
                                     const nodeidx_t skip_count) {
   assert(0 < copy_count && 0 <= skip_count &&
-         static_cast<std::size_t>(skip_count + copy_count) <= coords.size());
+         std::cmp_less_equal(skip_count + copy_count, coords.size()));
 
   // This function should only be called once per tile and only for local tiles
-  if (0 == skip_count &&
-      static_cast<std::size_t>(copy_count) == coords.size()) {
+  if (0 == skip_count && std::cmp_equal(copy_count, coords.size())) {
     tiled_coord_map[tile_index].swap(coords);
     return;
   }
@@ -112,10 +112,10 @@ void aggregate_tiled_node_count_by_rank(
     RankTileIdxNodeCountPairs &tiled_node_counts_per_rank,
     const GridNeighborhood &grid_neighborhood,
     const RandomManager &rng_manager) {
-  assert(node_counts_per_rank.size() ==
-             static_cast<std::size_t>(grid_neighborhood.num_processes_) &&
-         tiled_node_counts_per_rank.size() ==
-             static_cast<std::size_t>(grid_neighborhood.num_processes_));
+  assert(std::cmp_equal(node_counts_per_rank.size(),
+                        grid_neighborhood.num_processes_) &&
+         std::cmp_equal(tiled_node_counts_per_rank.size(),
+                        grid_neighborhood.num_processes_));
 
   if (global_tiled_coord_map.empty())
     return;
@@ -295,8 +295,7 @@ void insert_node_positions_in_tiles(
     const auto tnc_it = grid_node_col.begin() + tile_index;
     assert(tcm_it != tiled_coord_map.end() && tnc_it != grid_node_col.end() &&
            0 <= node_sequence.first && 0 < node_sequence.second &&
-           tcm_it->second.size() ==
-               static_cast<std::size_t>(node_sequence.second));
+           std::cmp_equal(tcm_it->second.size(), node_sequence.second));
 
     insert_node_positions_in_leafs(tcm_it->second, *tnc_it,
                                    tile_grid.positions_[tile_index],

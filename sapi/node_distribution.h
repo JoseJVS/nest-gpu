@@ -27,6 +27,7 @@
 #include <concepts>
 #include <random>
 #include <type_traits>
+#include <utility>
 
 #include "node_containers.h"
 #include "random_manager.h"
@@ -49,7 +50,8 @@ NodeCountVector safe_convert_vector(std::vector<I> &&count_vector) {
     NodeCountVector output_copy(count_vector.size());
     auto out_it = output_copy.begin();
     for (const auto &count : count_vector) {
-      if (0 <= count && count < std::numeric_limits<nodeidx_t>::max())
+      if (std::cmp_greater_equal(count, 0) &&
+          std::cmp_less(count, std::numeric_limits<nodeidx_t>::max()))
         *out_it++ = static_cast<nodeidx_t>(count);
       else
         throw std::runtime_error(

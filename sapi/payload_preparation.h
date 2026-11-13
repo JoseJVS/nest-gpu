@@ -24,6 +24,7 @@
 #define PAYLOAD_PREPARATION_H
 
 #include <stdexcept>
+#include <utility>
 
 #include "mask_containers.h"
 #include "numerics.h"
@@ -105,9 +106,9 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
 
       assert(num_nodes <=
                  static_cast<std::size_t>(_32bit_header_size - header_pos) &&
-             CoordT::D * num_nodes <=
-                 static_cast<std::size_t>(
-                     std::distance(content_writing_pos, content_writing_end)));
+             std::cmp_less_equal(
+                 CoordT::D * num_nodes,
+                 std::distance(content_writing_pos, content_writing_end)));
 
       for (const auto &nc_ptr : node_coord_pairs) {
         // Write node index and coord
@@ -155,7 +156,7 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
                                     // header items -> 4 compacted items
          0 < recv_content_length && 4 < recv_payload_length &&
          recv_content_length % CoordT::D == 0 &&
-         payload_size == static_cast<std::size_t>(recv_payload_length));
+         std::cmp_equal(payload_size, recv_payload_length));
 
   const auto info_reading_end =
       comm_info.data_payload_.cbegin() + recv_header_length;

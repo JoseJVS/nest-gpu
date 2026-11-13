@@ -25,6 +25,7 @@
 
 #include <cassert>
 #include <deque>
+#include <utility>
 
 #include "mask_geometry.h"
 #include "sapi_forward_declarations.h"
@@ -64,12 +65,10 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
   if (mask_params.empty())
     throw std::invalid_argument("Invalid mask params vector");
 
-  if (!mask_origin.empty() &&
-      mask_origin.size() != static_cast<std::size_t>(CoordT::D))
+  if (!mask_origin.empty() && !std::cmp_equal(mask_origin.size(), CoordT::D))
     throw std::invalid_argument("Invalid mask origin vector");
 
-  if (!mask_offset.empty() &&
-      mask_offset.size() != static_cast<std::size_t>(CoordT::D))
+  if (!mask_offset.empty() && !std::cmp_equal(mask_offset.size(), CoordT::D))
     throw std::invalid_argument("Invalid mask offset vector");
 
   Mask<CoordT> m;

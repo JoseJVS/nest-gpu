@@ -24,6 +24,7 @@
 #define GRID_NEIGHBORHOOD_H
 
 #include <set>
+#include <utility>
 
 #include "sapi_forward_declarations.h"
 #include "tile_grid.h"
@@ -103,8 +104,7 @@ void GridNeighborhood::set_tile_ownership(
     const TileGrid<CoordT> &tile_grid) {
   assert(!has_owners_ && !tile_grid.positions_.empty());
 
-  if (rank_tiles_ownership_map.size() !=
-      static_cast<std::size_t>(num_processes_))
+  if (!std::cmp_equal(rank_tiles_ownership_map.size(), num_processes_))
     throw std::invalid_argument("Ownership has to be defined for all ranks");
 
   vp_t curr_rank = 0;

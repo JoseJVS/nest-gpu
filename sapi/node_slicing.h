@@ -24,6 +24,7 @@
 #define NODE_SLICING_H
 
 #include <optional>
+#include <utility>
 
 #include "grid_neighborhood.h"
 #include "node_containers.h"
@@ -82,8 +83,8 @@ void check_insert_node_coord_pairs(
         continue;
 
       const auto skip = jointure.first - original_sequence.first;
-      assert(0 <= skip && static_cast<std::size_t>(skip + jointure.second) <=
-                              coord_vec.size());
+      assert(0 <= skip &&
+             std::cmp_less_equal(skip + jointure.second, coord_vec.size()));
       const auto coord_it = coord_vec.begin() + skip;
 
       if constexpr (ignore_mask) {

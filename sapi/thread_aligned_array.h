@@ -26,6 +26,7 @@
 #include <cassert>
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "sapi_config.h"
@@ -73,7 +74,7 @@ template <typename T>
   requires std::is_copy_constructible_v<T>
 inline void TAArray<T>::prepare() {
   if (!prepared_ || cloned_ ||
-      item_vec_.size() != static_cast<std::size_t>(get_max_omp_threads())) {
+      !std::cmp_equal(item_vec_.size(), get_max_omp_threads())) {
     item_vec_.clear();
     item_vec_.resize(get_max_omp_threads());
     prepared_ = true;
