@@ -34,7 +34,7 @@ struct ConnectionInfo {
   conn_param_t weight_;
   conn_param_t delay_;
 
-  bool operator==(const ConnectionInfo &) const;
+  bool operator==(const ConnectionInfo &) const = default;
 };
 
 inline ConnectionInfo construct_connection_info(const conn_index_t index,
@@ -45,10 +45,6 @@ inline ConnectionInfo construct_connection_info(const conn_index_t index,
   ci.weight_ = weight;
   ci.delay_ = delay;
   return ci;
-}
-
-inline bool ConnectionInfo::operator==(const ConnectionInfo &ci) const {
-  return index_ == ci.index_ && weight_ == ci.weight_ && delay_ == ci.delay_;
 }
 
 typedef std::vector<std::pair<conn_param_t, std::deque<ConnectionInfo>>>
@@ -152,16 +148,10 @@ struct DistributedConnectionInfo {
   operator=(const DistributedConnectionInfo &) = delete;
   DistributedConnectionInfo &operator=(DistributedConnectionInfo &&) = delete;
 
-  bool operator==(const DistributedConnectionInfo &) const;
+  bool operator==(const DistributedConnectionInfo &) const = default;
 
   void clear();
 };
-
-inline bool DistributedConnectionInfo::operator==(
-    const DistributedConnectionInfo &rci) const {
-  return outgoing_connections_ == rci.outgoing_connections_ &&
-         incoming_connections_ == rci.incoming_connections_;
-}
 
 inline void DistributedConnectionInfo::clear() {
   outgoing_connections_.clear();

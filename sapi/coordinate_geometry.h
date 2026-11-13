@@ -32,9 +32,6 @@
 #include "coordinates.h"
 
 namespace sapi {
-template <typename T>
-using rcvref = typename std::remove_cv_t<typename std::remove_reference_t<T>>;
-
 template <typename CoordT>
 inline space_t vector_dot(const CoordT &coordA, const CoordT &coordB) {
   return (coordA * coordB).sum();
@@ -343,7 +340,7 @@ inline void update_min(CoordT &min, const CoordT &value) {
   min.x_ = std::isless(value.x_, min.x_) ? value.x_ : min.x_;
   min.y_ = std::isless(value.y_, min.y_) ? value.y_ : min.y_;
 
-  if constexpr (std::is_same_v<rcvref<CoordT>, Coord3D>)
+  if constexpr (std::is_same_v<std::remove_cvref_t<CoordT>, Coord3D>)
     min.z_ = std::isless(value.z_, min.z_) ? value.z_ : min.z_;
 }
 
@@ -352,7 +349,7 @@ inline void update_max(CoordT &max, const CoordT &value) {
   max.x_ = std::isless(max.x_, value.x_) ? value.x_ : max.x_;
   max.y_ = std::isless(max.y_, value.y_) ? value.y_ : max.y_;
 
-  if constexpr (std::is_same_v<rcvref<CoordT>, Coord3D>)
+  if constexpr (std::is_same_v<std::remove_cvref_t<CoordT>, Coord3D>)
     max.z_ = std::isless(max.z_, value.z_) ? value.z_ : max.z_;
 }
 
@@ -364,7 +361,7 @@ template <typename CoordT> inline std::pair<CoordT, CoordT> minmax_coords() {
   max.x_ = std::numeric_limits<space_t>::lowest();
   max.y_ = std::numeric_limits<space_t>::lowest();
 
-  if constexpr (std::is_same_v<rcvref<CoordT>, Coord3D>) {
+  if constexpr (std::is_same_v<std::remove_cvref_t<CoordT>, Coord3D>) {
     min.z_ = std::numeric_limits<space_t>::max();
     max.z_ = std::numeric_limits<space_t>::lowest();
   }

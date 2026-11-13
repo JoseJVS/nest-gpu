@@ -232,8 +232,7 @@ void communicate_payload_async(
     const std::unordered_map<vp_t, RankPairInfo<CoordT>> &rank_info_map,
     const vp_t tag) {
   for (const auto &[rank, rpi] : rank_info_map) {
-    assert(request_queue.pending_ranks_.find(rank) ==
-               request_queue.pending_ranks_.end() &&
+    assert(!request_queue.pending_ranks_.contains(rank) &&
            rpi.sender_info_.data_payload_.size() <
                std::numeric_limits<vp_t>::max());
     const auto payload_size =
@@ -273,8 +272,7 @@ void probe_payload_recv(
       MPI_Recv(rank_map_it->second.receiver_info_.data_payload_.data(), flag,
                MPI_UINT64_T, *ranks_it, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-      assert(request_queue.done_ranks_.find(*ranks_it) ==
-             request_queue.done_ranks_.end());
+      assert(!request_queue.done_ranks_.contains(*ranks_it));
       request_queue.done_ranks_.insert(*ranks_it);
       ranks_it = request_queue.pending_ranks_.erase(ranks_it);
     } else

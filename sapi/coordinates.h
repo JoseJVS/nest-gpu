@@ -23,8 +23,10 @@
 #ifndef COORDINATES_H
 #define COORDINATES_H
 
-#include <cstring>
+#include <bit>
+#include <iterator>
 #include <string>
+#include <type_traits>
 
 #include "numerics.h"
 
@@ -150,15 +152,16 @@ inline Coord2D Coord2D::copy_from_vec(ForwardIteratorT &&read_it) {
 
 template <typename ForwardIteratorT>
 inline void Coord2D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
-  std::memcpy(&(*write_it++), &x_, sizeof(space_t));
-  std::memcpy(&(*write_it++), &y_, sizeof(space_t));
+  using ValueT = std::iter_value_t<std::remove_cvref_t<ForwardIteratorT>>;
+  *write_it++ = std::bit_cast<ValueT>(x_);
+  *write_it++ = std::bit_cast<ValueT>(y_);
 }
 
 template <typename ForwardIteratorT>
 inline Coord2D Coord2D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
   Coord2D coord;
-  std::memcpy(&coord.x_, &(*read_it++), sizeof(space_t));
-  std::memcpy(&coord.y_, &(*read_it++), sizeof(space_t));
+  coord.x_ = std::bit_cast<space_t>(*read_it++);
+  coord.y_ = std::bit_cast<space_t>(*read_it++);
   return coord;
 }
 
@@ -290,17 +293,18 @@ inline Coord3D Coord3D::copy_from_vec(ForwardIteratorT &&read_it) {
 
 template <typename ForwardIteratorT>
 inline void Coord3D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
-  std::memcpy(&(*write_it++), &x_, sizeof(space_t));
-  std::memcpy(&(*write_it++), &y_, sizeof(space_t));
-  std::memcpy(&(*write_it++), &z_, sizeof(space_t));
+  using ValueT = std::iter_value_t<std::remove_cvref_t<ForwardIteratorT>>;
+  *write_it++ = std::bit_cast<ValueT>(x_);
+  *write_it++ = std::bit_cast<ValueT>(y_);
+  *write_it++ = std::bit_cast<ValueT>(z_);
 }
 
 template <typename ForwardIteratorT>
 inline Coord3D Coord3D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
   Coord3D coord;
-  std::memcpy(&coord.x_, &(*read_it++), sizeof(space_t));
-  std::memcpy(&coord.y_, &(*read_it++), sizeof(space_t));
-  std::memcpy(&coord.z_, &(*read_it++), sizeof(space_t));
+  coord.x_ = std::bit_cast<space_t>(*read_it++);
+  coord.y_ = std::bit_cast<space_t>(*read_it++);
+  coord.z_ = std::bit_cast<space_t>(*read_it++);
   return coord;
 }
 

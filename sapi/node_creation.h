@@ -32,7 +32,8 @@
 
 namespace sapi {
 template <typename I,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 constexpr DISTRIBUTION_MODE get_distribution_mode(I &&mode) {
   switch (mode) {
   case uint8_t(DISTRIBUTION_MODE::FREE):
@@ -87,7 +88,8 @@ void aggregate_tiled_node_count_by_rank(
 // The second vector contains the total number of nodes
 // to be instantiated per tile owned by each rank.
 template <typename I, typename CoordT,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 std::pair<NodeCountVector, RankTileIdxNodeCountPairs>
 distribute_node_counts_in_grid(
     const I num_nodes, const std::optional<std::set<tileidx_t>> &tile_set,

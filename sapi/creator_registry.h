@@ -52,7 +52,7 @@ template <typename RT>
 template <typename CT, typename std::enable_if_t<
                            std::is_base_of_v<StateLessCreator<RT>, CT>, bool>>
 inline void CreatorRegistry<RT>::register_creator(std::string &&name) {
-  if (registry_.find(name) != registry_.end())
+  if (registry_.contains(name))
     throw std::invalid_argument(name + " is already registered");
   else
     registry_.emplace(std::move(name), std::make_unique<CT>());

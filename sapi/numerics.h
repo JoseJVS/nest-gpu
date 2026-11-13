@@ -25,14 +25,15 @@
 
 #include <cmath>
 #include <limits>
+#include <numbers>
 
 #include "sapi_config.h"
 
 namespace sapi {
-constexpr static const space_t SP_PI_180 = space_t(M_PI) / space_t(180);
-constexpr static const space_t SP_EPSILON =
+inline constexpr space_t SP_PI_180 = std::numbers::pi_v<space_t> / space_t(180);
+inline constexpr space_t SP_EPSILON =
     std::numeric_limits<space_t>::epsilon() * TOLERANCE;
-constexpr static const space_t SP_RELATIVE_EPSILON =
+inline constexpr space_t SP_RELATIVE_EPSILON =
     space_t(1) / (SP_EPSILON * (1UL << RELATIVE_TOLERANCE));
 
 constexpr inline bool positiveTix(const tileidx_t v) { return 0 < v; }

@@ -263,15 +263,8 @@ template <typename CoordT> struct DistributedPairInfo {
   DistributedPairInfo &operator=(const DistributedPairInfo &) = delete;
   DistributedPairInfo &operator=(DistributedPairInfo &&) = delete;
 
-  bool operator==(const DistributedPairInfo &) const;
+  bool operator==(const DistributedPairInfo &) const = default;
 };
-
-template <typename CoordT>
-inline bool
-DistributedPairInfo<CoordT>::operator==(const DistributedPairInfo &dci) const {
-  return source_side_info_ == dci.source_side_info_ &&
-         target_side_info_ == dci.target_side_info_;
-}
 } // namespace sapi
 
 #endif

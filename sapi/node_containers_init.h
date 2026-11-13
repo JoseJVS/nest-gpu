@@ -62,7 +62,7 @@ void split_tiles_in_grid(TileGrid<CoordT> &tile_grid,
     auto &position = tile_grid.positions_.at(owned_tile);
     wrapped_split_position(position, num_splits, true);
     for (const auto &neighbor_index : position.wrapped_tile_neighborhood_)
-      if (locally_owned_tiles.find(neighbor_index) == locally_owned_tiles.end())
+      if (!locally_owned_tiles.contains(neighbor_index))
         wrapped_split_position(tile_grid.positions_.at(neighbor_index),
                                num_splits, false);
   }

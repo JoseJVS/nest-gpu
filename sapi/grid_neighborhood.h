@@ -91,11 +91,9 @@ GridNeighborhood::get_rank_neighborhood(const bool edge_wrap) const {
 inline bool GridNeighborhood::in_neighborhood(const vp_t rank,
                                               const bool edge_wrap) const {
   if (edge_wrap)
-    return local_rank_neighbors_->second.find(rank) !=
-           local_rank_neighbors_->second.end();
+    return local_rank_neighbors_->second.contains(rank);
   else
-    return local_rank_neighbors_->first.find(rank) !=
-           local_rank_neighbors_->first.end();
+    return local_rank_neighbors_->first.contains(rank);
 }
 
 template <typename CoordT>

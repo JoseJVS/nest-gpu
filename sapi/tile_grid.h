@@ -78,11 +78,9 @@ template <typename CoordT>
 inline bool TilePosition<CoordT>::in_neighborhood(const tileidx_t index,
                                                   const bool edge_wrap) const {
   if (edge_wrap)
-    return wrapped_tile_neighborhood_.find(index) !=
-           wrapped_tile_neighborhood_.end();
+    return wrapped_tile_neighborhood_.contains(index);
   else
-    return direct_tile_neighborhood_.find(index) !=
-           direct_tile_neighborhood_.end();
+    return direct_tile_neighborhood_.contains(index);
 }
 
 template <typename CoordT> std::string TilePosition<CoordT>::to_string() const {

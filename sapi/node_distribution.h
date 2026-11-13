@@ -25,6 +25,7 @@
 
 #include <array>
 #include <random>
+#include <type_traits>
 
 #include "node_containers.h"
 #include "random_manager.h"
@@ -38,13 +39,11 @@ vp_t get_max_omp_threads();
 tileidx_t collapse_dimensions(const std::vector<split_t> &branch_sequence,
                               const std::vector<split_t> &split_sequence);
 
-template <typename T>
-using rcvref = typename std::remove_cv_t<typename std::remove_reference_t<T>>;
-
 template <typename I,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 NodeCountVector safe_convert_vector(std::vector<I> &&count_vector) {
-  if constexpr (std::is_same_v<rcvref<I>, nodeidx_t>)
+  if constexpr (std::is_same_v<std::remove_cvref_t<I>, nodeidx_t>)
     return std::forward<NodeCountVector>(count_vector);
   else {
     NodeCountVector output_copy(count_vector.size());
@@ -64,7 +63,8 @@ NodeCountVector safe_convert_vector(std::vector<I> &&count_vector) {
 }
 
 template <typename I, bool balanced,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 inline I balance_node_counts_by_bins(I &num_nodes, const tileidx_t num_bins) {
   if constexpr (balanced) {
     const auto balancing = std::div(num_nodes, static_cast<I>(num_bins));
@@ -76,7 +76,8 @@ inline I balance_node_counts_by_bins(I &num_nodes, const tileidx_t num_bins) {
 }
 
 template <typename I,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 inline std::pair<I, I>
 batch_node_counts_by_thread_count(const I num_nodes, const vp_t num_threads) {
   // Batch tile index drawing with steps equal to the total number of threads
@@ -100,7 +101,8 @@ batch_node_counts_by_thread_count(const I num_nodes, const vp_t num_threads) {
 }
 
 template <typename I,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 void left_sum_vectors(std::vector<I> &left, std::vector<I> &right) {
   auto r_it = right.begin();
   for (auto l_it = left.begin(); l_it != left.end(); ++l_it)
@@ -109,7 +111,8 @@ void left_sum_vectors(std::vector<I> &left, std::vector<I> &right) {
 }
 
 template <typename I,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 void left_merge_buffers(
     std::vector<std::vector<I>> &buffer_vec,
     const vp_t num_buffers // Buffer size is always in number of threads
@@ -129,7 +132,8 @@ void left_merge_buffers(
 }
 
 template <typename I, bool balanced,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
                   std::uniform_int_distribution<tileidx_t> &distribution,
                   const tileidx_t num_bins) {
@@ -164,7 +168,8 @@ tileidx_t collapse_dimensions(const std::vector<tileidx_t> &grid_pos,
 }
 
 template <typename I, typename ForwardDistIT, typename DimensionBoundsT,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
                   const ForwardDistIT &distributions_first,
                   const DimensionBoundsT &dimensions) {
@@ -181,7 +186,8 @@ void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
 }
 
 template <typename I, bool balanced, bool global,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 NodeCountVector
 uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
                                const RandomManager &rng_manager) {
@@ -251,7 +257,8 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
 }
 
 template <typename I, typename DimensionBoundsT, bool global,
-          typename std::enable_if_t<std::is_integral_v<rcvref<I>>, bool> = true>
+          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
+                                    bool> = true>
 NodeCountVector
 uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
                                const DimensionBoundsT &dimensions,

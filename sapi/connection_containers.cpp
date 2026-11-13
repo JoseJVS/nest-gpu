@@ -20,8 +20,8 @@
  *
  */
 
+#include <bit>
 #include <cassert>
-#include <cstring>
 #include <stdexcept>
 
 #include "connection_containers.h"
@@ -47,16 +47,15 @@ std::unordered_multimap<combined_idx_t, combined_idx_t>
 RankConnectionInfo::build_connection_map() const {
   std::unordered_multimap<combined_idx_t, combined_idx_t> conn_map;
   conn_map.reserve(total_generated_connections_);
-  conn_index_t weight;
-  conn_index_t delay;
   const conn_param_t *weights;
   const conn_param_t *delays;
   for (const auto &conn_vec : partitioned_connections_) {
     weights = conn_vec.connection_weights_.data();
     delays = conn_vec.connection_delays_.data();
     for (std::size_t conn_idx = 0; conn_idx < conn_vec.sizes_; ++conn_idx) {
-      std::memcpy(&(weight), weights + conn_idx, sizeof(conn_param_t));
-      std::memcpy(&(delay), delays + conn_idx, sizeof(conn_param_t));
+      const conn_index_t weight =
+          std::bit_cast<conn_index_t>(weights[conn_idx]);
+      const conn_index_t delay = std::bit_cast<conn_index_t>(delays[conn_idx]);
 
       conn_map.emplace(
           (static_cast<combined_idx_t>(conn_vec.connection_sources_[conn_idx])
