@@ -29,7 +29,8 @@
 
 namespace sapi {
 // Forward definition to connection_rules.h
-template <typename CoordT, bool allow_self_connections, bool allow_multiplicity>
+template <Coordinate CoordT, bool allow_self_connections,
+          bool allow_multiplicity>
 std::size_t
 generate_connections(AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
                      ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
@@ -49,7 +50,7 @@ struct ConnectionGenerator {
 
   bool sort_by_pool_indexes() const;
 
-  template <typename CoordT>
+  template <Coordinate CoordT>
   std::size_t
   generate_connections(AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
                        ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
@@ -83,7 +84,7 @@ inline bool ConnectionGenerator::sort_by_pool_indexes() const {
   return rule_ == CONNECTION_RULE::FIXED_IN_DEGREE;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::size_t ConnectionGenerator::generate_connections(
     AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
     ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,

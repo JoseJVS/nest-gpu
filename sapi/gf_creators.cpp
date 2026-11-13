@@ -100,7 +100,7 @@ struct HexagonGSCreator final
   }
 };
 
-template <typename CoordT, TILE_SHAPE shape>
+template <Coordinate CoordT, TILE_SHAPE shape>
 struct SOCCreator final
     : public StateLessCreator<ShiftedOriginCreator<CoordT>> {
   ShiftedOriginCreator<CoordT>
@@ -111,7 +111,7 @@ struct SOCCreator final
   }
 };
 
-template <typename CoordT, TILE_SHAPE shape>
+template <Coordinate CoordT, TILE_SHAPE shape>
 struct CTCCreator final : public StateLessCreator<CachedTileCreator<CoordT>> {
   CachedTileCreator<CoordT>
   create(const std::vector<space_t> &side_lengths,

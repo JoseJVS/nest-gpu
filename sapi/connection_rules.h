@@ -30,7 +30,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 using OptDisp = std::pair<bool, Displacement<CoordT>>;
 
 template <typename DistributionT, bool allow_multiplicity>
@@ -49,7 +49,7 @@ inline count_t draw_connections(AnyRNG &rng, DistributionT &dist,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void check_minimal_displacement(OptDisp<CoordT> &&computed_displacement,
                                        OptDisp<CoordT> &tracked_minimum) {
   if ((!tracked_minimum.first && computed_displacement.first) ||
@@ -61,8 +61,8 @@ inline void check_minimal_displacement(OptDisp<CoordT> &&computed_displacement,
   }
 }
 
-template <typename CoordT, typename DistributionT, bool allow_self_connections,
-          bool allow_multiplicity>
+template <Coordinate CoordT, typename DistributionT,
+          bool allow_self_connections, bool allow_multiplicity>
 count_t compute_minimal_displacement(
     AnyRNG &rng, DistributionT &dist, std::deque<ConnectionInfo> &connections,
     const std::pair<nodeidx_t, CoordT> &driver_node,
@@ -117,8 +117,8 @@ count_t compute_minimal_displacement(
   }
 }
 
-template <typename CoordT, typename DistributionT, bool allow_self_connections,
-          bool allow_multiplicity>
+template <Coordinate CoordT, typename DistributionT,
+          bool allow_self_connections, bool allow_multiplicity>
 std::size_t generate_probabilistic_connections(
     AnyRNG &rng, DistributionT &dist, ProceduralConnectivityBlocks &proc_block,
     ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
@@ -171,7 +171,7 @@ std::size_t generate_probabilistic_connections(
   return tracked_conn_counts;
 }
 
-template <typename CoordT, bool allow_self_connections, bool inverted_pivot,
+template <Coordinate CoordT, bool allow_self_connections, bool inverted_pivot,
           bool compute_probability>
 void compute_minimal_displacement(
     std::deque<ConnectionInfo> &possible_connections,
@@ -323,8 +323,8 @@ void compute_fixed_connections(
   }
 }
 
-template <typename CoordT, bool allow_self_connections, bool allow_multiplicity,
-          bool inverted_pivot, bool has_kernel>
+template <Coordinate CoordT, bool allow_self_connections,
+          bool allow_multiplicity, bool inverted_pivot, bool has_kernel>
 std::size_t generate_fixed_number_connections(
     AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
     ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
@@ -383,7 +383,8 @@ std::size_t generate_fixed_number_connections(
   return tracked_conn_counts;
 }
 
-template <typename CoordT, bool allow_self_connections, bool allow_multiplicity>
+template <Coordinate CoordT, bool allow_self_connections,
+          bool allow_multiplicity>
 std::size_t
 generate_connections(AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
                      ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,

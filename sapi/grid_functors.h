@@ -24,9 +24,10 @@
 #define GRID_FUNCTORS_H
 
 #include "gf_geometry.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT> struct GridTargetPositionShifts {
+template <Coordinate CoordT> struct GridTargetPositionShifts {
   // Position independent GridShiftVector and dimension position dependent
   // GridShiftVector for complete displacement definition of position relative
   // grid targets
@@ -34,7 +35,7 @@ template <typename CoordT> struct GridTargetPositionShifts {
   GridDimensionalShifts<CoordT> position_dependent_shifts_;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline GridTargetPositionShifts<CoordT> construct_grid_target_position_shifts(
     GridShiftVector<CoordT> &&position_independent_shifts,
     GridDimensionalShifts<CoordT> &&position_dependent_shifts) {
@@ -44,7 +45,7 @@ inline GridTargetPositionShifts<CoordT> construct_grid_target_position_shifts(
   return gps;
 }
 
-template <typename CoordT> struct ShiftedOriginCreator {
+template <Coordinate CoordT> struct ShiftedOriginCreator {
   TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
   std::vector<CoordT> helper_vectors_;
   std::vector<space_t> helper_scalars_;
@@ -54,7 +55,7 @@ template <typename CoordT> struct ShiftedOriginCreator {
       const GridPositionParity<CoordT> &grid_position_parity) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline ShiftedOriginCreator<CoordT>
 construct_shifted_origin_creator(const TILE_SHAPE shape,
                                  const std::vector<space_t> &side_lengths,
@@ -65,7 +66,7 @@ construct_shifted_origin_creator(const TILE_SHAPE shape,
   return soc;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CoordT ShiftedOriginCreator<CoordT>::create_shifted_origin(
     const CoordT &grid_origin, const GridPosition<CoordT> &grid_position,
     const GridPositionParity<CoordT> &grid_position_parity) const {
@@ -73,7 +74,7 @@ inline CoordT ShiftedOriginCreator<CoordT>::create_shifted_origin(
                                      grid_position_parity, *this);
 }
 
-template <typename CoordT> struct CachedTileCreator {
+template <Coordinate CoordT> struct CachedTileCreator {
   TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
   std::vector<space_t> side_lengths_;
   std::vector<angle_t> angular_offsets_;
@@ -85,7 +86,7 @@ template <typename CoordT> struct CachedTileCreator {
               const GridPositionParity<CoordT> &grid_position_parity) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CachedTileCreator<CoordT>
 construct_cached_tile_creator(const TILE_SHAPE shape,
                               const std::vector<space_t> &side_lengths,
@@ -96,13 +97,13 @@ construct_cached_tile_creator(const TILE_SHAPE shape,
   return ctc;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool CachedTileCreator<CoordT>::check_dimensions(
     const GridPosition<CoordT> &grid_dimensions) const {
   return sapi::check_dimensions(grid_dimensions, *this);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline Tile<CoordT> CachedTileCreator<CoordT>::create_tile(
     const CoordT &tile_origin,
     const GridPositionParity<CoordT> &grid_position_parity) const {

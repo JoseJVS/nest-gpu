@@ -27,10 +27,11 @@
 #include <string>
 
 #include "enum_store.h"
+#include "sapi_forward_declarations.h"
 #include "tile2d_geometry.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_tile_vertices(std::vector<CoordT> &vertices,
                               CircumscribedRadius<CoordT> &c_radius,
                               const std::vector<space_t> &side_lengths,
@@ -85,7 +86,7 @@ void initialize_tile_vertices(std::vector<CoordT> &vertices,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_tile_helpers(std::vector<CoordT> &helper_vectors,
                              std::vector<space_t> &helper_scalars,
                              const std::vector<CoordT> &vertices,
@@ -118,7 +119,7 @@ void initialize_tile_helpers(std::vector<CoordT> &helper_vectors,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void split_tile(std::vector<Tile<CoordT>> &sub_tiles,
                 std::vector<const Tile<CoordT> *> &leaf_tiles,
                 const std::vector<CoordT> &vertices,
@@ -158,7 +159,7 @@ void split_tile(std::vector<Tile<CoordT>> &sub_tiles,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 bool coord_in_tile(const CoordT &coord,
                    const CircumscribedRadius<CoordT> &c_radius,
                    const std::vector<CoordT> &vertices,
@@ -187,7 +188,7 @@ bool coord_in_tile(const CoordT &coord,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::vector<std::pair<nodeidx_t, CoordT>> generate_coords_in_tile(
     const nodeidx_t first_index, const nodeidx_t coord_count, AnyRNG &rng,
     const std::vector<CoordT> &vertices,
@@ -215,7 +216,7 @@ std::vector<std::pair<nodeidx_t, CoordT>> generate_coords_in_tile(
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 CoordT project_point_to_surface(const CoordT &coord,
                                 const std::vector<CoordT> &vertices,
                                 const CircumscribedRadius<CoordT> &c_radius,

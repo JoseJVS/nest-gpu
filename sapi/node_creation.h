@@ -23,17 +23,18 @@
 #ifndef NODE_CREATION_H
 #define NODE_CREATION_H
 
+#include <concepts>
 #include <optional>
 
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "node_distribution.h"
+#include "sapi_forward_declarations.h"
 #include "tile.h"
 
 namespace sapi {
-template <typename I,
-          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
-                                    bool> = true>
+template <typename I>
+  requires std::integral<std::remove_cvref_t<I>>
 constexpr DISTRIBUTION_MODE get_distribution_mode(I &&mode) {
   switch (mode) {
   case uint8_t(DISTRIBUTION_MODE::FREE):
@@ -87,9 +88,8 @@ void aggregate_tiled_node_count_by_rank(
 // to be instantiated in each rank.
 // The second vector contains the total number of nodes
 // to be instantiated per tile owned by each rank.
-template <typename I, typename CoordT,
-          typename std::enable_if_t<std::is_integral_v<std::remove_cvref_t<I>>,
-                                    bool> = true>
+template <typename I, Coordinate CoordT>
+  requires std::integral<std::remove_cvref_t<I>>
 std::pair<NodeCountVector, RankTileIdxNodeCountPairs>
 distribute_node_counts_in_grid(
     const I num_nodes, const std::optional<std::set<tileidx_t>> &tile_set,
@@ -225,7 +225,7 @@ distribute_node_counts_in_grid(
                         std::move(tiled_node_counts_per_rank));
 }
 
-template <typename CoordT, bool use_branches, bool balanced>
+template <Coordinate CoordT, bool use_branches, bool balanced>
 void distribute_node_counts_in_tiles(
     GridNodeCollection<CoordT> &grid_node_col,
     const TileIdxNodeSequenceMap &node_seq_per_tile,
@@ -287,7 +287,7 @@ void distribute_node_counts_in_tiles(
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void distribute_node_counts_in_tiles(
     GridNodeCollection<CoordT> &grid_node_col,
     const TileIdxNodeSequenceMap &node_seq_per_tile,

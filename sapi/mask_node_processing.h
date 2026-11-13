@@ -36,7 +36,7 @@ vp_t get_max_omp_threads();
 // Forward definition to connection_containers.h
 struct RankConnectionInfo;
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void add_task(TaskMap<CoordT> &aggregation_map, TaskQueue<CoordT> &task_queue,
               const FilteredLeafView<CoordT> pivot_view,
               const FilteredLeafView<CoordT> combination_view,
@@ -65,7 +65,7 @@ void add_task(TaskMap<CoordT> &aggregation_map, TaskQueue<CoordT> &task_queue,
       static_cast<nodeidx_t>(combination_view->second.size());
 }
 
-template <typename CoordT, bool aggregate_by_local>
+template <Coordinate CoordT, bool aggregate_by_local>
 void generate_connection_tasks(TaskQueue<CoordT> &task_queue,
                                const RankPairInfo<CoordT> &rpi) {
   TaskMap<CoordT> aggregation_map;
@@ -170,7 +170,7 @@ void generate_connection_tasks(TaskQueue<CoordT> &task_queue,
   }
 }
 
-template <typename CoordT, bool inverted_source_target>
+template <Coordinate CoordT, bool inverted_source_target>
 void compute_displacement_checks_across_tile_pairs(
     RankConnectionInfo &rci, RankPairInfo<CoordT> &rpi,
     const TAArray<MaskCollection<CoordT>> &mc_array,

@@ -30,9 +30,10 @@
 #include <vector>
 
 #include "coordinates.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 inline space_t vector_dot(const CoordT &coordA, const CoordT &coordB) {
   return (coordA * coordB).sum();
 }
@@ -54,34 +55,35 @@ inline Coord3D vector_cross(const Coord3D &coordA, const Coord3D &coordB) {
           .sum());
 }
 
-template <typename CoordT> inline space_t vector_norm2(const CoordT &coord) {
+template <Coordinate CoordT> inline space_t vector_norm2(const CoordT &coord) {
   return vector_dot(coord, coord);
 }
 
-template <typename CoordT> inline space_t vector_norm(const CoordT &coord) {
+template <Coordinate CoordT> inline space_t vector_norm(const CoordT &coord) {
   return std::sqrt(vector_norm2(coord));
 }
 
-template <typename CoordT> inline CoordT normalize_vector(const CoordT &coord) {
+template <Coordinate CoordT>
+inline CoordT normalize_vector(const CoordT &coord) {
   return coord.is_null() ? CoordT() : coord / vector_norm(coord);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline space_t distance2(const CoordT &coordA, const CoordT &coordB) {
   return vector_norm2(coordA - coordB);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline space_t distance(const CoordT &coordA, const CoordT &coordB) {
   return std::sqrt(distance2(coordA, coordB));
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CoordT midpoint(const CoordT &coordA, const CoordT &coordB) {
   return (coordA + coordB) / 2;
 }
 
-template <typename CoordT, bool clamp>
+template <Coordinate CoordT, bool clamp>
 space_t projection_coeff(const CoordT &vectorBA, const CoordT &vectorBC) {
   // We project BA onto BC using orthogonal vector projection.
   const space_t dot_BA_BC = vector_dot(vectorBA, vectorBC);
@@ -111,14 +113,14 @@ space_t projection_coeff(const CoordT &vectorBA, const CoordT &vectorBC) {
   }
 }
 
-template <typename CoordT, bool clamp>
+template <Coordinate CoordT, bool clamp>
 inline CoordT projection_vector(const CoordT &vectorBA,
                                 const CoordT &vectorBC) {
   // We project BA onto BC using orthogonal vector projection.
   return vectorBC * projection_coeff<CoordT, clamp>(vectorBA, vectorBC);
 }
 
-template <typename CoordT, bool clamp>
+template <Coordinate CoordT, bool clamp>
 inline CoordT projection_coord(const CoordT &coordA, const CoordT &coordB,
                                const CoordT &coordC) {
   // We project A onto BC using orthogonal vector projection.
@@ -139,7 +141,7 @@ inline Coord2D rotate_displacement(const Coord2D &displacement,
                             vector_cross(angular_coord, displacement).sum());
 }
 
-template <typename CoordT, bool triangular_comparison>
+template <Coordinate CoordT, bool triangular_comparison>
 bool algebraic_projection_comparison(const CoordT &vectorBA,
                                      const CoordT &vectorBC,
                                      const CoordT &vectorBD,
@@ -199,7 +201,7 @@ bool algebraic_projection_comparison(const CoordT &vectorBA,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::tuple<vertidx_t, std::array<CoordT, 3>, std::array<CoordT, 3>,
            std::array<space_t, 3>>
 sort_triangular_vertices(const std::vector<CoordT> &coord_in) {
@@ -267,7 +269,7 @@ sort_triangular_vertices(const std::vector<CoordT> &coord_in) {
                              indexed_lengths[C_vix]});
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 CircumscribedRadius<CoordT>
 compute_c_radius(const std::vector<CoordT> &coords) {
   assert(coords.size() == 3);
@@ -335,7 +337,7 @@ compute_c_radius(const std::vector<CoordT> &coords) {
   return c_radius;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void update_min(CoordT &min, const CoordT &value) {
   min.x_ = std::isless(value.x_, min.x_) ? value.x_ : min.x_;
   min.y_ = std::isless(value.y_, min.y_) ? value.y_ : min.y_;
@@ -344,7 +346,7 @@ inline void update_min(CoordT &min, const CoordT &value) {
     min.z_ = std::isless(value.z_, min.z_) ? value.z_ : min.z_;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void update_max(CoordT &max, const CoordT &value) {
   max.x_ = std::isless(max.x_, value.x_) ? value.x_ : max.x_;
   max.y_ = std::isless(max.y_, value.y_) ? value.y_ : max.y_;
@@ -353,7 +355,7 @@ inline void update_max(CoordT &max, const CoordT &value) {
     max.z_ = std::isless(max.z_, value.z_) ? value.z_ : max.z_;
 }
 
-template <typename CoordT> inline std::pair<CoordT, CoordT> minmax_coords() {
+template <Coordinate CoordT> inline std::pair<CoordT, CoordT> minmax_coords() {
 
   CoordT min, max;
   min.x_ = std::numeric_limits<space_t>::max();
@@ -369,7 +371,7 @@ template <typename CoordT> inline std::pair<CoordT, CoordT> minmax_coords() {
   return std::make_pair(min, max);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::pair<CoordT, CoordT>
 minmax_vertices(const std::vector<CoordT> &coord_vec) {
   assert(1 < coord_vec.size());

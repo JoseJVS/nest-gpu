@@ -30,7 +30,7 @@
 
 namespace sapi {
 // Forward definition to comparisons.h
-template <typename CoordT>
+template <Coordinate CoordT>
 bool compare_indexed_node_ptr_maps(
     const FilteredTileNodeCollection<CoordT> &left,
     const FilteredTileNodeCollection<CoordT> &right);
@@ -51,7 +51,7 @@ inline LeafPairInfo construct_leaf_pair_info(const tileidx_t source,
   return lpi;
 }
 
-template <typename CoordT> struct TilePairInfo {
+template <Coordinate CoordT> struct TilePairInfo {
   const std::vector<CoordT> *image_displacements_ = nullptr;
 
   // Local leaf index
@@ -71,7 +71,7 @@ template <typename CoordT> struct TilePairInfo {
   bool operator==(const TilePairInfo &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline TilePairInfo<CoordT> &
 TilePairInfo<CoordT>::operator=(TilePairInfo &&tpi) noexcept {
   image_displacements_ = tpi.image_displacements_;
@@ -83,12 +83,12 @@ TilePairInfo<CoordT>::operator=(TilePairInfo &&tpi) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool TilePairInfo<CoordT>::operator==(const TilePairInfo &tpi) const {
   return aggregated_leaf_pairs_ == tpi.aggregated_leaf_pairs_;
 }
 
-template <typename CoordT> struct TileSetInfo {
+template <Coordinate CoordT> struct TileSetInfo {
   tileidx_t valid_tiles_ = 0;
   tileidx_t valid_leaves_ = 0;
   nodeidx_t total_node_count_ = 0;
@@ -113,7 +113,7 @@ template <typename CoordT> struct TileSetInfo {
   bool operator==(const TileSetInfo &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline TileSetInfo<CoordT> &
 TileSetInfo<CoordT>::operator=(TileSetInfo &&tsi) noexcept {
   valid_tiles_ = tsi.valid_tiles_;
@@ -131,12 +131,12 @@ TileSetInfo<CoordT>::operator=(TileSetInfo &&tsi) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool TileSetInfo<CoordT>::operator==(const TileSetInfo &tsi) const {
   return tile_pairings_ == tsi.tile_pairings_;
 }
 
-template <typename CoordT> struct CommunicationInfo {
+template <Coordinate CoordT> struct CommunicationInfo {
   count_t total_received_num_leaves_ = 0;
 
   // From source rank
@@ -180,7 +180,7 @@ template <typename CoordT> struct CommunicationInfo {
   bool operator==(const CommunicationInfo &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CommunicationInfo<CoordT> &
 CommunicationInfo<CoordT>::operator=(CommunicationInfo &&ci) noexcept {
   total_received_num_leaves_ = ci.total_received_num_leaves_;
@@ -195,7 +195,7 @@ CommunicationInfo<CoordT>::operator=(CommunicationInfo &&ci) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 CommunicationInfo<CoordT>::operator==(const CommunicationInfo &ci) const {
   return compare_indexed_node_ptr_maps<CoordT>(filtered_coords_,
@@ -204,11 +204,11 @@ CommunicationInfo<CoordT>::operator==(const CommunicationInfo &ci) const {
 
 // Storage for received indexed coord pairs
 // one storage is instantiated per rank
-template <typename CoordT>
+template <Coordinate CoordT>
 using RemoteIndexedCoordCache =
     std::forward_list<std::vector<std::pair<nodeidx_t, CoordT>>>;
 
-template <typename CoordT> struct RankPairInfo {
+template <Coordinate CoordT> struct RankPairInfo {
   TileSetInfo<CoordT> tile_pairs_set_;
   CommunicationInfo<CoordT> sender_info_;
   CommunicationInfo<CoordT> receiver_info_;
@@ -226,7 +226,7 @@ template <typename CoordT> struct RankPairInfo {
   bool operator==(const RankPairInfo &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline RankPairInfo<CoordT> &
 RankPairInfo<CoordT>::operator=(RankPairInfo &&rpi) noexcept {
   tile_pairs_set_ = std::move(rpi.tile_pairs_set_);
@@ -239,14 +239,14 @@ RankPairInfo<CoordT>::operator=(RankPairInfo &&rpi) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool RankPairInfo<CoordT>::operator==(const RankPairInfo &rpi) const {
   return tile_pairs_set_ == rpi.tile_pairs_set_ &&
          sender_info_ == rpi.sender_info_ &&
          receiver_info_ == rpi.receiver_info_;
 }
 
-template <typename CoordT> struct DistributedPairInfo {
+template <Coordinate CoordT> struct DistributedPairInfo {
   std::unordered_map<vp_t, RankPairInfo<CoordT>> source_side_info_;
   std::unordered_map<vp_t, RankPairInfo<CoordT>> target_side_info_;
 

@@ -30,7 +30,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 using FilteringCoordQueue = std::deque<IndexedCoordView<CoordT>>;
 
 typedef DistributedTiledNodeSequenceMap::const_iterator DistTns_IT;
@@ -42,7 +42,7 @@ TiledNodeSequences get_optional_tiled_node_sequences(
     const std::optional<DistTns_IT> &opt_dist_tns_it,
     const GridNeighborhood &grid_neighborhood);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *> inline get_optional_masked_sub_tiles(
     const Tile<CoordT> &tile,
     const MaskCollection<CoordT> *const mask_collection) {
@@ -56,7 +56,7 @@ std::deque<const Tile<CoordT> *> inline get_optional_masked_sub_tiles(
   return leaf_sub_tiles;
 }
 
-template <typename CoordT, bool ignore_mask>
+template <Coordinate CoordT, bool ignore_mask>
 void check_insert_node_coord_pairs(
     FilteringCoordQueue<CoordT> &node_coord_pairs,
     const IndexedCoordCollection<CoordT> &indexed_coord_col,
@@ -114,7 +114,7 @@ void check_insert_node_coord_pairs(
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::deque<FilteringCoordQueue<CoordT>>
 slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
                       const TileGrid<CoordT> &tile_grid,

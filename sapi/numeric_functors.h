@@ -36,7 +36,7 @@ struct NumericFunctor {
 
   bool is_initialized() const;
 
-  template <typename CoordT>
+  template <Coordinate CoordT>
   conn_param_t operator()(const Displacement<CoordT> &d) const;
 };
 
@@ -52,7 +52,7 @@ inline bool NumericFunctor::is_initialized() const {
   return df_.func_ != DISPLACEMENT_FUNCTION::NULL_DF;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 conn_param_t NumericFunctor::operator()(const Displacement<CoordT> &dc) const {
   auto val = df_(dc);
   for (const auto &uf : ufs_)

@@ -39,7 +39,7 @@ void initialize_hexagonal_soc(ShiftedOriginCreator<Coord2D> &soc,
                               const std::vector<space_t> &side_lengths,
                               const angle_t angular_offset);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_soc(ShiftedOriginCreator<CoordT> &soc,
                     const std::vector<space_t> &side_lengths,
                     const std::vector<angle_t> &angular_offsets) {
@@ -102,7 +102,7 @@ Coord2D create_shifted_hexagonal_origin(
     const GridPositionParity<Coord2D> &grid_position_parity,
     const ShiftedOriginCreator<Coord2D> &soc);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 CoordT
 create_shifted_origin(const CoordT &grid_origin,
                       const GridPosition<CoordT> &grid_position,
@@ -141,7 +141,7 @@ void initialize_hexagonal_ctc(CachedTileCreator<Coord2D> &ctc,
                               const std::vector<space_t> &side_lengths,
                               const angle_t angular_offset);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_ctc(CachedTileCreator<CoordT> &ctc,
                     const std::vector<space_t> &side_lengths,
                     const std::vector<angle_t> &angular_offsets) {
@@ -200,7 +200,7 @@ bool check_triangular_dimensions(const GridPosition<Coord2D> &grid_dimensions,
 bool check_hexagonal_dimensions(const GridPosition<Coord2D> &grid_dimensions,
                                 const CachedTileCreator<Coord2D> &ctc);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 bool check_dimensions(const GridPosition<CoordT> &grid_dimensions,
                       const CachedTileCreator<CoordT> &ctc) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
@@ -233,7 +233,7 @@ create_triangle(const Coord2D &tile_origin,
 Tile<Coord2D> create_hexagon(const Coord2D &tile_origin,
                              const CachedTileCreator<Coord2D> &ctc);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 Tile<CoordT> create_tile(const CoordT &tile_origin,
                          const GridPositionParity<CoordT> &grid_position_parity,
                          const CachedTileCreator<CoordT> &ctc) {

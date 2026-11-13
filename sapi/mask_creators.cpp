@@ -26,7 +26,7 @@
 #include "type_erasure_helpers.h"
 
 namespace sapi {
-template <typename CoordT, MASK_SHAPE shape>
+template <Coordinate CoordT, MASK_SHAPE shape>
 struct MaskCreator final : public StateLessCreator<Mask<CoordT>> {
   Mask<CoordT> create(const std::vector<space_t> &origin,
                       const std::vector<space_t> &params,

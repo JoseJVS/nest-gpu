@@ -40,6 +40,7 @@
 #include "node_insertion.h"
 #include "node_slicing.h"
 #include "payload_preparation.h"
+#include "sapi_forward_declarations.h"
 #include "spatial_communication.h"
 #include "spatial_containers.h"
 
@@ -145,7 +146,7 @@ inline void BaseSpatialManager::clear_connection_map(const std::size_t index) {
   cached_connection_maps_.at(index).clear();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 class SpatialManager final : public BaseSpatialManager {
 public:
   SpatialManager();
@@ -225,7 +226,7 @@ protected:
       const ConnectionParameters &connection_parameters);
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 SpatialManager<CoordT>::SpatialManager() : BaseSpatialManager() {
   _initialize_registers();
   timer_manager_.initialize();
@@ -233,7 +234,7 @@ SpatialManager<CoordT>::SpatialManager() : BaseSpatialManager() {
   rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 SpatialManager<CoordT>::SpatialManager(const vp_t local_rank,
                                        const vp_t num_processes)
     : BaseSpatialManager(local_rank, num_processes) {
@@ -243,7 +244,7 @@ SpatialManager<CoordT>::SpatialManager(const vp_t local_rank,
   rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void SpatialManager<CoordT>::_initialize_registers() {
   initialize_mk_registry(mk_registry_);
   initialize_uf_registry(uf_registry_);
@@ -254,7 +255,7 @@ inline void SpatialManager<CoordT>::_initialize_registers() {
   initialize_ctc_registry(ctc_registry_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool SpatialManager<CoordT>::is_initialized() const {
   assert(tile_grid_.has_split_ == grid_neighborhood_.has_owners_ &&
          grid_neighborhood_.has_owners_ == !grid_collection_.empty());
@@ -262,7 +263,7 @@ inline bool SpatialManager<CoordT>::is_initialized() const {
          !grid_collection_.empty();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void SpatialManager<CoordT>::update_num_threads() {
   gc_array_.prepare();
   mc_array_.prepare();
@@ -272,7 +273,7 @@ inline void SpatialManager<CoordT>::update_num_threads() {
   rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 split_t SpatialManager<CoordT>::_initialize_grid_parameters(
     const GridParameters &grid_parameters) {
   const auto gpt = rank_timer_registry_->get_register_timer("grid_param_time");
@@ -301,7 +302,7 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
   return num_splits;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void SpatialManager<CoordT>::initialize_tile_grid(
     std::vector<std::set<tileidx_t>> &&rank_tiles_ownership,
     const GridParameters &grid_parameters) {
@@ -353,7 +354,7 @@ void SpatialManager<CoordT>::initialize_tile_grid(
   ct->stop();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
     const largenodeidx_t num_nodes,
     const std::optional<std::set<tileidx_t>> &target_tiles,
@@ -378,7 +379,7 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
   return node_counts_per_rank;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::pair<NodeCountVector, std::vector<space_t>>
 SpatialManager<CoordT>::insert_positions_in_grid(
     const dim_t dimensions, const std::size_t coord_count,
@@ -426,7 +427,7 @@ SpatialManager<CoordT>::insert_positions_in_grid(
   return std::make_pair(std::move(node_counts_per_rank), std::move(leftovers));
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank,
     const DISTRIBUTION_MODE distribution_mode) {
@@ -465,7 +466,7 @@ std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
   return index;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank) {
   const auto nct =
@@ -504,7 +505,7 @@ std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
   return index;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void SpatialManager<CoordT>::_initialize_mask_parameters(
     const MaskParameters &mask_parameters) {
   const auto mpt = rank_timer_registry_->get_register_timer("mask_param_time");
@@ -524,7 +525,7 @@ void SpatialManager<CoordT>::_initialize_mask_parameters(
   mpt->stop();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void SpatialManager<CoordT>::_initialize_connection_parameters(
     const ConnectionParameters &connection_parameters) {
   const auto cpt = rank_timer_registry_->get_register_timer("conn_param_time");
@@ -562,7 +563,7 @@ void SpatialManager<CoordT>::_initialize_connection_parameters(
   cpt->stop();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::pair<std::size_t, DistributedConnectionInfo *>
 SpatialManager<CoordT>::compute_spatial_connections(
     const std::size_t source_index, const std::size_t target_index,
@@ -600,7 +601,7 @@ SpatialManager<CoordT>::compute_spatial_connections(
   return std::make_pair(index, connection_map);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 IndexedNodeCoordinates
 SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
                                   const MaskParameters &mask_parameters) {
@@ -666,7 +667,7 @@ SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
   return res;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 GridVertexMap SpatialManager<CoordT>::get_grid_vertices() {
   const auto gvt = rank_timer_registry_->get_register_timer("grid_vertex_time");
   gvt->start();

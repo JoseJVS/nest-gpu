@@ -25,16 +25,17 @@
 
 #include "mask_node_processing.h"
 #include "mask_tile_processing.h"
+#include "sapi_forward_declarations.h"
 #include "timer_manager.h"
 #include "vp_interface.h"
 
 namespace sapi {
 // Forward definition to link with payload_preparation.h
-template <typename CoordT>
+template <Coordinate CoordT>
 void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
                                RemoteIndexedCoordCache<CoordT> &remote_cache);
 
-template <typename CoordT, bool inverted_source_target>
+template <Coordinate CoordT, bool inverted_source_target>
 void compute_target_connections(RankConnectionInfo &rci,
                                 RankPairInfo<CoordT> &rpi,
                                 const TAArray<MaskCollection<CoordT>> &mc_array,
@@ -62,7 +63,7 @@ void compute_target_connections(RankConnectionInfo &rci,
   map_consolidation_timer->stop();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 DistributedConnectionInfo compute_distributed_spatial_connections(
     const DistributedTiledNodeSequenceMap &dist_tns_source,
     const DistributedTiledNodeSequenceMap &dist_tns_target,
@@ -225,7 +226,7 @@ struct QueuedRequests {
   std::unordered_set<vp_t> done_ranks_;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void communicate_payload_async(
     QueuedRequests &request_queue,
     std::vector<MPI_Request>::iterator &request_it,
@@ -246,7 +247,7 @@ void communicate_payload_async(
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void probe_payload_recv(
     QueuedRequests &request_queue, MPI_Status &status,
     std::unordered_map<vp_t, RankPairInfo<CoordT>> &rank_info_map,
@@ -280,7 +281,7 @@ void probe_payload_recv(
   }
 }
 
-template <typename CoordT, bool inverted_source_target>
+template <Coordinate CoordT, bool inverted_source_target>
 void dispatch_connection_procedures(
     QueuedRequests &request_queue,
     std::unordered_map<vp_t, RankConnectionInfo> &connection_info_map,
@@ -317,7 +318,7 @@ void dispatch_connection_procedures(
 }
 #endif
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void communicate_connect_distributed_pair_data(
     DistributedConnectionInfo &distributed_connection_map,
     DistributedPairInfo<CoordT> &distributed_pair_data,

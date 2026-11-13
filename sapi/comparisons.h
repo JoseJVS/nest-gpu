@@ -24,9 +24,10 @@
 #define COMPARISONS_H
 
 #include "mask_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 bool compare_indexed_node_ptr_maps(
     const FilteredTileNodeCollection<CoordT> &left,
     const FilteredTileNodeCollection<CoordT> &right) {

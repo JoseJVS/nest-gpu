@@ -24,13 +24,40 @@
 #define COORDINATES_H
 
 #include <bit>
+#include <concepts>
 #include <iterator>
 #include <string>
 #include <type_traits>
 
 #include "numerics.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
+// Iterators accepted by the Coord*::*_vec members. The concepts are applied
+// to the decayed type, since the members take the iterator by forwarding
+// reference and advance it in place. Readers are input iterators, writers
+// must allow assignment through them, which rules out const iterators.
+template <typename It>
+concept SpaceReadIterator =
+    std::input_iterator<It> &&
+    std::convertible_to<std::iter_reference_t<It>, space_t>;
+
+template <typename It>
+concept SpaceWriteIterator = std::output_iterator<It, space_t>;
+
+// Bitwise variants: values are std::bit_cast to and from space_t, so the
+// iterated type must have the same size and be trivially copyable.
+template <typename It>
+concept BitReadIterator = std::input_iterator<It> &&
+                          std::is_trivially_copyable_v<std::iter_value_t<It>> &&
+                          sizeof(std::iter_value_t<It>) == sizeof(space_t);
+
+template <typename It>
+concept BitWriteIterator =
+    std::output_iterator<It, std::iter_value_t<It>> &&
+    std::is_trivially_copyable_v<std::iter_value_t<It>> &&
+    sizeof(std::iter_value_t<It>) == sizeof(space_t);
+
 struct Coord2D {
   constexpr static const dim_t D = 2;
   space_t x_ = 0.;
@@ -65,15 +92,19 @@ struct Coord2D {
   std::string to_string() const;
 
   template <typename ForwardIteratorT>
+    requires SpaceWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
   void copy_to_vec(ForwardIteratorT &&write_it) const;
 
   template <typename ForwardIteratorT>
+    requires SpaceReadIterator<std::remove_cvref_t<ForwardIteratorT>>
   static Coord2D copy_from_vec(ForwardIteratorT &&read_it);
 
   template <typename ForwardIteratorT>
+    requires BitWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
   void bit_copy_to_vec(ForwardIteratorT &&write_it) const;
 
   template <typename ForwardIteratorT>
+    requires BitReadIterator<std::remove_cvref_t<ForwardIteratorT>>
   static Coord2D bit_copy_from_vec(ForwardIteratorT &&read_it);
 };
 
@@ -137,12 +168,14 @@ inline std::string Coord2D::to_string() const {
 }
 
 template <typename ForwardIteratorT>
+  requires SpaceWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline void Coord2D::copy_to_vec(ForwardIteratorT &&write_it) const {
   *write_it++ = x_;
   *write_it++ = y_;
 }
 
 template <typename ForwardIteratorT>
+  requires SpaceReadIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline Coord2D Coord2D::copy_from_vec(ForwardIteratorT &&read_it) {
   Coord2D coord;
   coord.x_ = *read_it++;
@@ -151,6 +184,7 @@ inline Coord2D Coord2D::copy_from_vec(ForwardIteratorT &&read_it) {
 }
 
 template <typename ForwardIteratorT>
+  requires BitWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline void Coord2D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
   using ValueT = std::iter_value_t<std::remove_cvref_t<ForwardIteratorT>>;
   *write_it++ = std::bit_cast<ValueT>(x_);
@@ -158,6 +192,7 @@ inline void Coord2D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
 }
 
 template <typename ForwardIteratorT>
+  requires BitReadIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline Coord2D Coord2D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
   Coord2D coord;
   coord.x_ = std::bit_cast<space_t>(*read_it++);
@@ -200,15 +235,19 @@ struct Coord3D {
   std::string to_string() const;
 
   template <typename ForwardIteratorT>
+    requires SpaceWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
   void copy_to_vec(ForwardIteratorT &&write_it) const;
 
   template <typename ForwardIteratorT>
+    requires SpaceReadIterator<std::remove_cvref_t<ForwardIteratorT>>
   static Coord3D copy_from_vec(ForwardIteratorT &&read_it);
 
   template <typename ForwardIteratorT>
+    requires BitWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
   void bit_copy_to_vec(ForwardIteratorT &&write_it) const;
 
   template <typename ForwardIteratorT>
+    requires BitReadIterator<std::remove_cvref_t<ForwardIteratorT>>
   static Coord3D bit_copy_from_vec(ForwardIteratorT &&read_it);
 };
 
@@ -276,6 +315,7 @@ inline std::string Coord3D::to_string() const {
 }
 
 template <typename ForwardIteratorT>
+  requires SpaceWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline void Coord3D::copy_to_vec(ForwardIteratorT &&write_it) const {
   *write_it++ = x_;
   *write_it++ = y_;
@@ -283,6 +323,7 @@ inline void Coord3D::copy_to_vec(ForwardIteratorT &&write_it) const {
 }
 
 template <typename ForwardIteratorT>
+  requires SpaceReadIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline Coord3D Coord3D::copy_from_vec(ForwardIteratorT &&read_it) {
   Coord3D coord;
   coord.x_ = *read_it++;
@@ -292,6 +333,7 @@ inline Coord3D Coord3D::copy_from_vec(ForwardIteratorT &&read_it) {
 }
 
 template <typename ForwardIteratorT>
+  requires BitWriteIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline void Coord3D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
   using ValueT = std::iter_value_t<std::remove_cvref_t<ForwardIteratorT>>;
   *write_it++ = std::bit_cast<ValueT>(x_);
@@ -300,6 +342,7 @@ inline void Coord3D::bit_copy_to_vec(ForwardIteratorT &&write_it) const {
 }
 
 template <typename ForwardIteratorT>
+  requires BitReadIterator<std::remove_cvref_t<ForwardIteratorT>>
 inline Coord3D Coord3D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
   Coord3D coord;
   coord.x_ = std::bit_cast<space_t>(*read_it++);
@@ -308,7 +351,9 @@ inline Coord3D Coord3D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
   return coord;
 }
 
-template <typename CoordT> struct Displacement {
+static_assert(Coordinate<Coord2D> && Coordinate<Coord3D>);
+
+template <Coordinate CoordT> struct Displacement {
   space_t distance2_ = 0.;
   CoordT displacement_;
 
@@ -318,9 +363,9 @@ template <typename CoordT> struct Displacement {
 };
 
 // Forward definition to link with coordinate_geometry.h
-template <typename CoordT> space_t vector_norm2(const CoordT &vector);
+template <Coordinate CoordT> space_t vector_norm2(const CoordT &vector);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline Displacement<CoordT> construct_displacement(CoordT &&vector) {
   Displacement<CoordT> d;
   d.displacement_ = vector;
@@ -328,21 +373,21 @@ inline Displacement<CoordT> construct_displacement(CoordT &&vector) {
   return d;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline space_t Displacement<CoordT>::get_distance() const {
   return std::sqrt(distance2_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 Displacement<CoordT>::operator==(const Displacement<CoordT> &d) const {
   return displacement_ == d.displacement_;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 using OptDisp = std::pair<bool, Displacement<CoordT>>;
 
-template <typename CoordT> struct CircumscribedRadius {
+template <Coordinate CoordT> struct CircumscribedRadius {
   space_t radius2_ = 0.;
   CoordT origin_;
 
@@ -361,7 +406,7 @@ template <typename CoordT> struct CircumscribedRadius {
   bool operator==(const CircumscribedRadius &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CircumscribedRadius<CoordT>
 construct_circumscribed_radius(CoordT &&origin, const space_t radius2) {
   CircumscribedRadius<CoordT> cr;
@@ -370,19 +415,19 @@ construct_circumscribed_radius(CoordT &&origin, const space_t radius2) {
   return cr;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline std::string CircumscribedRadius<CoordT>::to_string() const {
   return "{ center: " + origin_.to_string() +
          " , radius: " + std::to_string(std::sqrt(radius2_)) + " }";
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool CircumscribedRadius<CoordT>::disp_in_radius(
     const Displacement<CoordT> &disp) const {
   return leq_test(disp.distance2_, radius2_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 CircumscribedRadius<CoordT>::disp_in_radius(const Displacement<CoordT> &disp,
                                             space_t offset) const {
@@ -390,7 +435,7 @@ CircumscribedRadius<CoordT>::disp_in_radius(const Displacement<CoordT> &disp,
   return leq_test(disp.distance2_, offset * offset);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT>
 CircumscribedRadius<CoordT>::coord_in_radius(const CoordT &coord) const {
   OptDisp<CoordT> od(false, construct_displacement(coord - origin_));
@@ -398,7 +443,7 @@ CircumscribedRadius<CoordT>::coord_in_radius(const CoordT &coord) const {
   return od;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT>
 CircumscribedRadius<CoordT>::coord_in_radius(const CoordT &coord,
                                              space_t offset) const {
@@ -407,13 +452,13 @@ CircumscribedRadius<CoordT>::coord_in_radius(const CoordT &coord,
   return od;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT> CircumscribedRadius<CoordT>::overlapping_radi(
     const CircumscribedRadius &cr) const {
   return coord_in_radius(cr.origin_, std::sqrt(cr.radius2_));
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 CircumscribedRadius<CoordT>::operator==(const CircumscribedRadius &cr) const {
   return origin_ == cr.origin_ && almost_equal(radius2_, cr.radius2_);

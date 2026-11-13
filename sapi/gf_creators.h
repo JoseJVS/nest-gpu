@@ -23,13 +23,10 @@
 #ifndef GF_CREATORS_H
 #define GF_CREATORS_H
 
+#include "coordinates.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to coordinates.h
-struct Coord2D;
-struct Coord3D;
-
 void initialize_gsc_registry(
     CreatorRegistry<GridTargetPositionShifts<Coord2D>> &gscr);
 void initialize_gsc_registry(

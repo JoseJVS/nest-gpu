@@ -33,11 +33,11 @@
 
 namespace sapi {
 // Forward definition to link with payload_preparation.h
-template <typename CoordT>
+template <Coordinate CoordT>
 void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
                           const TileSetInfo<CoordT> &tile_set_info);
 
-template <typename CoordT, bool inverted_source_target, bool filter_source,
+template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 inline bool no_overlap(const Tile<CoordT> &tile,
                        const MaskCollection<CoordT> *const mask_collection) {
@@ -56,7 +56,7 @@ inline bool no_overlap(const Tile<CoordT> &tile,
   }
 }
 
-template <typename CoordT, bool inverted_source_target, bool filter_source,
+template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 inline bool tile_overlap(const Tile<CoordT> &driver, const Tile<CoordT> &pool,
                          const MaskCollection<CoordT> *const mask_collection,
@@ -69,7 +69,7 @@ inline bool tile_overlap(const Tile<CoordT> &driver, const Tile<CoordT> &pool,
          mask_collection->blueprint_overlap(driver, pool);
 }
 
-template <typename CoordT, bool inverted_source_target, bool filter_source,
+template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void insert_leaf_tiles_within_range(
     std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
@@ -117,7 +117,7 @@ final(rem_splits < 2) default(none) shared(leaf_pairs, mc_array)               \
   }
 }
 
-template <typename CoordT, bool edge_wrap, bool inverted_source_target,
+template <Coordinate CoordT, bool edge_wrap, bool inverted_source_target,
           bool filter_source, bool filter_target>
 void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
                        const TilePosition<CoordT> &driver_tile_pos,
@@ -190,7 +190,7 @@ void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
   }
 }
 
-template <typename CoordT, bool ignore_mask>
+template <Coordinate CoordT, bool ignore_mask>
 void check_insert_node_coord_pairs(
     FilteredIndexedCoordinates<CoordT> &node_coord_pairs,
     const IndexedCoordCollection<CoordT> &indexed_coord_col,
@@ -242,7 +242,7 @@ void check_insert_node_coord_pairs(
   assert(sequences_found <= 1);
 }
 
-template <typename CoordT, bool inverted_source_target, bool filter_source,
+template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void aggregate_tile_set_info(
     TileSetInfo<CoordT> &tsi, FilteredTileNodeCollection<CoordT> &icp,
@@ -321,7 +321,7 @@ void aggregate_tile_set_info(
   }
 }
 
-template <typename CoordT, bool edge_wrap, bool only_neighborhood,
+template <Coordinate CoordT, bool edge_wrap, bool only_neighborhood,
           bool inverted_source_target, bool filter_source, bool filter_target>
 void rank_pair_overlap(RankPairInfo<CoordT> &rpi,
                        const TileIdxNodeSequenceMap &tns_source,
@@ -404,7 +404,7 @@ void rank_pair_overlap(RankPairInfo<CoordT> &rpi,
     prepare_data_payload(rpi.sender_info_, rpi.tile_pairs_set_);
 }
 
-template <typename CoordT, bool edge_wrap, bool only_neighborhood,
+template <Coordinate CoordT, bool edge_wrap, bool only_neighborhood,
           bool inverted_source_target, bool filter_source, bool filter_target>
 void distributed_overlap(
     std::unordered_map<vp_t, RankPairInfo<CoordT>> &rpi_map,
@@ -441,7 +441,7 @@ void distributed_overlap(
   }
 }
 
-template <typename CoordT, bool edge_wrap, bool only_neighborhood>
+template <Coordinate CoordT, bool edge_wrap, bool only_neighborhood>
 std::pair<bool, bool> compute_distributed_tile_overlap(
     DistributedPairInfo<CoordT> &dpi,
     const DistributedTiledNodeSequenceMap &dist_tns_source,

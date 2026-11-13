@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "sapi_config.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // First index in sequence and sequence length
@@ -71,11 +72,11 @@ typedef std::vector<TileIdxNodeCountPairs> RankTileIdxNodeCountPairs;
 // Map of tile index to sized forward queue of coordinates.
 // This map is procedurally generated when manually inserting coordinates
 // into the grid using bounding box tree filtering approach.
-template <typename CoordT>
+template <Coordinate CoordT>
 using TiledCoordMap = std::unordered_map<tileidx_t, std::deque<CoordT>>;
 
 // Vector of node coordinates
-template <typename CoordT>
+template <Coordinate CoordT>
 using IndexedCoordinates = std::vector<std::pair<nodeidx_t, CoordT>>;
 
 // This container maps node indexes to coordinates.
@@ -83,7 +84,7 @@ using IndexedCoordinates = std::vector<std::pair<nodeidx_t, CoordT>>;
 // Each entry contains the first node id of a node sequence and
 // a vector containing all the coords of the node sequence.
 // Length of the coordinate vector is equal to the size of the node sequence.
-template <typename CoordT>
+template <Coordinate CoordT>
 using IndexedCoordCollection =
     std::deque<std::vector<std::pair<nodeidx_t, CoordT>>>;
 
@@ -92,35 +93,35 @@ using IndexedCoordCollection =
 // vector. The length of this vector is equal to the number of leaf sub tiles in
 // a tile. When generating node coordinates a leaf sub tile is chosen and
 // sequences of node coordinates are inserted into the corresponding vector.
-template <typename CoordT>
+template <Coordinate CoordT>
 using LeafNodeCollection = std::vector<IndexedCoordCollection<CoordT>>;
 
 // This container maps tiles to leaf node coord vectors.
 // The length of this vector is equal to the number of tiles in the grid.
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridNodeCollection = std::vector<LeafNodeCollection<CoordT>>;
 
 // View of a node coordinate
-template <typename CoordT>
+template <Coordinate CoordT>
 using IndexedCoordView =
     typename std::vector<std::pair<nodeidx_t, CoordT>>::const_iterator;
 
 // Filtered view of vector of node coordinates
-template <typename CoordT>
+template <Coordinate CoordT>
 using FilteredIndexedCoordinates = std::vector<IndexedCoordView<CoordT>>;
 
 // Filtered view of a leaf node collection
-template <typename CoordT>
+template <Coordinate CoordT>
 using FilteredLeafNodeCollection =
     std::unordered_map<tileidx_t, FilteredIndexedCoordinates<CoordT>>;
 
 // View of filtered leaf node collection entry
-template <typename CoordT>
+template <Coordinate CoordT>
 using FilteredLeafView =
     typename FilteredLeafNodeCollection<CoordT>::const_iterator;
 
 // Filtered view a tile node collection
-template <typename CoordT>
+template <Coordinate CoordT>
 using FilteredTileNodeCollection =
     std::unordered_map<tileidx_t, FilteredLeafNodeCollection<CoordT>>;
 

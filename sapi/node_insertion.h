@@ -29,14 +29,15 @@
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "node_distribution.h"
+#include "sapi_forward_declarations.h"
 #include "tile.h"
 
 namespace sapi {
 // Forward definition to coordinate_geometry.h
-template <typename CoordT>
+template <Coordinate CoordT>
 space_t distance2(const CoordT &coordA, const CoordT &coordB);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 bool recursive_bounds_test(const CoordT &coord,
                            TiledCoordMap<CoordT> &tile_coord_map,
                            const BoundingBox<CoordT> &bounding_box,
@@ -68,7 +69,7 @@ bool recursive_bounds_test(const CoordT &coord,
   return inserted;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void aggregate_local_node_positions(std::deque<CoordT> &coords,
                                     TiledCoordMap<CoordT> &tiled_coord_map,
                                     const tileidx_t tile_index,
@@ -103,7 +104,7 @@ void aggregate_local_node_positions(std::deque<CoordT> &coords,
   coords.clear();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void aggregate_tiled_node_count_by_rank(
     TiledCoordMap<CoordT> &global_tiled_coord_map,
     TiledCoordMap<CoordT> &local_tiled_coord_map,
@@ -158,7 +159,7 @@ void aggregate_tiled_node_count_by_rank(
   global_tiled_coord_map.clear();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::tuple<NodeCountVector,           // rank node counts
            RankTileIdxNodeCountPairs, // rank tiled node counts
            TiledCoordMap<CoordT>      // sorted coords by locally owned tiles
@@ -202,7 +203,7 @@ insert_node_positions_in_grid(std::deque<CoordT> &coords,
                          std::move(local_tiled_coords));
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void recursive_sub_tile_test(const CoordT &coord,
                              TiledCoordMap<CoordT> &sub_tile_coord_map,
                              const Tile<CoordT> &tile) {
@@ -239,7 +240,7 @@ void recursive_sub_tile_test(const CoordT &coord,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void insert_node_positions_in_leafs(std::deque<CoordT> &coords,
                                     LeafNodeCollection<CoordT> &leaf_node_col,
                                     const TilePosition<CoordT> &tile_position,
@@ -274,7 +275,7 @@ void insert_node_positions_in_leafs(std::deque<CoordT> &coords,
   sub_tile_coord_map.clear();
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void insert_node_positions_in_tiles(
     TiledCoordMap<CoordT> &tiled_coord_map,
     GridNodeCollection<CoordT> &grid_node_col,

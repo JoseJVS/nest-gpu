@@ -31,14 +31,14 @@
 
 namespace sapi {
 // Forward definition to link with coordinate_geometry.h
-template <typename CoordT>
+template <Coordinate CoordT>
 std::pair<CoordT, CoordT> minmax_vertices(const std::vector<CoordT> &coord_vec);
 
 // Forward definition to link with bounding_box.h
-template <typename CoordT>
+template <Coordinate CoordT>
 BoundingBox<CoordT> stack_boxes(std::vector<BoundingBox<CoordT>> &&bbs);
 
-template <typename CoordT> struct DimensionalNavigator {
+template <Coordinate CoordT> struct DimensionalNavigator {
   void initialize(const GridPosition<CoordT> &grid_dimensions);
 
   std::pair<GridPosition<CoordT>, bool> get_pos_and_advance();
@@ -49,7 +49,7 @@ private:
   GridPosition<CoordT> current_position_;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void DimensionalNavigator<CoordT>::initialize(
     const GridPosition<CoordT> &grid_dimensions) {
   if (!std::all_of(grid_dimensions.cbegin(), grid_dimensions.cend(),
@@ -62,7 +62,7 @@ inline void DimensionalNavigator<CoordT>::initialize(
   std::fill(current_position_.begin(), current_position_.end(), 0);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::pair<GridPosition<CoordT>, bool>
 DimensionalNavigator<CoordT>::get_pos_and_advance() {
   std::pair<GridPosition<CoordT>, bool> res(current_position_, next_);
@@ -84,7 +84,7 @@ DimensionalNavigator<CoordT>::get_pos_and_advance() {
   return res;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void generate_grid_images(TilePosition<CoordT> &tile_position,
                           const GFCollection<CoordT> *const gf_collection) {
   std::size_t possible_shifts = 1;
@@ -140,7 +140,7 @@ void generate_grid_images(TilePosition<CoordT> &tile_position,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void insert_neighbor(TilePosition<CoordT> &tile_pos,
                      const GridShift<CoordT> &grid_shift,
                      const GFCollection<CoordT> *const gf_collection) {
@@ -167,7 +167,7 @@ void insert_neighbor(TilePosition<CoordT> &tile_pos,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void generate_tile_position(std::vector<TilePosition<CoordT>> &positions,
                             const GridPosition<CoordT> &grid_position,
                             const GFCollection<CoordT> *const gf_collection) {
@@ -194,7 +194,7 @@ void generate_tile_position(std::vector<TilePosition<CoordT>> &positions,
       insert_neighbor(tile_pos, shift, gf_collection);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::vector<
     std::pair<GridPosition<CoordT>, std::optional<GridPosition<CoordT>>>>
 partition_dimensions(const GridPosition<CoordT> &lower_bound,
@@ -269,7 +269,7 @@ partition_dimensions(const GridPosition<CoordT> &lower_bound,
   return dimensional_partitions;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 BoundingBox<CoordT>
 generate_bounding_box_tree(const TileGrid<CoordT> &tile_grid,
                            const GridPosition<CoordT> &grid_lower_bound,
@@ -308,7 +308,7 @@ generate_bounding_box_tree(const TileGrid<CoordT> &tile_grid,
   return stack_boxes(std::move(vbb));
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 TileGrid<CoordT>
 generate_tile_grid(const TAArray<GFCollection<CoordT>> &gc_array) {
   assert(gc_array.is_initialized());

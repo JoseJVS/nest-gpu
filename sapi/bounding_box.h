@@ -27,14 +27,15 @@
 
 #include "coordinates.h"
 #include "numerics.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Forward definition to link with coordinate_geometry.h
-template <typename CoordT> std::pair<CoordT, CoordT> minmax_coords();
-template <typename CoordT> void update_min(CoordT &, const CoordT &);
-template <typename CoordT> void update_max(CoordT &, const CoordT &);
+template <Coordinate CoordT> std::pair<CoordT, CoordT> minmax_coords();
+template <Coordinate CoordT> void update_min(CoordT &, const CoordT &);
+template <Coordinate CoordT> void update_max(CoordT &, const CoordT &);
 
-template <typename CoordT> struct BoundingBox {
+template <Coordinate CoordT> struct BoundingBox {
   // As all indexes are defined positives,
   // -1 acts as a sentinel for boxes unmapped to
   // grid positions
@@ -68,19 +69,19 @@ template <typename CoordT> struct BoundingBox {
   bool coord_in_box(const CoordT &coord) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 BoundingBox<CoordT>::BoundingBox(std::pair<CoordT, CoordT> &&minmax_bounds,
                                  const tileidx_t tile_index) noexcept
     : tile_index_(tile_index), minmax_bounds_(std::move(minmax_bounds)) {}
 
-template <typename CoordT>
+template <Coordinate CoordT>
 BoundingBox<CoordT>::BoundingBox(
     std::pair<CoordT, CoordT> &&minmax_bounds,
     std::vector<BoundingBox<CoordT>> &&inner_boxes) noexcept
     : minmax_bounds_(std::move(minmax_bounds)),
       inner_boxes_(std::move(inner_boxes)) {}
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline BoundingBox<CoordT> &
 BoundingBox<CoordT>::operator=(BoundingBox &&bb) noexcept {
   tile_index_ = bb.tile_index_;
@@ -95,7 +96,7 @@ BoundingBox<CoordT>::operator=(BoundingBox &&bb) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool BoundingBox<CoordT>::coord_in_box(const CoordT &coord) const {
   bool res = interval_test(minmax_bounds_.first.x_, coord.x_,
                            minmax_bounds_.second.x_) &&
@@ -109,7 +110,7 @@ inline bool BoundingBox<CoordT>::coord_in_box(const CoordT &coord) const {
   return res;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 BoundingBox<CoordT> stack_boxes(std::vector<BoundingBox<CoordT>> &&bbs) {
   const auto bb_count = bbs.size();
   assert(bb_count == 1 || bb_count % 2 == 0);

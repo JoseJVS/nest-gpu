@@ -23,13 +23,11 @@
 #ifndef TILE2D_GEOMETRY_H
 #define TILE2D_GEOMETRY_H
 
+#include "coordinates.h"
 #include "sapi_forward_declarations.h"
 #include "split_tree.h"
 
 namespace sapi {
-// Forward definition to link with coordinates.h
-struct Coord2D;
-
 void initialize_vertices_2D(std::vector<Coord2D> &vertices,
                             CircumscribedRadius<Coord2D> &c_radius,
                             const std::vector<space_t> &side_lengths,

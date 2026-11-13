@@ -28,36 +28,37 @@
 #include <vector>
 
 #include "sapi_config.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Relative displacement in a grid in the form of
 // an integer (signed type shift_t) along each dimension of the grid
-template <typename CoordT> using GridShift = std::array<shift_t, CoordT::D>;
+template <Coordinate CoordT> using GridShift = std::array<shift_t, CoordT::D>;
 
 // Collection of relative displacements
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridShiftVector = std::vector<GridShift<CoordT>>;
 
 // Position dependent pair GridShiftVector
 // first is used of even grid positions
 // second is used for odd grid positions
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridShiftVectorPair =
     std::pair<GridShiftVector<CoordT>, GridShiftVector<CoordT>>;
 
 // Array of position dependent GridShiftFLs
 // one GridShiftVectorPair for each dimension of the grid
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridDimensionalShifts =
     std::array<GridShiftVectorPair<CoordT>, CoordT::D>;
 
 // Dimensional index decomposition of position in tile grid
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridPosition = std::array<tileidx_t, CoordT::D>;
 
 // For each dimensional index
 // indicates whether the position is even or odd
-template <typename CoordT>
+template <Coordinate CoordT>
 using GridPositionParity = std::array<bool, CoordT::D>;
 
 template <typename T>

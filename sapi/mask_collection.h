@@ -27,7 +27,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT> struct MaskCollection {
+template <Coordinate CoordT> struct MaskCollection {
   Mask<CoordT> blueprint_;
   Mask<CoordT> source_mask_;
   Mask<CoordT> target_mask_;
@@ -57,7 +57,7 @@ template <typename CoordT> struct MaskCollection {
   target_overlapping_leafs(const Tile<CoordT> &t) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline MaskCollection<CoordT>
 create_mask_collection(const std::string &blueprint_name,
                        const std::vector<space_t> &blueprint_params,
@@ -86,73 +86,73 @@ create_mask_collection(const std::string &blueprint_name,
   return mc;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool MaskCollection<CoordT>::has_blueprint() const {
   return blueprint_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool MaskCollection<CoordT>::has_source_mask() const {
   return source_mask_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool MaskCollection<CoordT>::has_target_mask() const {
   return target_mask_.shape_ != MASK_SHAPE::NULL_MS;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT>
 MaskCollection<CoordT>::blueprint_overlap(const CoordT &a,
                                           const CoordT &b) const {
   return blueprint_.coord_in_mask(a, b);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 MaskCollection<CoordT>::blueprint_overlap(const Tile<CoordT> &a,
                                           const Tile<CoordT> &b) const {
   return blueprint_.tiles_within_mask_range(a, b);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 MaskCollection<CoordT>::blueprint_overlap(const CoordT &a,
                                           const Tile<CoordT> &b) const {
   return blueprint_.overlap_with_tile_surface(a, b);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT>
 MaskCollection<CoordT>::source_overlap(const CoordT &c) const {
   return source_mask_.coord_in_mask(c);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 MaskCollection<CoordT>::source_overlap(const Tile<CoordT> &t) const {
   return source_mask_.tile_overlap(t) != OVERLAP_LEVEL::NONE;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline std::deque<const Tile<CoordT> *>
 MaskCollection<CoordT>::source_overlapping_leafs(const Tile<CoordT> &t) const {
   return source_mask_.get_overlapping_leaf_sub_tiles(t);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT>
 MaskCollection<CoordT>::target_overlap(const CoordT &c) const {
   return target_mask_.coord_in_mask(c);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 MaskCollection<CoordT>::target_overlap(const Tile<CoordT> &t) const {
   return target_mask_.tile_overlap(t) != OVERLAP_LEVEL::NONE;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline std::deque<const Tile<CoordT> *>
 MaskCollection<CoordT>::target_overlapping_leafs(const Tile<CoordT> &t) const {
   return target_mask_.get_overlapping_leaf_sub_tiles(t);

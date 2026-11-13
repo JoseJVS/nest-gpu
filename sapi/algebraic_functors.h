@@ -97,7 +97,7 @@ struct DisplacementFunctor {
   DISPLACEMENT_FUNCTION func_ = DISPLACEMENT_FUNCTION::NULL_DF;
   space_t var_ = 0;
 
-  template <typename CoordT>
+  template <Coordinate CoordT>
   space_t operator()(const Displacement<CoordT> &d) const;
 };
 
@@ -110,7 +110,7 @@ construct_displacement_functor(const DISPLACEMENT_FUNCTION function,
   return df;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline space_t
 DisplacementFunctor::operator()(const Displacement<CoordT> &d) const {
   switch (func_) {

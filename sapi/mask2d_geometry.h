@@ -24,6 +24,7 @@
 #define MASK2D_GEOMETRY_H
 
 #include "mask.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Forward definition to link with coordinate_geometry.h
@@ -31,7 +32,7 @@ Coord2D rotate_displacement(const Coord2D &displacement,
                             const Coord2D &angular_coord);
 bool displacement_in_ellipse(const Coord2D &displacement,
                              const Coord2D &semi_axes);
-template <typename CoordT, bool triangular_comparison>
+template <Coordinate CoordT, bool triangular_comparison>
 bool algebraic_projection_comparison(const CoordT &vectorBA,
                                      const CoordT &vectorBC,
                                      const CoordT &vectorBD,

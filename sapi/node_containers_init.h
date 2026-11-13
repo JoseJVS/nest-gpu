@@ -26,11 +26,12 @@
 #include <set>
 
 #include "node_containers.h"
+#include "sapi_forward_declarations.h"
 #include "tile.h"
 #include "tile_grid.h"
 
 namespace sapi {
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void wrapped_split_tile(Tile<CoordT> &tile, const split_t num_splits,
                                const bool generate_total_leaves_vector) {
 #pragma omp task default(none) shared(tile)                                    \
@@ -38,7 +39,7 @@ inline void wrapped_split_tile(Tile<CoordT> &tile, const split_t num_splits,
   tile.split(num_splits, generate_total_leaves_vector);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void wrapped_split_position(TilePosition<CoordT> &position,
                             const split_t num_splits,
                             const bool generate_total_leaves_vector) {
@@ -47,7 +48,7 @@ void wrapped_split_position(TilePosition<CoordT> &position,
     wrapped_split_tile(image, num_splits, false);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void split_tiles_in_grid(TileGrid<CoordT> &tile_grid,
                          const std::set<tileidx_t> &locally_owned_tiles,
                          const split_t num_splits) {
@@ -71,7 +72,7 @@ void split_tiles_in_grid(TileGrid<CoordT> &tile_grid,
   tile_grid.splits_ = num_splits;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_local_grid_node_collection(
     GridNodeCollection<CoordT> &grid_collection,
     const std::set<tileidx_t> &locally_owned_tiles,

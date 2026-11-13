@@ -33,7 +33,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT> struct TilePosition {
+template <Coordinate CoordT> struct TilePosition {
   GridPosition<CoordT> position_;
   mutable Tile<CoordT> tile_;
   mutable OmpLock<CoordT> tile_lock_;
@@ -60,13 +60,13 @@ template <typename CoordT> struct TilePosition {
   bool operator==(const TilePosition &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline const std::unordered_set<tileidx_t> &
 TilePosition<CoordT>::get_tile_neighborhood(const bool edge_wrap) const {
   return edge_wrap ? wrapped_tile_neighborhood_ : direct_tile_neighborhood_;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool TilePosition<CoordT>::in_neighborhood(const tileidx_t index,
                                                   const bool edge_wrap) const {
   if (edge_wrap)
@@ -75,7 +75,8 @@ inline bool TilePosition<CoordT>::in_neighborhood(const tileidx_t index,
     return direct_tile_neighborhood_.contains(index);
 }
 
-template <typename CoordT> std::string TilePosition<CoordT>::to_string() const {
+template <Coordinate CoordT>
+std::string TilePosition<CoordT>::to_string() const {
   std::string res = tile_->c_radius_.origin_.to_string() + ": [ ";
   auto num_neighbors = wrapped_tile_neighborhood_.size();
   for (const auto &neighbor_index : wrapped_tile_neighborhood_)
@@ -84,7 +85,7 @@ template <typename CoordT> std::string TilePosition<CoordT>::to_string() const {
   return res;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool TilePosition<CoordT>::operator==(const TilePosition &tp) const {
   return position_ == tp.position_ &&
          direct_tile_neighborhood_ == tp.direct_tile_neighborhood_ &&
@@ -93,7 +94,7 @@ inline bool TilePosition<CoordT>::operator==(const TilePosition &tp) const {
          tile_images_ == tp.tile_images_;
 }
 
-template <typename CoordT> struct TileGrid {
+template <Coordinate CoordT> struct TileGrid {
   bool has_split_ = false;
   split_t splits_ = 0;
   tileidx_t num_tiles_ = 0;
@@ -116,7 +117,7 @@ template <typename CoordT> struct TileGrid {
   bool operator==(const TileGrid &) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 TileGrid<CoordT> &TileGrid<CoordT>::operator=(TileGrid &&tg) noexcept {
   has_split_ = tg.has_split_;
   tg.has_split_ = false;
@@ -141,7 +142,7 @@ TileGrid<CoordT> &TileGrid<CoordT>::operator=(TileGrid &&tg) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void TileGrid<CoordT>::prepare(const GridPosition<CoordT> &dimensions) {
   num_tiles_ = 1;
   dimensions_ = dimensions;
@@ -156,7 +157,7 @@ void TileGrid<CoordT>::prepare(const GridPosition<CoordT> &dimensions) {
   positions_.resize(num_tiles_);
 }
 
-template <typename CoordT> std::string TileGrid<CoordT>::to_string() const {
+template <Coordinate CoordT> std::string TileGrid<CoordT>::to_string() const {
   std::string res = "";
   tileidx_t idx = 0;
   for (const auto &pos : positions_)
@@ -165,7 +166,7 @@ template <typename CoordT> std::string TileGrid<CoordT>::to_string() const {
   return res;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool TileGrid<CoordT>::operator==(const TileGrid &tg) const {
   if (dimensions_ != tg.dimensions_)
     return false;

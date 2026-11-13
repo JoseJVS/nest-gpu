@@ -25,6 +25,7 @@
 
 #include <set>
 
+#include "sapi_forward_declarations.h"
 #include "tile_grid.h"
 
 namespace sapi {
@@ -70,7 +71,7 @@ struct GridNeighborhood {
   GridNeighborhood &operator=(const GridNeighborhood &) = delete;
   GridNeighborhood &operator=(GridNeighborhood &&) = delete;
 
-  template <typename CoordT>
+  template <Coordinate CoordT>
   void set_tile_ownership(
       std::vector<std::set<tileidx_t>> &&rank_tiles_ownership_map,
       const TileGrid<CoordT> &tile_grid);
@@ -96,7 +97,7 @@ inline bool GridNeighborhood::in_neighborhood(const vp_t rank,
     return local_rank_neighbors_->first.contains(rank);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void GridNeighborhood::set_tile_ownership(
     std::vector<std::set<tileidx_t>> &&rank_tiles_ownership_map,
     const TileGrid<CoordT> &tile_grid) {

@@ -23,6 +23,7 @@
 #ifndef SAPI_CONVERTERS_H
 #define SAPI_CONVERTERS_H
 
+#include <concepts>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -33,6 +34,16 @@
 #include "spatial_containers.h"
 
 namespace sapi {
+template <typename T>
+concept Arithmetic = std::is_arithmetic_v<T>;
+
+template <typename C>
+concept ArithmeticCollection = Arithmetic<typename C::value_type>;
+
+template <typename C>
+concept NestedArithmeticCollection =
+    ArithmeticCollection<typename C::value_type>;
+
 // Forward definition to link with timer_manager.h
 struct RecordedTimes;
 
@@ -73,7 +84,7 @@ string_vector_to_nested_charray(const std::vector<std::string> &strings,
   return cstrings;
 }
 
-template <typename T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
+template <Arithmetic T>
 std::vector<T> array_to_vector(const ArrayT<T> &carray) {
   if (carray.size_ < 1)
     return {};
@@ -85,7 +96,7 @@ std::vector<T> array_to_vector(const ArrayT<T> &carray) {
   return vec;
 }
 
-template <typename T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
+template <Arithmetic T>
 std::vector<std::vector<T>>
 nested_array_to_nested_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   if (nested_carray.size_ < 1)
@@ -98,8 +109,7 @@ nested_array_to_nested_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   return nvec;
 }
 
-template <typename T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
-std::set<T> array_to_set(const ArrayT<T> &carray) {
+template <Arithmetic T> std::set<T> array_to_set(const ArrayT<T> &carray) {
   if (carray.size_ < 1)
     return {};
   if (carray.array_ == nullptr)
@@ -112,7 +122,7 @@ std::set<T> array_to_set(const ArrayT<T> &carray) {
   return set;
 }
 
-template <typename T, std::enable_if_t<std::is_arithmetic_v<T>, bool> = true>
+template <Arithmetic T>
 std::vector<std::set<T>>
 nested_array_to_set_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   if (nested_carray.size_ < 1)
@@ -125,10 +135,7 @@ nested_array_to_set_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   return setvec;
 }
 
-template <
-    typename CollectionT,
-    std::enable_if_t<std::is_arithmetic_v<typename CollectionT::value_type>,
-                     bool> = true>
+template <ArithmeticCollection CollectionT>
 void copy_to_array_from_collection(
     ArrayT<typename CollectionT::value_type> &carray,
     const CollectionT &collection, GC &gc) {
@@ -138,10 +145,7 @@ void copy_to_array_from_collection(
     carray.array_[t_idx++] = t;
 }
 
-template <
-    typename CollectionT,
-    std::enable_if_t<std::is_arithmetic_v<typename CollectionT::value_type>,
-                     bool> = true>
+template <ArithmeticCollection CollectionT>
 inline ArrayT<typename CollectionT::value_type> *
 collection_to_array(const CollectionT &collection, GC &gc) {
   auto ta_ptr = gc.make_collected<ArrayT<typename CollectionT::value_type>>();
@@ -149,11 +153,7 @@ collection_to_array(const CollectionT &collection, GC &gc) {
   return ta_ptr;
 }
 
-template <
-    typename NestedCollectionT,
-    std::enable_if_t<std::is_arithmetic_v<
-                         typename NestedCollectionT::value_type::value_type>,
-                     bool> = true>
+template <NestedArithmeticCollection NestedCollectionT>
 void copy_to_nested_array_from_nested_collection(
     ArrayT<ArrayT<typename NestedCollectionT::value_type::value_type>>
         &nested_carray,
@@ -165,11 +165,7 @@ void copy_to_nested_array_from_nested_collection(
                                   gc);
 }
 
-template <
-    typename NestedCollectionT,
-    std::enable_if_t<std::is_arithmetic_v<
-                         typename NestedCollectionT::value_type::value_type>,
-                     bool> = true>
+template <NestedArithmeticCollection NestedCollectionT>
 inline ArrayT<ArrayT<typename NestedCollectionT::value_type::value_type>> *
 nested_collection_to_nested_array(const NestedCollectionT &nested_collection,
                                   GC &gc) {

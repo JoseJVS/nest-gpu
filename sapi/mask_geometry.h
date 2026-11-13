@@ -44,7 +44,7 @@ void initialize_parallelogram_mask_helpers(
 void initialize_triangular_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void initialize_mask_helpers(Mask<CoordT> &mask,
                              const std::vector<space_t> &mask_params) {
   const auto params_length = mask_params.size();
@@ -107,7 +107,7 @@ OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
 OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
                                           const Mask<Coord2D> &mask);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
     switch (mask.shape_) {
@@ -143,7 +143,7 @@ OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a, const Coord2D &b,
 OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a, const Coord2D &b,
                                           const Mask<Coord2D> &mask);
 
-template <typename CoordT>
+template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,
                               const Mask<CoordT> &mask) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {

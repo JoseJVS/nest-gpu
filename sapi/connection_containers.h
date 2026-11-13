@@ -27,6 +27,7 @@
 #include <map>
 
 #include "node_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 struct ConnectionInfo {
@@ -158,13 +159,13 @@ inline void DistributedConnectionInfo::clear() {
   incoming_connections_.clear();
 }
 
-template <typename CoordT> struct PossibleConnections {
+template <Coordinate CoordT> struct PossibleConnections {
   count_t used_displacements_;
   const std::vector<CoordT> *image_displacements_;
   FilteredLeafView<CoordT> possible_pairs_;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline PossibleConnections<CoordT> construct_possible_connections(
     const count_t used_displacements,
     const std::vector<CoordT> *const image_displacements,
@@ -177,7 +178,7 @@ inline PossibleConnections<CoordT> construct_possible_connections(
   return cp;
 }
 
-template <typename CoordT> struct ConnectionTask {
+template <Coordinate CoordT> struct ConnectionTask {
   nodeidx_t total_possible_combinations_ = 0;
   const FilteredLeafView<CoordT> pivot_view_;
   // Sorted for reproducibility
@@ -194,15 +195,15 @@ template <typename CoordT> struct ConnectionTask {
   ConnectionTask &operator=(ConnectionTask &&) = delete;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 ConnectionTask<CoordT>::ConnectionTask(
     const FilteredLeafView<CoordT> pivot_view) noexcept
     : pivot_view_(pivot_view) {}
 
-template <typename CoordT>
+template <Coordinate CoordT>
 using TaskMap = std::unordered_map<combined_idx_t, ConnectionTask<CoordT> *>;
 
-template <typename CoordT>
+template <Coordinate CoordT>
 using TaskQueue = std::deque<std::pair<combined_idx_t, ConnectionTask<CoordT>>>;
 } // namespace sapi
 

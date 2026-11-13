@@ -29,7 +29,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT> struct GFCollection {
+template <Coordinate CoordT> struct GFCollection {
   CoordT grid_origin_;
   GridPosition<CoordT> grid_dimensions_;
   GridTargetPositionShifts<CoordT> gps_;
@@ -45,7 +45,7 @@ template <typename CoordT> struct GFCollection {
                            const GridPositionParity<CoordT> &parity) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 GFCollection<CoordT> construct_gf_collection(
     const std::vector<space_t> &grid_origin,
     const std::vector<tileidx_t> &grid_dimensions, const std::string &tile_type,
@@ -81,20 +81,20 @@ GFCollection<CoordT> construct_gf_collection(
   return gfc;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline tileidx_t
 GFCollection<CoordT>::compute_index(const GridPosition<CoordT> &pos) const {
   return position_to_index(pos, grid_dimensions_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CoordT GFCollection<CoordT>::shift_origin(
     const GridPosition<CoordT> &gpos,
     const GridPositionParity<CoordT> &gpa) const {
   return soc_.create_shifted_origin(grid_origin_, gpos, gpa);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline Tile<CoordT>
 GFCollection<CoordT>::create_tile(const CoordT &tile_origin,
                                   const GridPositionParity<CoordT> &gpa) const {

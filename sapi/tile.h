@@ -26,10 +26,11 @@
 #include <cassert>
 #include <deque>
 
+#include "sapi_forward_declarations.h"
 #include "tile_geometry.h"
 
 namespace sapi {
-template <typename CoordT> struct Tile {
+template <Coordinate CoordT> struct Tile {
   TILE_SHAPE shape_ = TILE_SHAPE::NULL_TS;
   tileidx_t index_ = -1;
   CircumscribedRadius<CoordT> c_radius_;
@@ -78,7 +79,7 @@ template <typename CoordT> struct Tile {
   std::string to_string(const uint8_t tabs = 0) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 Tile<CoordT>::Tile(const TILE_SHAPE shape, const CoordT origin,
                    const std::vector<space_t> &side_lengths,
                    const std::vector<angle_t> &angular_offsets)
@@ -93,13 +94,13 @@ Tile<CoordT>::Tile(const TILE_SHAPE shape, const CoordT origin,
   initialize_tile_helpers(helper_vectors_, helper_scalars_, vertices_, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 Tile<CoordT>::Tile(TILE_SHAPE &&shape, CircumscribedRadius<CoordT> &&c_radius,
                    std::vector<CoordT> &&vertices) noexcept
     : shape_(shape), c_radius_(std::move(c_radius)),
       vertices_(std::move(vertices)) {}
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline Tile<CoordT> &Tile<CoordT>::operator=(Tile &&t) noexcept {
   shape_ = t.shape_;
   index_ = t.index_;
@@ -126,7 +127,7 @@ inline Tile<CoordT> &Tile<CoordT>::operator=(Tile &&t) noexcept {
   return *this;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline void Tile<CoordT>::split(const split_t splits,
                                 const bool generate_total_leaves_vector) {
   static_assert(std::is_unsigned_v<split_t>);
@@ -160,13 +161,13 @@ inline void Tile<CoordT>::split(const split_t splits,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool Tile<CoordT>::coord_in_tile(const CoordT &coord) const {
   return sapi::coord_in_tile(coord, c_radius_, vertices_, helper_vectors_,
                              helper_scalars_, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline std::vector<std::pair<nodeidx_t, CoordT>>
 Tile<CoordT>::generate_coords_in_tile(const nodeidx_t first_index,
                                       const nodeidx_t coord_count,
@@ -175,25 +176,25 @@ Tile<CoordT>::generate_coords_in_tile(const nodeidx_t first_index,
                                        helper_vectors_, c_radius_, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline CoordT
 Tile<CoordT>::project_point_to_surface(const CoordT &coord) const {
   return sapi::project_point_to_surface(coord, vertices_, c_radius_, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline tileidx_t
 Tile<CoordT>::compute_leaves_count(const split_t known_splits) const {
   return sapi::compute_leaves_count(known_splits, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline std::vector<split_t>
 Tile<CoordT>::get_possible_sub_tile_branches(const split_t known_splits) const {
   return sapi::get_possible_sub_tile_branches(known_splits, shape_);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void Tile<CoordT>::insert_leaf_sub_tiles(
     std::deque<const Tile *> &leaves) const {
   if (!leaf_tiles_.empty()) {
@@ -215,7 +216,7 @@ void Tile<CoordT>::insert_leaf_sub_tiles(
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::string Tile<CoordT>::to_string(const uint8_t tabs) const {
   std::string str = "";
   for (uint8_t t = 0; t < tabs; ++t)
@@ -234,7 +235,7 @@ std::string Tile<CoordT>::to_string(const uint8_t tabs) const {
   return str;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool Tile<CoordT>::operator==(const Tile &t) const {
   // The circumscribed radius and the vertex vectors
   // are enough to uniquely identify a tile

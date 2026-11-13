@@ -27,6 +27,7 @@
 
 #include "mask_containers.h"
 #include "numerics.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 inline void header_write(std::vector<uint64_t>::iterator &payload_it,
@@ -47,7 +48,7 @@ inline int32_t header_read(std::vector<uint64_t>::const_iterator &payload_it,
   }
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
                           const TileSetInfo<CoordT> &tile_set_info) {
   static_assert(sizeof(tileidx_t) == 4ul && sizeof(nodeidx_t) == 4ul);
@@ -122,7 +123,7 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
          content_writing_pos == content_writing_end);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
                                RemoteIndexedCoordCache<CoordT> &remote_cache) {
   static_assert(sizeof(tileidx_t) == 4ul && sizeof(nodeidx_t) == 4ul);

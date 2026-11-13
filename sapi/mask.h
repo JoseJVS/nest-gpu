@@ -30,7 +30,7 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <typename CoordT> struct Mask {
+template <Coordinate CoordT> struct Mask {
   bool has_c_radius_ = false;
   MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;
   CoordT offset_;
@@ -56,7 +56,7 @@ template <typename CoordT> struct Mask {
   get_overlapping_leaf_sub_tiles(const Tile<CoordT> &tile) const;
 };
 
-template <typename CoordT>
+template <Coordinate CoordT>
 Mask<CoordT> construct_mask(const MASK_SHAPE shape,
                             const std::vector<space_t> &mask_origin,
                             const std::vector<space_t> &mask_params,
@@ -89,33 +89,33 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
   return m;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &coord) const {
   assert(has_c_radius_);
   return sapi::coord_in_mask(coord, *this);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
                                                    const CoordT &b) const {
   return sapi::coord_in_mask(a, b, *this);
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
   assert(has_c_radius_);
   return coord_in_mask(tile.project_point_to_surface(c_radius_.origin_)).first;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
   return coord_in_mask(coord, tile.project_point_to_surface(coord)).first;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
   return coord_in_mask(a.project_point_to_surface(b.c_radius_.origin_),
@@ -123,7 +123,7 @@ inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
       .first;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
   assert(has_c_radius_);
 
@@ -162,7 +162,7 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
   return OVERLAP_LEVEL::NONE;
 }
 
-template <typename CoordT>
+template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *>
 Mask<CoordT>::get_overlapping_leaf_sub_tiles(const Tile<CoordT> &tile) const {
   assert(has_c_radius_);
