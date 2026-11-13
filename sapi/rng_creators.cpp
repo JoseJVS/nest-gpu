@@ -30,10 +30,9 @@
 #include "randutils.hpp"
 
 namespace sapi {
-template <typename RNG, typename std::enable_if_t<
-                            std::is_nothrow_copy_constructible_v<RNG>, bool>
-                            b>
-void RNGModel<RNG, b>::seed(const std::initializer_list<rng_seed_t> &l) {
+template <typename RNG>
+  requires std::is_nothrow_copy_constructible_v<RNG>
+void RNGModel<RNG>::seed(const std::initializer_list<rng_seed_t> &l) {
   randutils::auto_seed_256 seq(l);
   engine_.seed(seq);
 }

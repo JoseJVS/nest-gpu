@@ -23,24 +23,12 @@
 #ifndef TILE2D_GEOMETRY_H
 #define TILE2D_GEOMETRY_H
 
+#include "sapi_forward_declarations.h"
 #include "split_tree.h"
 
 namespace sapi {
 // Forward definition to link with coordinates.h
 struct Coord2D;
-template <typename CoordT> struct CircumscribedRadius;
-
-// Forward definition to link with tile.h
-template <typename CoordT> struct Tile;
-
-// Forward definition to link with type_erasure_helpers.h
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-class AnyRNG_T;
-typedef AnyRNG_T<rng_bits_t, true> AnyRNG;
 
 void initialize_vertices_2D(std::vector<Coord2D> &vertices,
                             CircumscribedRadius<Coord2D> &c_radius,

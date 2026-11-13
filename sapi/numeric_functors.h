@@ -27,11 +27,9 @@
 #include <vector>
 
 #include "algebraic_functors.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to link with creator_registry.h
-template <typename T> class CreatorRegistry;
-
 struct NumericFunctor {
   DisplacementFunctor df_;
   std::vector<UnaryFunctor> ufs_;

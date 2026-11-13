@@ -27,24 +27,11 @@
 
 #include "connection_containers.h"
 #include "numeric_functors.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to mask.h
-template <typename CoordT> struct Mask;
-
-// Forward definition to coordinates.h
-template <typename CoordT> struct Displacement;
 template <typename CoordT>
 using OptDisp = std::pair<bool, Displacement<CoordT>>;
-
-// Forward definition to link with type_erasure_helpers.h
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-class AnyRNG_T;
-typedef AnyRNG_T<rng_bits_t, true> AnyRNG;
 
 template <typename DistributionT, bool allow_multiplicity>
 inline count_t draw_connections(AnyRNG &rng, DistributionT &dist,

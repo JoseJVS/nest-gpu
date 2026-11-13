@@ -29,14 +29,15 @@
 #include <vector>
 
 #include "sapi_config.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Forward definition to link with vp_interface
 vp_t get_thread_num();
 vp_t get_max_omp_threads();
 
-template <typename T, typename std::enable_if_t<std::is_copy_constructible_v<T>,
-                                                bool> = true>
+template <typename T>
+  requires std::is_copy_constructible_v<T>
 class TAArray {
 public:
   bool is_initialized() const;
@@ -54,23 +55,23 @@ protected:
   std::vector<std::unique_ptr<T>> item_vec_;
 };
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline void TAArray<T, b>::clear() {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline void TAArray<T>::clear() {
   item_vec_.clear();
 }
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline bool TAArray<T, b>::is_initialized() const {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline bool TAArray<T>::is_initialized() const {
   assert(cloned_ <= prepared_);
   ;
   return cloned_;
 }
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline void TAArray<T, b>::prepare() {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline void TAArray<T>::prepare() {
   if (!prepared_ || cloned_ ||
       item_vec_.size() != static_cast<std::size_t>(get_max_omp_threads())) {
     item_vec_.clear();
@@ -80,9 +81,9 @@ inline void TAArray<T, b>::prepare() {
   }
 }
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline void TAArray<T, b>::clone(const T &item) {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline void TAArray<T>::clone(const T &item) {
   prepare();
   assert(!cloned_ && prepared_);
 
@@ -92,15 +93,15 @@ inline void TAArray<T, b>::clone(const T &item) {
   cloned_ = true;
 }
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline T *TAArray<T, b>::get_thread_item(const vp_t tid) const {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline T *TAArray<T>::get_thread_item(const vp_t tid) const {
   return item_vec_.at(tid).get();
 }
 
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool> b>
-inline const T *TAArray<T, b>::get_local_thread_item() const {
+template <typename T>
+  requires std::is_copy_constructible_v<T>
+inline const T *TAArray<T>::get_local_thread_item() const {
   return item_vec_.at(get_thread_num()).get();
 }
 } // namespace sapi

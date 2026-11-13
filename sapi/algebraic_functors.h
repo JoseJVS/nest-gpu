@@ -27,12 +27,12 @@
 
 #include "enum_store.h"
 #include "numerics.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Forward definition to link with coordinates.h
 struct Coord2D;
 struct Coord3D;
-template <typename CoordT> struct Displacement;
 
 struct UnaryFunctor {
   UNARY_FUNCTION func_ = UNARY_FUNCTION::NULL_UF;

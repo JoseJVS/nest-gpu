@@ -29,11 +29,9 @@
 
 #include "coordinates.h"
 #include "enum_store.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to mask.h
-template <typename CoordT> struct Mask;
-
 void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
                                       const std::vector<space_t> &mask_params);
 

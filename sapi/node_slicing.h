@@ -27,19 +27,9 @@
 
 #include "grid_neighborhood.h"
 #include "node_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to mask.h
-template <typename CoordT> struct Mask;
-
-// Forward definition to mask_collection.h
-template <typename CoordT> struct MaskCollection;
-
-// Forward definition to thread_aligned_array.h
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool>>
-class TAArray;
-
 template <typename CoordT>
 using FilteringCoordQueue = std::deque<IndexedCoordView<CoordT>>;
 
@@ -130,7 +120,7 @@ slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
                       const TileGrid<CoordT> &tile_grid,
                       const GridNeighborhood &grid_neighborhood,
                       const GridNodeCollection<CoordT> &grid_node_col,
-                      const TAArray<MaskCollection<CoordT>, true> &mc_array) {
+                      const TAArray<MaskCollection<CoordT>> &mc_array) {
   assert(tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
          !grid_node_col.empty() && mc_array.is_initialized());
 

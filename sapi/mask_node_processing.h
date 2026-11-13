@@ -25,6 +25,7 @@
 
 #include "connection_generator.h"
 #include "random_manager.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Forward definition to link with vp_interface.h
@@ -33,14 +34,6 @@ vp_t get_max_omp_threads();
 
 // Forward definition to connection_containers.h
 struct RankConnectionInfo;
-
-// Forward definition to mask_collection.h
-template <typename CoordT> struct MaskCollection;
-
-// Forward definition to thread_aligned_array.h
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool>>
-class TAArray;
 
 template <typename CoordT>
 void add_task(TaskMap<CoordT> &aggregation_map, TaskQueue<CoordT> &task_queue,
@@ -179,8 +172,8 @@ void generate_connection_tasks(TaskQueue<CoordT> &task_queue,
 template <typename CoordT, bool inverted_source_target>
 void compute_displacement_checks_across_tile_pairs(
     RankConnectionInfo &rci, RankPairInfo<CoordT> &rpi,
-    const TAArray<MaskCollection<CoordT>, true> &mc_array,
-    const TAArray<ConnectionGenerator, true> &cg_array,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
+    const TAArray<ConnectionGenerator> &cg_array,
     const RandomManager &rng_manager, const vp_t target_rank) {
   assert(rci.procedural_connections_.empty() && mc_array.is_initialized() &&
          cg_array.is_initialized() && rng_manager.is_initialized());

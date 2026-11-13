@@ -26,6 +26,7 @@
 #include <optional>
 
 #include "gf_collection.h"
+#include "sapi_forward_declarations.h"
 #include "tile_grid.h"
 
 namespace sapi {
@@ -36,11 +37,6 @@ std::pair<CoordT, CoordT> minmax_vertices(const std::vector<CoordT> &coord_vec);
 // Forward definition to link with bounding_box.h
 template <typename CoordT>
 BoundingBox<CoordT> stack_boxes(std::vector<BoundingBox<CoordT>> &&bbs);
-
-// Forward definition to thread_aligned_array.h
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool>>
-class TAArray;
 
 template <typename CoordT> struct DimensionalNavigator {
   void initialize(const GridPosition<CoordT> &grid_dimensions);
@@ -314,7 +310,7 @@ generate_bounding_box_tree(const TileGrid<CoordT> &tile_grid,
 
 template <typename CoordT>
 TileGrid<CoordT>
-generate_tile_grid(const TAArray<GFCollection<CoordT>, true> &gc_array) {
+generate_tile_grid(const TAArray<GFCollection<CoordT>> &gc_array) {
   assert(gc_array.is_initialized());
 
   const GridPosition<CoordT> &dimensions =

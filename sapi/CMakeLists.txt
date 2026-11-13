@@ -26,6 +26,7 @@ mask_containers.h
 split_tree.h
 grid_generation.h
 sapi_config.h
+sapi_forward_declarations.h
 tile_geometry.cpp
 tile2d_geometry.h
 timer_manager.h

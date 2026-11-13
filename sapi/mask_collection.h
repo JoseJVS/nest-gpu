@@ -24,11 +24,9 @@
 #define MASK_COLLECTION_H
 
 #include "mask.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to creator_registry.h
-template <typename RT> class CreatorRegistry;
-
 template <typename CoordT> struct MaskCollection {
   Mask<CoordT> blueprint_;
   Mask<CoordT> source_mask_;

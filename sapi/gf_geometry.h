@@ -28,15 +28,9 @@
 #include "coordinates.h"
 #include "enum_store.h"
 #include "grid_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definitions to tile.h
-template <typename CoordT> struct Tile;
-
-// Forward definitions to grid_functors.h
-template <typename CoordT> struct ShiftedOriginCreator;
-template <typename CoordT> struct CachedTileCreator;
-
 void initialize_soc_2D(ShiftedOriginCreator<Coord2D> &soc,
                        const std::vector<space_t> &side_lengths,
                        const angle_t angular_offset);

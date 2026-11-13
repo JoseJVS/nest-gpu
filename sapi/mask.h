@@ -27,11 +27,9 @@
 #include <deque>
 
 #include "mask_geometry.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to tile.h
-template <typename CoordT> struct Tile;
-
 template <typename CoordT> struct Mask {
   bool has_c_radius_ = false;
   MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;

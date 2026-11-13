@@ -26,14 +26,9 @@
 #include <forward_list>
 
 #include "node_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to link with coordinates.h
-template <typename CoordT> struct Displacement;
-
-// Forward definition to link with tile.h
-template <typename CoordT> struct Tile;
-
 // Forward definition to comparisons.h
 template <typename CoordT>
 bool compare_indexed_node_ptr_maps(

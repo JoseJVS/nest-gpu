@@ -26,11 +26,9 @@
 #include <algorithm>
 
 #include "grid_functors.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to creator_registry.h
-template <typename RT> class CreatorRegistry;
-
 template <typename CoordT> struct GFCollection {
   CoordT grid_origin_;
   GridPosition<CoordT> grid_dimensions_;

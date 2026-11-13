@@ -23,6 +23,7 @@
 #ifndef TYPE_ERASURE_HELPERS_H
 #define TYPE_ERASURE_HELPERS_H
 
+#include <concepts>
 #include <initializer_list>
 #include <limits>
 #include <memory>
@@ -32,6 +33,7 @@
 #include <vector>
 
 #include "sapi_config.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
 template <typename RT> struct StateLessCreator {
@@ -77,9 +79,8 @@ template <typename RT> struct RNGConcept {
   virtual RT operator()() = 0;
 };
 
-template <typename RNG,
-          typename std::enable_if_t<std::is_nothrow_copy_constructible_v<RNG>,
-                                    bool> = true>
+template <typename RNG>
+  requires std::is_nothrow_copy_constructible_v<RNG>
 class RNGModel final : public RNGConcept<typename RNG::result_type> {
 public:
   using result_type = typename RNG::result_type;
@@ -97,37 +98,29 @@ protected:
   RNG engine_;
 };
 
-template <typename RNG, typename std::enable_if_t<
-                            std::is_nothrow_copy_constructible_v<RNG>, bool>
-                            b>
-RNGModel<RNG, b>::RNGModel(RNG engine) noexcept : engine_(engine) {}
+template <typename RNG>
+  requires std::is_nothrow_copy_constructible_v<RNG>
+RNGModel<RNG>::RNGModel(RNG engine) noexcept : engine_(engine) {}
 
-template <typename RNG, typename std::enable_if_t<
-                            std::is_nothrow_copy_constructible_v<RNG>, bool>
-                            b>
-inline typename RNG::result_type RNGModel<RNG, b>::operator()() {
+template <typename RNG>
+  requires std::is_nothrow_copy_constructible_v<RNG>
+inline typename RNG::result_type RNGModel<RNG>::operator()() {
   return engine_();
 }
 
-template <typename RNG, typename std::enable_if_t<
-                            std::is_nothrow_copy_constructible_v<RNG>, bool>
-                            b>
+template <typename RNG>
+  requires std::is_nothrow_copy_constructible_v<RNG>
 inline std::unique_ptr<RNGConcept<typename RNG::result_type>>
-RNGModel<RNG, b>::clone() const noexcept {
+RNGModel<RNG>::clone() const noexcept {
   return std::make_unique<RNGModel>(engine_);
 }
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool> = true>
-class AnyRNG_T {
+template <RNGResult RT> class AnyRNG_T {
 public:
   using result_type = RT;
 
-  template <typename RNG,
-            std::enable_if_t<std::is_same_v<typename RNG::result_type, RT>,
-                             bool> = true>
+  template <typename RNG>
+    requires std::same_as<typename RNG::result_type, RT>
   AnyRNG_T(RNG) noexcept;
 
   AnyRNG_T() = delete;
@@ -151,62 +144,30 @@ protected:
   RNGConcept<RT> *const ptr_;
 };
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-template <typename RNG,
-          std::enable_if_t<std::is_same_v<typename RNG::result_type, RT>, bool>>
-AnyRNG_T<RT, b>::AnyRNG_T(RNG engine) noexcept
+template <RNGResult RT>
+template <typename RNG>
+  requires std::same_as<typename RNG::result_type, RT>
+AnyRNG_T<RT>::AnyRNG_T(RNG engine) noexcept
     : rng_(std::make_unique<RNGModel<RNG>>(engine)), ptr_(rng_.get()) {}
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-AnyRNG_T<RT, b>::AnyRNG_T(const AnyRNG_T &any_rng) noexcept
+template <RNGResult RT>
+AnyRNG_T<RT>::AnyRNG_T(const AnyRNG_T &any_rng) noexcept
     : rng_(any_rng.ptr_->clone()), ptr_(rng_.get()) {}
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-constexpr inline RT AnyRNG_T<RT, b>::min() {
-  return 0;
-}
+template <RNGResult RT> constexpr inline RT AnyRNG_T<RT>::min() { return 0; }
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-constexpr inline RT AnyRNG_T<RT, b>::max() {
+template <RNGResult RT> constexpr inline RT AnyRNG_T<RT>::max() {
   return std::numeric_limits<RT>::max();
 }
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-inline void
-AnyRNG_T<RT, b>::seed(const std::initializer_list<rng_seed_t> &seeds) {
+template <RNGResult RT>
+inline void AnyRNG_T<RT>::seed(const std::initializer_list<rng_seed_t> &seeds) {
   ptr_->seed(seeds);
 }
 
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-inline RT AnyRNG_T<RT, b>::operator()() {
+template <RNGResult RT> inline RT AnyRNG_T<RT>::operator()() {
   return ptr_->operator()();
 }
-
-typedef AnyRNG_T<rng_bits_t> AnyRNG;
 } // namespace sapi
 
 #endif

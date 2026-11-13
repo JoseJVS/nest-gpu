@@ -23,10 +23,9 @@
 #ifndef CF_CREATORS_H
 #define CF_CREATORS_H
 
-namespace sapi {
-// Forward definition to creator_registry.h
-template <typename RT> class CreatorRegistry;
+#include "sapi_forward_declarations.h"
 
+namespace sapi {
 // Forward definition to algebraic_functors.h
 struct UnaryFunctor;
 struct DisplacementFunctor;

@@ -23,21 +23,19 @@
 #ifndef CREATOR_REGISTRY_H
 #define CREATOR_REGISTRY_H
 
+#include <concepts>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 
-namespace sapi {
-// Forward definition to type_erasure_helpers.h
-template <typename RT> struct StateLessCreator;
+#include "sapi_forward_declarations.h"
 
+namespace sapi {
 template <typename RT> class CreatorRegistry {
 public:
-  template <typename CT,
-            typename std::enable_if_t<
-                std::is_base_of_v<StateLessCreator<RT>, CT>, bool> = true>
+  template <std::derived_from<StateLessCreator<RT>> CT>
   void register_creator(std::string &&name);
 
   const std::unique_ptr<StateLessCreator<RT>> &
@@ -49,8 +47,7 @@ protected:
 };
 
 template <typename RT>
-template <typename CT, typename std::enable_if_t<
-                           std::is_base_of_v<StateLessCreator<RT>, CT>, bool>>
+template <std::derived_from<StateLessCreator<RT>> CT>
 inline void CreatorRegistry<RT>::register_creator(std::string &&name) {
   if (registry_.contains(name))
     throw std::invalid_argument(name + " is already registered");

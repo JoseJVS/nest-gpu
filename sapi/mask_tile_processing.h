@@ -28,26 +28,13 @@
 #include "grid_neighborhood.h"
 #include "mask_containers.h"
 #include "node_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to mask.h
-template <typename CoordT> struct Mask;
-
-// Forward definition to mask_collection.h
-template <typename CoordT> struct MaskCollection;
-
-// Forward definition to thread_aligned_array.h
-template <typename T,
-          typename std::enable_if_t<std::is_copy_constructible_v<T>, bool>>
-class TAArray;
-
 // Forward definition to link with payload_preparation.h
 template <typename CoordT>
 void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
                           const TileSetInfo<CoordT> &tile_set_info);
-
-// Forward definition to vp_interface.h
-template <typename T> struct OmpLockGuard;
 
 template <typename CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
@@ -87,8 +74,8 @@ void insert_leaf_tiles_within_range(
     std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
         &leaf_pairs,
     const Tile<CoordT> &driver, const Tile<CoordT> &pool,
-    const TAArray<MaskCollection<CoordT>, true> &mc_array,
-    const shift_t image_index, const bool is_shifted, const split_t splits) {
+    const TAArray<MaskCollection<CoordT>> &mc_array, const shift_t image_index,
+    const bool is_shifted, const split_t splits) {
   assert(driver.sub_tiles_.size() == pool.sub_tiles_.size());
 
   if (driver.sub_tiles_.empty()) {
@@ -134,7 +121,7 @@ template <typename CoordT, bool edge_wrap, bool inverted_source_target,
 void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
                        const TilePosition<CoordT> &driver_tile_pos,
                        const TilePosition<CoordT> &pool_tile_pos,
-                       const TAArray<MaskCollection<CoordT>, true> &mc_array,
+                       const TAArray<MaskCollection<CoordT>> &mc_array,
                        const split_t splits) {
   assert(tpi.aggregated_leaf_pairs_.empty() &&
          !pool_tile_pos.tile_images_.empty() &&
@@ -260,7 +247,7 @@ void aggregate_tile_set_info(
     TileSetInfo<CoordT> &tsi, FilteredTileNodeCollection<CoordT> &icp,
     const std::vector<std::pair<tileidx_t, TilePairInfo<CoordT>>> &tpi_vec,
     const LeafNodeCollection<CoordT> &leaf_node_col,
-    const TAArray<MaskCollection<CoordT>, true> &mc_array,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
     const NodeSequence &node_sequence, const tileidx_t source_tile_idx) {
   assert(!leaf_node_col.empty());
 
@@ -340,7 +327,7 @@ void rank_pair_overlap(RankPairInfo<CoordT> &rpi,
                        const TileIdxNodeSequenceMap &tns_target,
                        const TileGrid<CoordT> &tile_grid,
                        const GridNodeCollection<CoordT> &grid_node_col,
-                       const TAArray<MaskCollection<CoordT>, true> &mc_array,
+                       const TAArray<MaskCollection<CoordT>> &mc_array,
                        const bool prepare_payload) {
   assert(rpi.tile_pairs_set_.tile_pairings_.empty() && !tns_target.empty());
 
@@ -425,7 +412,7 @@ void distributed_overlap(
     const TileGrid<CoordT> &tile_grid,
     const GridNeighborhood &grid_neighborhood,
     const GridNodeCollection<CoordT> &grid_node_col,
-    const TAArray<MaskCollection<CoordT>, true> &mc_array,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
     const bool force_prepare_payload) {
   assert(rpi_map.empty() && !tns_source.empty() && !grid_node_col.empty());
 
@@ -461,7 +448,7 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     const TileGrid<CoordT> &tile_grid,
     const GridNeighborhood &grid_neighborhood,
     const GridNodeCollection<CoordT> &grid_node_col,
-    const TAArray<MaskCollection<CoordT>, true> &mc_array,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
     const bool force_prepare_payload = false) {
   assert(!dist_tns_source.empty() && !dist_tns_target.empty() &&
          tile_grid.has_split_ && grid_neighborhood.has_owners_ &&

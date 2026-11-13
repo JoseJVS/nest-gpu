@@ -23,10 +23,9 @@
 #ifndef CG_CREATORS_H
 #define CG_CREATORS_H
 
-namespace sapi {
-// Forward definition to creator_registry.h
-template <typename RT> class CreatorRegistry;
+#include "sapi_forward_declarations.h"
 
+namespace sapi {
 // Forward definition to connection_generator.h
 struct ConnectionGenerator;
 

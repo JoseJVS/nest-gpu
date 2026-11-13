@@ -23,24 +23,12 @@
 #ifndef RNG_CREATORS_H
 #define RNG_CREATORS_H
 
-#include <type_traits>
-
 #include "sapi_config.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to creator_registry.h
-template <typename RT> class CreatorRegistry;
-
-// Forward definition to link with type_erasure_helpers.h
-template <typename RT, typename std::enable_if_t<
-                           std::disjunction_v<std::is_same<RT, uint32_t>,
-                                              std::is_same<RT, uint64_t>>,
-                           bool>
-                           b>
-class AnyRNG_T;
-
-void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint32_t, true>> &anr);
-void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint64_t, true>> &anr);
+void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint32_t>> &anr);
+void initialize_rng_registry(CreatorRegistry<AnyRNG_T<uint64_t>> &anr);
 } // namespace sapi
 
 #endif

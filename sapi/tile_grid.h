@@ -30,17 +30,9 @@
 #include <utility>
 
 #include "grid_containers.h"
+#include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to tile.h
-template <typename CoordT> struct Tile;
-
-// Forward definition to bounding_box.h
-template <typename CoordT> struct BoundingBox;
-
-// Forward definition to vp_interface.h
-template <typename T> struct OmpLock;
-
 template <typename CoordT> struct TilePosition {
   GridPosition<CoordT> position_;
   mutable Tile<CoordT> tile_;
