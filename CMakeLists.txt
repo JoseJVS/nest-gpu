@@ -23,6 +23,10 @@ cmake_minimum_required( VERSION 3.18 )
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 project( nestgpu LANGUAGES CUDA CXX )
+set( CMAKE_CXX_STANDARD 20 )
+set( CMAKE_CXX_STANDARD_REQUIRED ON )
+set( CMAKE_CUDA_STANDARD 20 )
+set( CMAKE_CUDA_STANDARD_REQUIRED ON )
 set( NEST_GPU_USER_EMAIL "users@nest-simulator.org" )
 
 # reverse the search order for lib extensions
@@ -60,7 +64,6 @@ set( with-includes OFF CACHE STRING "Add additional include paths [default=OFF].
 set( with-defines OFF CACHE STRING "Additional defines, e.g. '-DXYZ=1' [default=OFF]. Separate multiple defines by ';'." )
 
 # compiler options; explicit compiler flags can be given.
-set( with-cpp-std 17 CACHE STRING "C++ standard to use for compilation [default=17]. Needs to be at least c++17." )
 set( with-maxrregcount "55" CACHE STRING "Set a maximum amount of register used when compiling [default=55]." )
 set( with-ptxas-options OFF CACHE STRING "Options for ptxas compiling [default=OFF]. Separate multiple flags by ';'." )
 set( with-optimize ON CACHE STRING "Enable user defined optimizations [default=ON (uses '-O3')]. When OFF, no '-O' flag is passed to the compiler. Separate multiple flags by ';'." )
@@ -110,7 +113,6 @@ nest_process_with_libraries()
 nest_process_with_includes()
 nest_process_with_defines()
 
-nest_process_with_cpp_std()
 nestgpu_process_with_maxrregcount()
 nestgpu_process_with_ptxas_options()
 nest_process_with_optimize()

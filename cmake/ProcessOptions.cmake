@@ -205,29 +205,6 @@ function( NEST_PROCESS_WITH_DEFINES )
 endfunction()
 
 
-function( NEST_PROCESS_WITH_CPP_STD )
-  if ( with-cpp-std )
-
-    if ( NOT "${with-cpp-std}" MATCHES "^[0-9]+" )
-      printError( "Incorrect cpp standard" )
-    endif ()
-
-    set( CMAKE_CXX_STANDARD ${with-cpp-std} PARENT_SCOPE )
-    set( CMAKE_CXX_STANDARD_REQUIRED ON PARENT_SCOPE )
-    set( CMAKE_CUDA_STANDARD ${with-cpp-std} PARENT_SCOPE )
-    set( CMAKE_CUDA_STANDARD_REQUIRED ON PARENT_SCOPE )
-
-  else()
-
-    set( CMAKE_CXX_STANDARD 17 PARENT_SCOPE )
-    set( CMAKE_CXX_STANDARD_REQUIRED ON PARENT_SCOPE )
-    set( CMAKE_CUDA_STANDARD 17 PARENT_SCOPE )
-    set( CMAKE_CUDA_STANDARD_REQUIRED ON PARENT_SCOPE )
-
-  endif ()
-endfunction()
-
-
 function( NESTGPU_PROCESS_WITH_MAXRREGCOUNT )
   if( with-maxrregcount )
 
