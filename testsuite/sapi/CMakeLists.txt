@@ -122,7 +122,7 @@ configure_file(
 )
 
 add_custom_target( sapicheck
-  COMMAND run_tests.sh
+  COMMAND "${PROJECT_BINARY_DIR}/tests/sapi/run_tests.sh"
   WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/tests/sapi"
   COMMENT "Executing SAPI testsuite..."
   DEPENDS ${sapi_tests}
