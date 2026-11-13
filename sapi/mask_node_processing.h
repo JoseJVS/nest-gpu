@@ -24,6 +24,7 @@
 #define MASK_NODE_PROCESSING_H
 
 #include "connection_generator.h"
+#include "mask_containers.h"
 #include "random_manager.h"
 #include "sapi_forward_declarations.h"
 

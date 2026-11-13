@@ -25,6 +25,7 @@
 
 #include <vector>
 
+#include "coordinates.h"
 #include "numerics.h"
 
 namespace sapi {

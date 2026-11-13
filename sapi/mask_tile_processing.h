@@ -25,6 +25,7 @@
 
 #include <memory>
 
+#include "enum_store.h"
 #include "grid_neighborhood.h"
 #include "mask_containers.h"
 #include "node_containers.h"
