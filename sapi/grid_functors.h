@@ -39,10 +39,9 @@ template <Coordinate CoordT>
 inline GridTargetPositionShifts<CoordT> construct_grid_target_position_shifts(
     GridShiftVector<CoordT> &&position_independent_shifts,
     GridDimensionalShifts<CoordT> &&position_dependent_shifts) {
-  GridTargetPositionShifts<CoordT> gps;
-  gps.position_independent_shifts_ = std::move(position_independent_shifts);
-  gps.position_dependent_shifts_ = std::move(position_dependent_shifts);
-  return gps;
+  return {.position_independent_shifts_ =
+              std::move(position_independent_shifts),
+          .position_dependent_shifts_ = std::move(position_dependent_shifts)};
 }
 
 template <Coordinate CoordT> struct ShiftedOriginCreator {

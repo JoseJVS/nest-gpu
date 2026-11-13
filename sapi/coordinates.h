@@ -109,10 +109,7 @@ struct Coord2D {
 };
 
 inline Coord2D construct_coord_2D(const space_t x, const space_t y) {
-  Coord2D c;
-  c.x_ = x;
-  c.y_ = y;
-  return c;
+  return {.x_ = x, .y_ = y};
 }
 
 inline Coord2D Coord2D::operator+(const Coord2D &coord) const {
@@ -253,11 +250,7 @@ struct Coord3D {
 
 inline Coord3D construct_coord_3D(const space_t x, const space_t y,
                                   const space_t z) {
-  Coord3D c;
-  c.x_ = x;
-  c.y_ = y;
-  c.z_ = z;
-  return c;
+  return {.x_ = x, .y_ = y, .z_ = z};
 }
 
 inline Coord3D Coord3D::operator+(const Coord3D &coord) const {
@@ -367,10 +360,7 @@ template <Coordinate CoordT> space_t vector_norm2(const CoordT &vector);
 
 template <Coordinate CoordT>
 inline Displacement<CoordT> construct_displacement(CoordT &&vector) {
-  Displacement<CoordT> d;
-  d.displacement_ = vector;
-  d.distance2_ = vector_norm2(vector);
-  return d;
+  return {.distance2_ = vector_norm2(vector), .displacement_ = vector};
 }
 
 template <Coordinate CoordT>
@@ -409,10 +399,7 @@ template <Coordinate CoordT> struct CircumscribedRadius {
 template <Coordinate CoordT>
 inline CircumscribedRadius<CoordT>
 construct_circumscribed_radius(CoordT &&origin, const space_t radius2) {
-  CircumscribedRadius<CoordT> cr;
-  cr.origin_ = origin;
-  cr.radius2_ = radius2;
-  return cr;
+  return {.radius2_ = radius2, .origin_ = origin};
 }
 
 template <Coordinate CoordT>

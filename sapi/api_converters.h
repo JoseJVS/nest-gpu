@@ -23,8 +23,10 @@
 #ifndef SAPI_CONVERTERS_H
 #define SAPI_CONVERTERS_H
 
+#include <algorithm>
 #include <concepts>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 
@@ -46,6 +48,12 @@ concept NestedArithmeticCollection =
 
 // Forward definition to link with timer_manager.h
 struct RecordedTimes;
+
+// Read-only view of an ArrayT, only valid after array_ was checked for null.
+template <typename T>
+inline std::span<const T> array_view(const ArrayT<T> &carray) {
+  return {carray.array_, carray.size_};
+}
 
 inline std::string charray_to_string(const CharArray &cstr) {
   if (cstr.size_ < 1)
@@ -90,10 +98,8 @@ std::vector<T> array_to_vector(const ArrayT<T> &carray) {
     return {};
   if (carray.array_ == nullptr)
     throw std::invalid_argument("Corrupted ArrayT");
-  std::vector<T> vec(carray.size_);
-  for (std::size_t idx = 0; idx < carray.size_; ++idx)
-    vec[idx] = carray.array_[idx];
-  return vec;
+  const auto view = array_view(carray);
+  return std::vector<T>(view.begin(), view.end());
 }
 
 template <Arithmetic T>
@@ -104,8 +110,8 @@ nested_array_to_nested_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   if (nested_carray.array_ == nullptr)
     throw std::invalid_argument("Corrupted NestedTarray");
   std::vector<std::vector<T>> nvec(nested_carray.size_);
-  for (std::size_t idx = 0; idx < nested_carray.size_; ++idx)
-    nvec[idx] = array_to_vector(nested_carray.array_[idx]);
+  std::ranges::transform(array_view(nested_carray), nvec.begin(),
+                         array_to_vector<T>);
   return nvec;
 }
 
@@ -114,9 +120,8 @@ template <Arithmetic T> std::set<T> array_to_set(const ArrayT<T> &carray) {
     return {};
   if (carray.array_ == nullptr)
     throw std::invalid_argument("Corrupted ArrayT");
-  std::set<T> set;
-  for (std::size_t idx = 0; idx < carray.size_; ++idx)
-    set.insert(carray.array_[idx]);
+  const auto view = array_view(carray);
+  std::set<T> set(view.begin(), view.end());
   if (set.size() != carray.size_)
     throw std::invalid_argument("Corrupted set from ArrayT");
   return set;
@@ -130,8 +135,8 @@ nested_array_to_set_vector(const ArrayT<ArrayT<T>> &nested_carray) {
   if (nested_carray.array_ == nullptr)
     throw std::invalid_argument("Corrupted NestedTarray");
   std::vector<std::set<T>> setvec(nested_carray.size_);
-  for (std::size_t idx = 0; idx < nested_carray.size_; ++idx)
-    setvec[idx] = array_to_set(nested_carray.array_[idx]);
+  std::ranges::transform(array_view(nested_carray), setvec.begin(),
+                         array_to_set<T>);
   return setvec;
 }
 

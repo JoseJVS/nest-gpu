@@ -41,11 +41,7 @@ struct ConnectionInfo {
 inline ConnectionInfo construct_connection_info(const conn_index_t index,
                                                 const conn_param_t weight,
                                                 const conn_param_t delay) {
-  ConnectionInfo ci;
-  ci.index_ = index;
-  ci.weight_ = weight;
-  ci.delay_ = delay;
-  return ci;
+  return {.index_ = index, .weight_ = weight, .delay_ = delay};
 }
 
 typedef std::vector<std::pair<conn_param_t, std::deque<ConnectionInfo>>>
@@ -171,11 +167,9 @@ inline PossibleConnections<CoordT> construct_possible_connections(
     const std::vector<CoordT> *const image_displacements,
     const FilteredLeafView<CoordT> possible_pairs) {
   static_assert(std::is_trivially_copyable_v<FilteredLeafView<CoordT>>);
-  PossibleConnections<CoordT> cp;
-  cp.used_displacements_ = used_displacements;
-  cp.image_displacements_ = image_displacements;
-  cp.possible_pairs_ = possible_pairs;
-  return cp;
+  return {.used_displacements_ = used_displacements,
+          .image_displacements_ = image_displacements,
+          .possible_pairs_ = possible_pairs};
 }
 
 template <Coordinate CoordT> struct ConnectionTask {

@@ -44,11 +44,8 @@ struct LeafPairInfo {
 inline LeafPairInfo construct_leaf_pair_info(const tileidx_t source,
                                              const tileidx_t target,
                                              const shift_t image) {
-  LeafPairInfo lpi;
-  lpi.source_index_ = source;
-  lpi.target_index_ = target;
-  lpi.image_index_ = image;
-  return lpi;
+  return {
+      .source_index_ = source, .target_index_ = target, .image_index_ = image};
 }
 
 template <Coordinate CoordT> struct TilePairInfo {

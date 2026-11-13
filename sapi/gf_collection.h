@@ -57,14 +57,12 @@ GFCollection<CoordT> construct_gf_collection(
   if (grid_origin.empty() ||
       grid_origin.size() != static_cast<std::size_t>(CoordT::D) ||
       grid_dimensions.size() != grid_origin.size() ||
-      !std::all_of(grid_dimensions.cbegin(), grid_dimensions.cend(),
-                   positiveTix))
+      !std::ranges::all_of(grid_dimensions, positiveTix))
     throw std::invalid_argument("Invalid grid params for GFCollection");
 
   GFCollection<CoordT> gfc;
 
-  std::copy(grid_dimensions.cbegin(), grid_dimensions.cend(),
-            gfc.grid_dimensions_.begin());
+  std::ranges::copy(grid_dimensions, gfc.grid_dimensions_.begin());
 
   gfc.grid_origin_ = CoordT::copy_from_vec(grid_origin.begin());
   gfc.gps_ = gpsr.get_creator(tile_type)->create();

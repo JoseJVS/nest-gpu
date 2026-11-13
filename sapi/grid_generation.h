@@ -23,6 +23,7 @@
 #ifndef GRID_GENERATION_H
 #define GRID_GENERATION_H
 
+#include <algorithm>
 #include <optional>
 
 #include "gf_collection.h"
@@ -52,14 +53,13 @@ private:
 template <Coordinate CoordT>
 inline void DimensionalNavigator<CoordT>::initialize(
     const GridPosition<CoordT> &grid_dimensions) {
-  if (!std::all_of(grid_dimensions.cbegin(), grid_dimensions.cend(),
-                   positiveTix))
+  if (!std::ranges::all_of(grid_dimensions, positiveTix))
     throw std::invalid_argument("Invalid navigator dimensions");
 
   next_ = true;
   dimensions_ = grid_dimensions;
 
-  std::fill(current_position_.begin(), current_position_.end(), 0);
+  std::ranges::fill(current_position_, 0);
 }
 
 template <Coordinate CoordT>
@@ -77,8 +77,7 @@ DimensionalNavigator<CoordT>::get_pos_and_advance() {
         break;
 
     // Last advance resets all positions back to 0
-    next_ = std::any_of(current_position_.cbegin(), current_position_.cend(),
-                        positiveTix);
+    next_ = std::ranges::any_of(current_position_, positiveTix);
   }
 
   return res;
@@ -120,8 +119,8 @@ void generate_grid_images(TilePosition<CoordT> &tile_position,
 
     if (shifted_position != tile_position.position_) {
       GridPositionParity<CoordT> shifted_position_parity;
-      std::transform(shifted_position.cbegin(), shifted_position.cend(),
-                     shifted_position_parity.begin(), evenTix);
+      std::ranges::transform(shifted_position, shifted_position_parity.begin(),
+                             evenTix);
 
       const auto shifted_origin = gf_collection->shift_origin(
           shifted_position, shifted_position_parity);
@@ -172,8 +171,7 @@ void generate_tile_position(std::vector<TilePosition<CoordT>> &positions,
                             const GridPosition<CoordT> &grid_position,
                             const GFCollection<CoordT> *const gf_collection) {
   GridPositionParity<CoordT> position_parity;
-  std::transform(grid_position.cbegin(), grid_position.cend(),
-                 position_parity.begin(), evenTix);
+  std::ranges::transform(grid_position, position_parity.begin(), evenTix);
 
   TilePosition<CoordT> &tile_pos =
       positions[gf_collection->compute_index(grid_position)];
@@ -200,8 +198,8 @@ std::vector<
 partition_dimensions(const GridPosition<CoordT> &lower_bound,
                      const GridPosition<CoordT> &upper_bound) {
   GridPosition<CoordT> bound_length;
-  std::transform(upper_bound.cbegin(), upper_bound.cend(), lower_bound.cbegin(),
-                 bound_length.begin(), minusTix);
+  std::ranges::transform(upper_bound, lower_bound, bound_length.begin(),
+                         minusTix);
 
   bool all_one = true;
   bool some_none = false;
@@ -243,12 +241,10 @@ partition_dimensions(const GridPosition<CoordT> &lower_bound,
        position_next_pair.second;
        position_next_pair = navigator.get_pos_and_advance()) {
     GridPosition<CoordT> diagonal_split;
-    std::transform(position_next_pair.first.cbegin(),
-                   position_next_pair.first.cend(), diagonal_split.begin(),
-                   minusOneTix);
+    std::ranges::transform(position_next_pair.first, diagonal_split.begin(),
+                           minusOneTix);
 
-    if (std::any_of(diagonal_split.cbegin(), diagonal_split.cend(),
-                    negativeTix))
+    if (std::ranges::any_of(diagonal_split, negativeTix))
       continue;
 
     dim_par->first = lower_bound;
@@ -333,7 +329,7 @@ generate_tile_grid(const TAArray<GFCollection<CoordT>> &gc_array) {
                            gc_array.get_local_thread_item());
 
   GridPosition<CoordT> origin;
-  std::fill(origin.begin(), origin.end(), 0);
+  std::ranges::fill(origin, 0);
   grid.bounding_box_ = generate_bounding_box_tree(grid, origin, dimensions);
 
   return grid;

@@ -44,11 +44,7 @@ struct UnaryFunctor {
 inline UnaryFunctor construct_unary_functor(const UNARY_FUNCTION function,
                                             const space_t var0 = 0.,
                                             const space_t var1 = 0.) {
-  UnaryFunctor uf;
-  uf.func_ = function;
-  uf.var_[0] = var0;
-  uf.var_[1] = var1;
-  return uf;
+  return {.func_ = function, .var_ = {var0, var1}};
 }
 
 inline space_t UnaryFunctor::operator()(const space_t x) const {
@@ -104,10 +100,7 @@ struct DisplacementFunctor {
 inline DisplacementFunctor
 construct_displacement_functor(const DISPLACEMENT_FUNCTION function,
                                const space_t var = 0.) {
-  DisplacementFunctor df;
-  df.func_ = function;
-  df.var_ = var;
-  return df;
+  return {.func_ = function, .var_ = var};
 }
 
 template <Coordinate CoordT>

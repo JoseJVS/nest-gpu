@@ -23,6 +23,7 @@
 #ifndef CONNECTION_RULES_H
 #define CONNECTION_RULES_H
 
+#include <algorithm>
 #include <random>
 
 #include "connection_containers.h"
@@ -302,10 +303,10 @@ void compute_fixed_connections(
         std::sample(possible_connections.begin(), possible_connections.end(),
                     selected_connections.begin(), connection_counts, rng);
       } else {
-        std::transform(priority_map.cbegin(), priority_map.cend(),
-                       selected_connections.begin(), [&](const auto &entry) {
-                         return possible_connections[entry.second];
-                       });
+        std::ranges::transform(priority_map, selected_connections.begin(),
+                               [&](const auto &entry) {
+                                 return possible_connections[entry.second];
+                               });
       }
     }
   } else {

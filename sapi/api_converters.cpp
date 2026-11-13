@@ -20,6 +20,8 @@
  *
  */
 
+#include <algorithm>
+
 #include "api_converters.h"
 #include "enum_store.h"
 #include "timer_manager.h"
@@ -32,8 +34,7 @@ nested_charray_to_string_vector(const NestedCharArray &cstrings) {
   if (cstrings.array_ == nullptr)
     throw std::invalid_argument("Corrupted NestedCharArray");
   std::vector<std::string> strs(cstrings.size_);
-  for (std::size_t idx = 0; idx < cstrings.size_; ++idx)
-    strs[idx] = charray_to_string(cstrings.array_[idx]);
+  std::ranges::transform(array_view(cstrings), strs.begin(), charray_to_string);
   return strs;
 }
 
