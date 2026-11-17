@@ -23,6 +23,7 @@
 #ifndef BOUNDING_BOX_H
 #define BOUNDING_BOX_H
 
+#include <cassert>
 #include <vector>
 
 #include "coordinates.h"
