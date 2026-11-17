@@ -97,6 +97,9 @@ count_t compute_minimal_displacement(
         draw_connections<DistributionT, allow_multiplicity>(
             rng, dist, functors.probability_functor_(min_displacement.second)));
 
+    if (0 == multiplicity)
+      return conn_limit;
+
     const auto weight = functors.weight_functor_(min_displacement.second);
     const auto delay = functors.delay_functor_(min_displacement.second);
     for (count_t i = 0; i < multiplicity; ++i)
