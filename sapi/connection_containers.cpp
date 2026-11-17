@@ -160,7 +160,8 @@ generate_connection_partitions(
       procedural_partitions;
 
   // Heuristic reservation to avoid re-hashing
-  procedural_connections.reserve(
+  assert(!procedural_connections.empty());
+  procedural_partitions.reserve(
       total_generated_connections / procedural_connections.size() + 1);
 
   if constexpr (inverted_pivot) {
