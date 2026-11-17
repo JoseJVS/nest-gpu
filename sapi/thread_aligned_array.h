@@ -60,13 +60,14 @@ template <typename T>
   requires std::is_copy_constructible_v<T>
 inline void TAArray<T>::clear() {
   item_vec_.clear();
+  cloned_ = false;
+  prepared_ = false;
 }
 
 template <typename T>
   requires std::is_copy_constructible_v<T>
 inline bool TAArray<T>::is_initialized() const {
   assert(cloned_ <= prepared_);
-  ;
   return cloned_;
 }
 
