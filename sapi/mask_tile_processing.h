@@ -53,16 +53,17 @@ inline bool no_overlap(const Tile<CoordT> &tile,
   }
 }
 
-template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
-          bool filter_target>
+// The driver is always the source tile and the pool the target tile, on both
+// the source and the (inverted) target side, see tile_pair_overlap callers
+template <Coordinate CoordT, bool filter_source, bool filter_target>
 inline bool tile_overlap(const Tile<CoordT> &driver, const Tile<CoordT> &pool,
                          const MaskCollection<CoordT> *const mask_collection,
                          const bool is_shifted) {
-  return !(no_overlap<CoordT, inverted_source_target, filter_source,
-                      filter_target>(driver, mask_collection) ||
+  return !(no_overlap<CoordT, false, filter_source, filter_target>(
+               driver, mask_collection) ||
            (!is_shifted &&
-            no_overlap<CoordT, !inverted_source_target, filter_source,
-                       filter_target>(pool, mask_collection))) &&
+            no_overlap<CoordT, true, filter_source, filter_target>(
+                pool, mask_collection))) &&
          mask_collection->blueprint_overlap(driver, pool);
 }
 
@@ -100,10 +101,9 @@ final(rem_splits < 2) default(none) shared(leaf_pairs, mc_array)               \
                      image_index, is_shifted, rem_splits)
     for (std::size_t d_st = 0; d_st < d_st_count; ++d_st) {
       for (std::size_t p_st = 0; p_st < p_st_count; ++p_st) {
-        if (tile_overlap<CoordT, inverted_source_target, filter_source,
-                         filter_target>(d_sub_tiles[d_st], p_sub_tiles[p_st],
-                                        mc_array.get_local_thread_item(),
-                                        is_shifted)) {
+        if (tile_overlap<CoordT, filter_source, filter_target>(
+                d_sub_tiles[d_st], p_sub_tiles[p_st],
+                mc_array.get_local_thread_item(), is_shifted)) {
           insert_leaf_tiles_within_range<CoordT, inverted_source_target,
                                          filter_source, filter_target>(
               leaf_pairs, d_sub_tiles[d_st], p_sub_tiles[p_st], mc_array,
