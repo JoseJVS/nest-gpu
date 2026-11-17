@@ -44,7 +44,7 @@ inline ConnectionInfo construct_connection_info(const conn_index_t index,
   return {.index_ = index, .weight_ = weight, .delay_ = delay};
 }
 
-typedef std::vector<std::pair<conn_param_t, std::deque<ConnectionInfo>>>
+typedef std::vector<std::pair<conn_index_t, std::deque<ConnectionInfo>>>
     ProceduralConnectivityBlocks;
 
 struct ConnectionBounds {

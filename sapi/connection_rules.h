@@ -137,7 +137,8 @@ std::size_t generate_probabilistic_connections(
   auto block_it = proc_block.begin();
   for (const auto &driver_view : task.pivot_view_->second) {
     const auto &driver_pair = *driver_view;
-    block_it->first = driver_pair.first;
+    assert(0 <= driver_pair.first);
+    block_it->first = static_cast<conn_index_t>(driver_pair.first);
     count_t individual_conn_counts = individual_max_conns;
 
     for (const auto &combination : task.possible_combinations_) {
@@ -341,7 +342,8 @@ std::size_t generate_fixed_number_connections(
   auto block_it = proc_block.begin();
   for (const auto &pivot_view : task.pivot_view_->second) {
     const auto &pivot_pair = *pivot_view;
-    block_it->first = pivot_pair.first;
+    assert(0 <= pivot_pair.first);
+    block_it->first = static_cast<conn_index_t>(pivot_pair.first);
 
     for (const auto &combination : task.possible_combinations_) {
       assert(combination.second.image_displacements_ != nullptr);
