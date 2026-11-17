@@ -47,12 +47,12 @@
 namespace sapi {
 class BaseSpatialManager {
 public:
-  BaseSpatialManager() noexcept = default;
+  BaseSpatialManager() = default;
   BaseSpatialManager(const BaseSpatialManager &) = delete;
   BaseSpatialManager(BaseSpatialManager &&) noexcept = default;
   virtual ~BaseSpatialManager() noexcept = default;
 
-  BaseSpatialManager(const vp_t local_rank, const vp_t num_processes) noexcept;
+  BaseSpatialManager(const vp_t local_rank, const vp_t num_processes);
 
   BaseSpatialManager &operator=(const BaseSpatialManager &) = delete;
   BaseSpatialManager &operator=(BaseSpatialManager &&) = delete;

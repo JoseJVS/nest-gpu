@@ -54,7 +54,7 @@ protected:
   class AnyPtr {
   public:
     template <typename T>
-    AnyPtr(std::unique_ptr<T> &&ptr) noexcept
+    AnyPtr(std::unique_ptr<T> &&ptr)
         : internal_ptr_(std::make_unique<PtrModel<T>>(std::move(ptr))) {}
     ~AnyPtr() noexcept = default;
 

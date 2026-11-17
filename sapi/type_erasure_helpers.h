@@ -89,7 +89,7 @@ inline RT StateLessCreator<RT>::create(const std::vector<space_t> &,
 
 template <typename RT> struct RNGConcept {
   virtual ~RNGConcept() noexcept = default;
-  virtual std::unique_ptr<RNGConcept<RT>> clone() const noexcept = 0;
+  virtual std::unique_ptr<RNGConcept<RT>> clone() const = 0;
   virtual void seed(const std::initializer_list<rng_seed_t> &seeds) = 0;
   virtual RT operator()() = 0;
 };
@@ -107,7 +107,7 @@ public:
 
   result_type operator()() override;
 
-  std::unique_ptr<RNGConcept<result_type>> clone() const noexcept override;
+  std::unique_ptr<RNGConcept<result_type>> clone() const override;
 
 protected:
   RNG engine_;
@@ -126,7 +126,7 @@ inline typename RNG::result_type RNGModel<RNG>::operator()() {
 template <typename RNG>
   requires std::is_nothrow_copy_constructible_v<RNG>
 inline std::unique_ptr<RNGConcept<typename RNG::result_type>>
-RNGModel<RNG>::clone() const noexcept {
+RNGModel<RNG>::clone() const {
   return std::make_unique<RNGModel>(engine_);
 }
 
@@ -136,10 +136,10 @@ public:
 
   template <typename RNG>
     requires std::same_as<typename RNG::result_type, RT>
-  AnyRNG_T(RNG) noexcept;
+  AnyRNG_T(RNG);
 
   AnyRNG_T() = delete;
-  AnyRNG_T(const AnyRNG_T &) noexcept;
+  AnyRNG_T(const AnyRNG_T &);
   AnyRNG_T(AnyRNG_T &&) = default;
   ~AnyRNG_T() noexcept = default;
 
@@ -162,11 +162,11 @@ protected:
 template <RNGResult RT>
 template <typename RNG>
   requires std::same_as<typename RNG::result_type, RT>
-AnyRNG_T<RT>::AnyRNG_T(RNG engine) noexcept
+AnyRNG_T<RT>::AnyRNG_T(RNG engine)
     : rng_(std::make_unique<RNGModel<RNG>>(engine)), ptr_(rng_.get()) {}
 
 template <RNGResult RT>
-AnyRNG_T<RT>::AnyRNG_T(const AnyRNG_T &any_rng) noexcept
+AnyRNG_T<RT>::AnyRNG_T(const AnyRNG_T &any_rng)
     : rng_(any_rng.ptr_->clone()), ptr_(rng_.get()) {}
 
 template <RNGResult RT> constexpr inline RT AnyRNG_T<RT>::min() { return 0; }

@@ -24,7 +24,7 @@
 
 namespace sapi {
 BaseSpatialManager::BaseSpatialManager(const vp_t local_rank,
-                                       const vp_t num_processes) noexcept
+                                       const vp_t num_processes)
     : random_manager_(local_rank, num_processes),
       grid_neighborhood_(local_rank, num_processes) {}
 
