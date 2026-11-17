@@ -450,10 +450,10 @@ project_point_to_polygon_perimeter(const Coord2D &coord,
                                    const std::vector<Coord2D> &vertices) {
   // 2D tiles have at most 6 vertices (hexagons)
   std::array<space_t, 6> vertex_d2;
-  const auto num_vertices = vertices.size();
-  assert(2 < num_vertices && num_vertices <= vertex_d2.size());
+  assert(2 < vertices.size() && vertices.size() <= vertex_d2.size());
+  const vertidx_t num_vertices = static_cast<vertidx_t>(vertices.size());
 
-  for (std::size_t index = 0; index < num_vertices; ++index) {
+  for (vertidx_t index = 0; index < num_vertices; ++index) {
     vertex_d2[index] = distance2(coord, vertices[index]);
     if (almost_zero(vertex_d2[index]))
       return vertices[index];
@@ -461,8 +461,8 @@ project_point_to_polygon_perimeter(const Coord2D &coord,
 
   Coord2D closest = vertices[0];
   space_t closest_d2 = std::numeric_limits<space_t>::max();
-  for (std::size_t first = 0; first < num_vertices; ++first) {
-    const std::size_t second = (first + 1) % num_vertices;
+  for (vertidx_t first = 0; first < num_vertices; ++first) {
+    const vertidx_t second = static_cast<vertidx_t>((first + 1) % num_vertices);
     const bool second_is_base =
         std::isless(vertex_d2[second], vertex_d2[first]) ||
         (vertex_d2[second] == vertex_d2[first] && second < first);
@@ -513,14 +513,14 @@ bool edges_cross_2D(const std::vector<Coord2D> &a, const Coord2D &shift,
                               const Coord2D &r) {
     return vector_cross(q - p, r - p).sum();
   };
-  const auto a_count = a.size();
-  const auto b_count = b.size();
-  for (std::size_t i = 0; i < a_count; ++i) {
+  const vertidx_t a_count = static_cast<vertidx_t>(a.size());
+  const vertidx_t b_count = static_cast<vertidx_t>(b.size());
+  for (vertidx_t i = 0; i < a_count; ++i) {
     const Coord2D a0 = a[i] + shift;
-    const Coord2D a1 = a[(i + 1) % a_count] + shift;
-    for (std::size_t j = 0; j < b_count; ++j) {
+    const Coord2D a1 = a[static_cast<vertidx_t>((i + 1) % a_count)] + shift;
+    for (vertidx_t j = 0; j < b_count; ++j) {
       const Coord2D &b0 = b[j];
-      const Coord2D &b1 = b[(j + 1) % b_count];
+      const Coord2D &b1 = b[static_cast<vertidx_t>((j + 1) % b_count)];
       if (orientation(a0, a1, b0) * orientation(a0, a1, b1) < 0 &&
           orientation(b0, b1, a0) * orientation(b0, b1, a1) < 0)
         return true;
