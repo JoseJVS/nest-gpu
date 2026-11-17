@@ -23,6 +23,7 @@
 #ifndef TIMER_MANAGER_H
 #define TIMER_MANAGER_H
 
+#include <cassert>
 #include <chrono>
 #include <string>
 #include <unordered_map>

@@ -23,6 +23,7 @@
 #ifndef NODE_CONTAINERS_INIT_H
 #define NODE_CONTAINERS_INIT_H
 
+#include <cassert>
 #include <cstdint>
 #include <set>
 #include <vector>

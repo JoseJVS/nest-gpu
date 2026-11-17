@@ -24,6 +24,7 @@
 #define GRID_GENERATION_H
 
 #include <algorithm>
+#include <cassert>
 #include <optional>
 
 #include "gf_collection.h"

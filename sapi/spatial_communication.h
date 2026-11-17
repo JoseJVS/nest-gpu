@@ -23,6 +23,8 @@
 #ifndef SPATIAL_COMMUNICATION_H
 #define SPATIAL_COMMUNICATION_H
 
+#include <cassert>
+
 #include "mask_node_processing.h"
 #include "mask_tile_processing.h"
 #include "sapi_forward_declarations.h"

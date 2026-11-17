@@ -24,6 +24,7 @@
 #define CONNECTION_RULES_H
 
 #include <algorithm>
+#include <cassert>
 #include <random>
 #include <utility>
 

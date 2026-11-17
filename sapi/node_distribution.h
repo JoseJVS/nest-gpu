@@ -24,6 +24,7 @@
 #define NODE_DISTRIBUTION
 
 #include <array>
+#include <cassert>
 #include <concepts>
 #include <random>
 #include <type_traits>

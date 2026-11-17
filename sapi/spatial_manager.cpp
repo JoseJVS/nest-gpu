@@ -20,6 +20,8 @@
  *
  */
 
+#include <cassert>
+
 #include "spatial_manager.h"
 
 namespace sapi {

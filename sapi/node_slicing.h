@@ -23,6 +23,7 @@
 #ifndef NODE_SLICING_H
 #define NODE_SLICING_H
 
+#include <cassert>
 #include <optional>
 #include <utility>
 

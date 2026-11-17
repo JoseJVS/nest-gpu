@@ -23,6 +23,7 @@
 #ifndef PAYLOAD_PREPARATION_H
 #define PAYLOAD_PREPARATION_H
 
+#include <cassert>
 #include <limits>
 #include <stdexcept>
 #include <utility>

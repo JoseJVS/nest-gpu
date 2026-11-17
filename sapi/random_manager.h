@@ -23,6 +23,7 @@
 #ifndef RANDOM_MANAGER_H
 #define RANDOM_MANAGER_H
 
+#include <cassert>
 #include <limits>
 
 #include "creator_registry.h"

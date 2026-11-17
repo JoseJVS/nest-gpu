@@ -23,6 +23,7 @@
 #ifndef NODE_CREATION_H
 #define NODE_CREATION_H
 
+#include <cassert>
 #include <concepts>
 #include <optional>
 #include <utility>

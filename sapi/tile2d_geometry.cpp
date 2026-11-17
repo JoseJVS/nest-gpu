@@ -21,6 +21,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <random>
 
 #include "coordinate_geometry.h"

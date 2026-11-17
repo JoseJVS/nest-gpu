@@ -23,6 +23,8 @@
 #ifndef MASK_NODE_PROCESSING_H
 #define MASK_NODE_PROCESSING_H
 
+#include <cassert>
+
 #include "connection_generator.h"
 #include "mask_containers.h"
 #include "random_manager.h"

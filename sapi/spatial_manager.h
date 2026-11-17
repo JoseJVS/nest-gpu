@@ -23,6 +23,8 @@
 #ifndef SPATIAL_MANAGER_H
 #define SPATIAL_MANAGER_H
 
+#include <cassert>
+#include <forward_list>
 #include <numeric>
 
 #include "cg_creators.h"

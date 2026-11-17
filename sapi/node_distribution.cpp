@@ -20,8 +20,10 @@
  *
  */
 
-#include "node_distribution.h"
+#include <cassert>
+
 #include "grid_neighborhood.h"
+#include "node_distribution.h"
 
 namespace sapi {
 DistributedTiledNodeSequenceMap consolidate_node_sequences_per_tile_per_rank(

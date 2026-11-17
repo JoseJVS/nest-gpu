@@ -20,6 +20,8 @@
  *
  */
 
+#include <cassert>
+
 #include "grid_neighborhood.h"
 
 namespace sapi {

@@ -20,6 +20,8 @@
  *
  */
 
+#include <cassert>
+
 #include "coordinate_geometry.h"
 
 namespace sapi {

@@ -23,6 +23,7 @@
 #ifndef NODE_INSERTION_H
 #define NODE_INSERTION_H
 
+#include <cassert>
 #include <tuple>
 #include <utility>
 
