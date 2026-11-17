@@ -23,7 +23,9 @@
 #ifndef NODE_CONTAINERS_INIT_H
 #define NODE_CONTAINERS_INIT_H
 
+#include <cstdint>
 #include <set>
+#include <vector>
 
 #include "node_containers.h"
 #include "sapi_forward_declarations.h"
@@ -55,18 +57,32 @@ void split_tiles_in_grid(TileGrid<CoordT> &tile_grid,
   static_assert(std::is_unsigned_v<split_t>);
   assert(!tile_grid.positions_.empty() && !tile_grid.has_split_);
 
-#pragma omp parallel default(none) shared(tile_grid, locally_owned_tiles)      \
+  // A non-owned tile can neighbor several owned tiles, so mark every position
+  // once before spawning tasks: each tile must be split by exactly one task.
+  enum class SplitRole : uint8_t { NONE, NEIGHBOR, OWNED };
+  std::vector<SplitRole> split_roles(tile_grid.positions_.size(),
+                                     SplitRole::NONE);
+  const auto role_of = [&split_roles](const tileidx_t tile_index) -> auto & {
+    assert(0 <= tile_index);
+    return split_roles.at(static_cast<std::size_t>(tile_index));
+  };
+  for (const auto &owned_tile : locally_owned_tiles)
+    role_of(owned_tile) = SplitRole::OWNED;
+  for (const auto &owned_tile : locally_owned_tiles)
+    for (const auto &neighbor_index :
+         tile_grid.positions_.at(static_cast<std::size_t>(owned_tile))
+             .wrapped_tile_neighborhood_)
+      if (role_of(neighbor_index) == SplitRole::NONE)
+        role_of(neighbor_index) = SplitRole::NEIGHBOR;
+
+#pragma omp parallel default(none) shared(tile_grid, split_roles)              \
     firstprivate(num_splits)
 #pragma omp master
 #pragma omp taskgroup
-  for (const auto &owned_tile : locally_owned_tiles) {
-    auto &position = tile_grid.positions_.at(owned_tile);
-    wrapped_split_position(position, num_splits, true);
-    for (const auto &neighbor_index : position.wrapped_tile_neighborhood_)
-      if (!locally_owned_tiles.contains(neighbor_index))
-        wrapped_split_position(tile_grid.positions_.at(neighbor_index),
-                               num_splits, false);
-  }
+  for (std::size_t index = 0; index < split_roles.size(); ++index)
+    if (split_roles[index] != SplitRole::NONE)
+      wrapped_split_position(tile_grid.positions_[index], num_splits,
+                             split_roles[index] == SplitRole::OWNED);
 
   tile_grid.has_split_ = true;
   tile_grid.splits_ = num_splits;
