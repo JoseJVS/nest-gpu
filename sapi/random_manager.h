@@ -70,7 +70,6 @@ public:
 protected:
   CreatorRegistry<AnyRNG> rng_registry_;
   StateLessCreator<AnyRNG> *current_creator_;
-  std::string current_rng_type_ = DEFAULT_RNG_TYPE_;
 
   std::unique_ptr<AnyRNG> rank_synced_rng_;
   std::unique_ptr<AnyRNG> rank_specific_rng_;
@@ -147,7 +146,6 @@ inline void RandomManager::set_rng_seed(const rng_seed_t seed) {
 
 inline void RandomManager::set_rng_type(const std::string &name) {
   current_creator_ = rng_registry_.get_creator(name).get();
-  current_rng_type_ = name;
   initialize();
 }
 } // namespace sapi
