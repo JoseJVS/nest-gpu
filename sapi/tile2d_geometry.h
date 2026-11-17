@@ -108,8 +108,9 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
                            const std::vector<Coord2D> &vertices,
                            const CircumscribedRadius<Coord2D> &c_radius);
 
-Coord2D project_point_to_2D_perimeter(const Coord2D &coord,
-                                      const std::vector<Coord2D> &vertices);
+Coord2D
+project_point_to_polygon_perimeter(const Coord2D &coord,
+                                   const std::vector<Coord2D> &vertices);
 
 Coord2D project_point_to_triangle_perimeter(
     const Coord2D &coord, const std::vector<Coord2D> &vertices,

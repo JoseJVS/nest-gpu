@@ -104,7 +104,11 @@ template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
   assert(has_c_radius_);
-  return coord_in_mask(tile.project_point_to_surface(c_radius_.origin_)).first;
+  // The perimeter point closest to the mask center decides overlap exactly for
+  // circles; for other shapes the circumscribed circle makes it conservative
+  return c_radius_
+      .coord_in_radius(tile.project_point_to_surface(c_radius_.origin_))
+      .first;
 }
 
 template <Coordinate CoordT>

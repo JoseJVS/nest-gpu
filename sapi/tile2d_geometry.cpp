@@ -20,6 +20,7 @@
  *
  */
 
+#include <array>
 #include <random>
 
 #include "coordinate_geometry.h"
@@ -441,32 +442,41 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
   return vec;
 }
 
-Coord2D project_point_to_2D_perimeter(const Coord2D &coord,
-                                      const std::vector<Coord2D> &vertices) {
-  vertidx_t v_index = 0;
-  vertidx_t first = 0;
-  space_t d_first = std::numeric_limits<space_t>::max();
-  vertidx_t second = 0;
-  space_t d_second = std::numeric_limits<space_t>::max();
-  for (const auto &vertex : vertices) {
-    const auto d2 = distance2(coord, vertex);
-    if (std::isless(d2, d_first)) {
-      second = first;
-      d_second = d_first;
-      first = v_index;
-      d_first = d2;
-    } else if (std::isless(d2, d_second)) {
-      second = v_index;
-      d_second = d2;
-    }
-    ++v_index;
+// Exact for convex polygons with vertices in perimeter order: every edge is
+// projected and the closest result is kept. Each edge is projected from its
+// nearer endpoint (the lower index on ties).
+Coord2D
+project_point_to_polygon_perimeter(const Coord2D &coord,
+                                   const std::vector<Coord2D> &vertices) {
+  // 2D tiles have at most 6 vertices (hexagons)
+  std::array<space_t, 6> vertex_d2;
+  const auto num_vertices = vertices.size();
+  assert(2 < num_vertices && num_vertices <= vertex_d2.size());
+
+  for (std::size_t index = 0; index < num_vertices; ++index) {
+    vertex_d2[index] = distance2(coord, vertices[index]);
+    if (almost_zero(vertex_d2[index]))
+      return vertices[index];
   }
 
-  if (almost_zero(d_first))
-    return vertices[first];
+  Coord2D closest = vertices[0];
+  space_t closest_d2 = std::numeric_limits<space_t>::max();
+  for (std::size_t first = 0; first < num_vertices; ++first) {
+    const std::size_t second = (first + 1) % num_vertices;
+    const bool second_is_base =
+        std::isless(vertex_d2[second], vertex_d2[first]) ||
+        (vertex_d2[second] == vertex_d2[first] && second < first);
+    const auto projected = projection_coord<Coord2D, true>(
+        coord, vertices[second_is_base ? second : first],
+        vertices[second_is_base ? first : second]);
+    const auto d2 = distance2(coord, projected);
+    if (std::isless(d2, closest_d2)) {
+      closest_d2 = d2;
+      closest = projected;
+    }
+  }
 
-  return projection_coord<Coord2D, true>(coord, vertices[first],
-                                         vertices[second]);
+  return closest;
 }
 
 Coord2D project_point_to_triangle_perimeter(
@@ -475,29 +485,6 @@ Coord2D project_point_to_triangle_perimeter(
   if (almost_zero(distance2(coord, c_radius.origin_)))
     return c_radius.origin_;
 
-  vertidx_t v_index = 0;
-  vertidx_t first = 0;
-  space_t d_first = std::numeric_limits<space_t>::max();
-  vertidx_t second = 0;
-  space_t d_second = std::numeric_limits<space_t>::max();
-  for (const auto &vertex : vertices) {
-    const auto d2 = distance2(coord, vertex);
-    if (std::isless(d2, d_first)) {
-      second = first;
-      d_second = d_first;
-      first = v_index;
-      d_first = d2;
-    } else if (std::isless(d2, d_second)) {
-      second = v_index;
-      d_second = d2;
-    }
-    ++v_index;
-  }
-
-  if (almost_zero(d_first))
-    return vertices[first];
-
-  return projection_coord<Coord2D, true>(coord, vertices[first],
-                                         vertices[second]);
+  return project_point_to_polygon_perimeter(coord, vertices);
 }
 } // namespace sapi

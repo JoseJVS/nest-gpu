@@ -20,6 +20,7 @@
 
 set( sapi_tests_helper_headers
 test_helpers.h
+geometry_test_helpers.h
 )
 
 set ( sapi_tests_sources
@@ -50,6 +51,8 @@ cg_array_test.cpp
 spatial_communication_test.cpp
 node_insertion_test.cpp
 node_sequence_jointure_test.cpp
+tile2d_projection_test.cpp
+mask_tile_overlap_test.cpp
 )
 
 set( sapi_tests )

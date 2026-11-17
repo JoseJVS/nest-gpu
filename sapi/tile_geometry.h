@@ -224,10 +224,10 @@ CoordT project_point_to_surface(const CoordT &coord,
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
     switch (shape) {
     case TILE_SHAPE::RECTANGLE:
-      return project_point_to_2D_perimeter(coord, vertices);
+      return project_point_to_polygon_perimeter(coord, vertices);
 
     case TILE_SHAPE::HEXAGON:
-      return project_point_to_2D_perimeter(coord, vertices);
+      return project_point_to_polygon_perimeter(coord, vertices);
 
     case TILE_SHAPE::TRIANGLE:
       return project_point_to_triangle_perimeter(coord, vertices, c_radius);
