@@ -101,39 +101,40 @@ batch_node_counts_by_thread_count(const I num_nodes, const vp_t num_threads) {
   return {full_batches, partial_batches};
 }
 
-template <typename I>
-  requires std::integral<std::remove_cvref_t<I>>
-void left_sum_vectors(std::vector<I> &left, std::vector<I> &right) {
-  auto r_it = right.begin();
-  for (auto l_it = left.begin(); l_it != left.end(); ++l_it)
-    *l_it += *r_it++;
-  right.clear();
+// Adds a drawn bin to a dense histogram, or records it (sparse histogram)
+template <bool record, typename T>
+inline void add_to_bin(std::vector<T> &out, const tileidx_t bin) {
+  if constexpr (record)
+    out.push_back(bin);
+  else
+    ++out[static_cast<std::size_t>(bin)];
 }
 
-template <typename I>
-  requires std::integral<std::remove_cvref_t<I>>
-void left_merge_buffers(
-    std::vector<std::vector<I>> &buffer_vec,
-    const vp_t num_buffers // Buffer size is always in number of threads
-) {
-  vp_t step = 1, step2 = 2;
-  do {
-#pragma omp taskloop num_tasks(strict : num_buffers) default(none)             \
-    shared(buffer_vec) firstprivate(num_buffers, step, step2)
-    for (vp_t curr_idx = 0; curr_idx < num_buffers; curr_idx += step2) {
-      const auto next_idx = curr_idx + step;
-      if (next_idx < num_buffers)
-        left_sum_vectors(buffer_vec[curr_idx], buffer_vec[next_idx]);
-    }
-    step = step2;
-    step2 *= 2;
-  } while (step < num_buffers);
+// Stream of a thread for its full batches
+template <bool global>
+inline AnyRNG &thread_rng(const RandomManager &rng_manager, const vp_t tid) {
+  if constexpr (global)
+    return *rng_manager.get_tid_synced_rng(tid);
+  else
+    return *rng_manager.get_tid_specific_rng(tid);
 }
 
-template <typename I, bool balanced>
+// Stream of the rank for the partial batches
+template <bool global>
+inline AnyRNG &rank_rng(const RandomManager &rng_manager) {
+  if constexpr (global)
+    return *rng_manager.get_rank_synced_rng();
+  else
+    return *rng_manager.get_rank_specific_rng();
+}
+
+// Draws `batches` bins into out (see add_to_bin), in draw order. The counter
+// and the distribution are copies, so a task's firstprivate values are never
+// modified and every call draws with its own distribution object.
+template <bool balanced, bool record, typename T, typename I>
   requires std::integral<std::remove_cvref_t<I>>
-void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
-                  std::uniform_int_distribution<tileidx_t> &distribution,
+void batched_draw(std::vector<T> &out, I batches, AnyRNG &rng,
+                  std::uniform_int_distribution<tileidx_t> distribution,
                   const tileidx_t num_bins) {
   if constexpr (balanced) {
     assert(batches < num_bins && 1 < num_bins);
@@ -142,12 +143,12 @@ void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
     std::shuffle(indexes.begin(), indexes.end(), rng);
 
     while (0 < batches) {
-      ++buffer[indexes[batches]];
+      add_to_bin<record>(out, indexes[batches]);
       --batches;
     }
   } else {
     while (0 < batches) {
-      ++buffer[distribution(rng)];
+      add_to_bin<record>(out, distribution(rng));
       --batches;
     }
   }
@@ -165,22 +166,94 @@ tileidx_t collapse_dimensions(const std::vector<tileidx_t> &grid_pos,
   return index;
 }
 
-template <typename I, typename ForwardDistIT, typename DimensionBoundsT>
+// Dimension overload: one distribution per dimension, the bin is the
+// collapsed position. There is no balanced mode for dimensions.
+template <bool balanced, bool record, typename T, typename I, typename D,
+          typename DimensionBoundsT>
   requires std::integral<std::remove_cvref_t<I>>
-void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
-                  const ForwardDistIT &distributions_first,
+void batched_draw(std::vector<T> &out, I batches, AnyRNG &rng,
+                  std::vector<std::uniform_int_distribution<D>> distributions,
                   const DimensionBoundsT &dimensions) {
+  static_assert(!balanced);
   std::vector<typename DimensionBoundsT::value_type> dimension_pos(
       dimensions.size(), 0);
   while (0 < batches) {
-    auto dist_it = distributions_first;
+    auto dist_it = distributions.begin();
     for (auto pos_it = dimension_pos.begin(); pos_it != dimension_pos.end();
          ++pos_it)
       *pos_it =
           static_cast<typename DimensionBoundsT::value_type>((*dist_it++)(rng));
-    ++buffer[collapse_dimensions(dimension_pos, dimensions)];
+    add_to_bin<record>(out, collapse_dimensions(dimension_pos, dimensions));
     --batches;
   }
+}
+
+// Histogram of the full batches plus init_val per bin: every thread draws
+// full_batches bins with its own stream (batched_draw with the distribution
+// and bounds given). With more bins than draws per thread the drawn bins are
+// recorded and added up; otherwise each thread fills a dense buffer and one
+// taskloop over bin chunks sums the buffers. The integer sums do not depend
+// on the merge order.
+template <bool global, bool balanced, typename I, typename DistT,
+          typename BoundsT>
+  requires std::integral<std::remove_cvref_t<I>>
+std::vector<I> thread_histograms(const RandomManager &rng_manager,
+                                 const vp_t num_threads,
+                                 const tileidx_t num_bins, const I full_batches,
+                                 const I init_val, const DistT &distribution,
+                                 const BoundsT &bounds) {
+  assert(0 < num_threads && 0 < num_bins && 0 < full_batches);
+  const auto threads = static_cast<std::size_t>(num_threads);
+  const auto bins = static_cast<std::size_t>(num_bins);
+
+  if (std::cmp_greater(num_bins, full_batches)) {
+    std::vector<std::vector<tileidx_t>> drawn(threads);
+
+#pragma omp taskloop num_tasks(strict : num_threads) default(none)             \
+    shared(rng_manager, distribution, bounds, drawn)                           \
+    firstprivate(num_threads, full_batches)
+    for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
+      auto &curr_drawn = drawn[static_cast<std::size_t>(curr_idx)];
+      curr_drawn.reserve(static_cast<std::size_t>(full_batches));
+      batched_draw<balanced, true>(curr_drawn, full_batches,
+                                   thread_rng<global>(rng_manager, curr_idx),
+                                   distribution, bounds);
+    }
+
+    std::vector<I> count_vec(bins, init_val);
+    for (const auto &thread_drawn : drawn)
+      for (const auto bin : thread_drawn)
+        add_to_bin<false>(count_vec, bin);
+
+    return count_vec;
+  }
+
+  std::vector<std::vector<I>> buffers(threads);
+
+#pragma omp taskloop num_tasks(strict : num_threads) default(none)             \
+    shared(rng_manager, distribution, bounds, buffers)                         \
+    firstprivate(num_threads, bins, full_batches)
+  for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
+    auto &curr_buff = buffers[static_cast<std::size_t>(curr_idx)];
+    curr_buff.resize(bins, 0);
+    batched_draw<balanced, false>(curr_buff, full_batches,
+                                  thread_rng<global>(rng_manager, curr_idx),
+                                  distribution, bounds);
+  }
+
+  auto count_vec = std::move(buffers[0]);
+
+#pragma omp taskloop num_tasks(strict : num_threads) default(none)             \
+    shared(buffers, count_vec)                                                 \
+    firstprivate(num_threads, bins, threads, init_val)
+  for (std::size_t bin = 0; bin < bins; ++bin) {
+    I sum = init_val;
+    for (std::size_t thread = 1; thread < threads; ++thread)
+      sum += buffers[thread][bin];
+    count_vec[bin] += sum;
+  }
+
+  return count_vec;
 }
 
 template <typename I, bool balanced, bool global>
@@ -196,59 +269,30 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   if (num_bins == 1)
     return safe_convert_vector(std::vector<I>{num_nodes});
 
-  // Initialize map and rng distribution
+  const auto bins = static_cast<std::size_t>(num_bins);
   const auto init_val =
       balance_node_counts_by_bins<I, balanced>(num_nodes, num_bins);
-  std::vector<I> count_vec(num_bins, init_val);
   if (num_nodes == 0)
-    return safe_convert_vector(std::move(count_vec));
+    return safe_convert_vector(std::vector<I>(bins, init_val));
 
   const auto num_threads = get_max_omp_threads();
   auto [full_batches, partial_batches] =
       batch_node_counts_by_thread_count(num_nodes, num_threads);
 
-  std::uniform_int_distribution<tileidx_t> tile_idx_dist(0, num_bins - 1);
+  const std::uniform_int_distribution<tileidx_t> tile_idx_dist(0, num_bins - 1);
 
-  if (0 < full_batches) {
-    std::vector<std::vector<I>> buffers(num_threads);
+  std::vector<I> count_vec;
+  if (0 < full_batches)
+    count_vec = thread_histograms<global, balanced>(
+        rng_manager, num_threads, num_bins, full_batches, init_val,
+        tile_idx_dist, num_bins);
+  else
+    count_vec.assign(bins, init_val);
 
-#pragma omp taskloop num_tasks(strict : num_threads) default(none)             \
-    shared(rng_manager, buffers)                                               \
-    firstprivate(num_threads, num_bins, full_batches, tile_idx_dist)
-    for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
-      const auto curr_buff = buffers.begin() + curr_idx;
-      curr_buff->resize(num_bins, 0);
-      if constexpr (global) {
-        batched_draw<I, balanced>(*curr_buff, full_batches,
-                                  *rng_manager.get_tid_synced_rng(curr_idx),
-                                  tile_idx_dist, num_bins);
-      } else {
-        batched_draw<I, balanced>(*curr_buff, full_batches,
-                                  *rng_manager.get_tid_specific_rng(curr_idx),
-                                  tile_idx_dist, num_bins);
-      }
-    }
-
-    left_merge_buffers<I>(buffers, num_threads);
-    count_vec.swap(buffers[0]);
-    buffers.clear();
-
-    if (0 < init_val)
-      for (auto &nc : count_vec)
-        nc += init_val;
-  }
-
-  if (0 < partial_batches) {
-    if constexpr (global) {
-      batched_draw<I, balanced>(count_vec, partial_batches,
-                                *rng_manager.get_rank_synced_rng(),
-                                tile_idx_dist, num_bins);
-    } else {
-      batched_draw<I, balanced>(count_vec, partial_batches,
-                                *rng_manager.get_rank_specific_rng(),
-                                tile_idx_dist, num_bins);
-    }
-  }
+  if (0 < partial_batches)
+    batched_draw<balanced, false>(count_vec, partial_batches,
+                                  rank_rng<global>(rng_manager), tile_idx_dist,
+                                  num_bins);
 
   return safe_convert_vector(std::move(count_vec));
 }
@@ -263,10 +307,9 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   if (num_bins == 1)
     return safe_convert_vector(std::vector<I>{num_nodes});
 
-  // Initialize map and rng distribution
-  std::vector<I> count_vec(num_bins, 0);
+  const auto bins = static_cast<std::size_t>(num_bins);
   if (num_nodes == 0)
-    return safe_convert_vector(std::move(count_vec));
+    return safe_convert_vector(std::vector<I>(bins, 0));
 
   const auto num_threads = get_max_omp_threads();
   auto [full_batches, partial_batches] =
@@ -278,42 +321,18 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   for (const auto &dim : dimensions)
     distributions.emplace_back(0, static_cast<dist_t>(dim - 1));
 
-  if (0 < full_batches) {
-    std::vector<std::vector<I>> buffers(num_threads);
+  std::vector<I> count_vec;
+  if (0 < full_batches)
+    count_vec = thread_histograms<global, false>(rng_manager, num_threads,
+                                                 num_bins, full_batches, I{0},
+                                                 distributions, dimensions);
+  else
+    count_vec.assign(bins, 0);
 
-#pragma omp taskloop num_tasks(strict : num_threads) default(none)             \
-    shared(rng_manager, buffers) firstprivate(                                 \
-            num_threads, num_bins, full_batches, distributions, dimensions)
-    for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
-      const auto curr_buff = buffers.begin() + curr_idx;
-      curr_buff->resize(num_bins, 0);
-      if constexpr (global) {
-        batched_draw(*curr_buff, full_batches,
-                     *rng_manager.get_tid_synced_rng(curr_idx),
-                     distributions.begin(), dimensions);
-      } else {
-        batched_draw(*curr_buff, full_batches,
-                     *rng_manager.get_tid_specific_rng(curr_idx),
-                     distributions.begin(), dimensions);
-      }
-    }
-
-    left_merge_buffers<I>(buffers, num_threads);
-    count_vec.swap(buffers[0]);
-    buffers.clear();
-  }
-
-  if (0 < partial_batches) {
-    if constexpr (global) {
-      batched_draw(count_vec, partial_batches,
-                   *rng_manager.get_rank_synced_rng(), distributions.begin(),
-                   dimensions);
-    } else {
-      batched_draw(count_vec, partial_batches,
-                   *rng_manager.get_rank_specific_rng(), distributions.begin(),
-                   dimensions);
-    }
-  }
+  if (0 < partial_batches)
+    batched_draw<false, false>(count_vec, partial_batches,
+                               rank_rng<global>(rng_manager), distributions,
+                               dimensions);
 
   return safe_convert_vector(std::move(count_vec));
 }
