@@ -22,7 +22,10 @@
 
 #include <bit>
 #include <cassert>
+#include <deque>
 #include <stdexcept>
+#include <unordered_map>
+#include <utility>
 
 #include "connection_containers.h"
 #include "vp_interface.h"
@@ -149,28 +152,39 @@ void ConnectionVectors::copy_from_procedural_connections(
   assert(source_it == connection_sources_.end());
 }
 
-template <bool inverted_pivot>
-std::unordered_map<nodeidx_t,
-                   std::deque<std::pair<conn_index_t, ConnectionInfo>>>
-generate_connection_partitions(
-    std::vector<ProceduralConnectivityBlocks> &procedural_connections,
-    const std::size_t total_generated_connections) {
-  std::unordered_map<nodeidx_t,
-                     std::deque<std::pair<conn_index_t, ConnectionInfo>>>
-      procedural_partitions;
+// Adds a connection to partition p_index. Partition numbers are produced in
+// order (a pivot's or source index's k-th connection goes to partition k), so
+// p_index is at most the current number of partitions.
+inline void
+add_to_partition(std::deque<std::deque<std::pair<conn_index_t, ConnectionInfo>>>
+                     &procedural_partitions,
+                 const nodeidx_t p_index, const conn_index_t pivot,
+                 const ConnectionInfo &conn) {
+  assert(0 <= p_index &&
+         std::cmp_less_equal(p_index, procedural_partitions.size()));
+  if (std::cmp_equal(p_index, procedural_partitions.size()))
+    procedural_partitions.emplace_back();
 
-  // Heuristic reservation to avoid re-hashing
-  assert(!procedural_connections.empty());
-  procedural_partitions.reserve(
-      total_generated_connections / procedural_connections.size() + 1);
+  procedural_partitions[static_cast<std::size_t>(p_index)].emplace_back(pivot,
+                                                                        conn);
+}
+
+template <bool inverted_pivot>
+std::deque<std::deque<std::pair<conn_index_t, ConnectionInfo>>>
+generate_connection_partitions(
+    std::vector<ProceduralConnectivityBlocks> &procedural_connections) {
+  // An outer deque, not a vector: std::deque's move constructor is not
+  // noexcept, so a growing vector would copy every partition
+  std::deque<std::deque<std::pair<conn_index_t, ConnectionInfo>>>
+      procedural_partitions;
 
   if constexpr (inverted_pivot) {
     std::unordered_map<conn_index_t, nodeidx_t> indexes;
     for (auto &proc_bloc : procedural_connections) {
       for (auto &[pivot, connections] : proc_bloc) {
         for (const auto &conn : connections)
-          procedural_partitions[indexes[conn.index_]++].emplace_back(pivot,
-                                                                     conn);
+          add_to_partition(procedural_partitions, indexes[conn.index_]++, pivot,
+                           conn);
 
         connections.clear();
       }
@@ -182,7 +196,7 @@ generate_connection_partitions(
       for (auto &[pivot, connections] : proc_bloc) {
         nodeidx_t index = 0;
         for (const auto &conn : connections)
-          procedural_partitions[index++].emplace_back(pivot, conn);
+          add_to_partition(procedural_partitions, index++, pivot, conn);
 
         connections.clear();
       }
@@ -199,10 +213,9 @@ generate_connection_partitions(
 template <bool inverted_pivot>
 void consolidate_partitions(
     std::vector<ProceduralConnectivityBlocks> &procedural_connections,
-    std::vector<ConnectionVectors> &consolidated_partitions,
-    const std::size_t total_generated_connections) {
-  auto procedural_partitions = generate_connection_partitions<inverted_pivot>(
-      procedural_connections, total_generated_connections);
+    std::vector<ConnectionVectors> &consolidated_partitions) {
+  auto procedural_partitions =
+      generate_connection_partitions<inverted_pivot>(procedural_connections);
 
   const auto num_threads = get_max_omp_threads();
   const auto total_partitions = procedural_partitions.size();
@@ -213,7 +226,7 @@ void consolidate_partitions(
     shared(procedural_partitions, consolidated_partitions)                     \
     firstprivate(total_partitions)
   for (std::size_t p_index = 0; p_index < total_partitions; ++p_index) {
-    auto &procedural_partition = procedural_partitions.at(p_index);
+    auto &procedural_partition = procedural_partitions[p_index];
     auto &partition = consolidated_partitions[p_index];
 
     assert(!procedural_partition.empty());
@@ -259,12 +272,10 @@ void RankConnectionInfo::consolidate_connection_map() {
   if (partition_connections_) {
     if (sort_by_pool_indexes_)
       consolidate_partitions<true>(procedural_connections_,
-                                   partitioned_connections_,
-                                   total_generated_connections_);
+                                   partitioned_connections_);
     else
       consolidate_partitions<false>(procedural_connections_,
-                                    partitioned_connections_,
-                                    total_generated_connections_);
+                                    partitioned_connections_);
   } else {
     partitioned_connections_.resize(1);
     partitioned_connections_[0].copy_from_procedural_connections(
