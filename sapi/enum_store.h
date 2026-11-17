@@ -23,6 +23,7 @@
 #ifndef ENUM_STORE_H
 #define ENUM_STORE_H
 
+#include <cstddef>
 #include <cstdint>
 
 namespace sapi {
@@ -108,8 +109,27 @@ constexpr static const char *const RNG_NAMES_32BIT[uint8_t(RNG32::NULL_RNG)] = {
 enum class RNG64 : uint8_t { PCG, MT, FAKE, NULL_RNG };
 
 constexpr static const char *const RNG_NAMES_64BIT[uint8_t(RNG64::NULL_RNG)] = {
-    "pcg", "mersenne_twister"
-           "fake"};
+    "pcg", "mersenne_twister", "fake"};
+
+// Each *_NAMES array is sized by its NULL_ enumerator, so a missing entry is
+// value-initialized to nullptr and two adjacent literals without a comma
+// silently merge. Reject both at compile time.
+template <std::size_t N>
+consteval bool all_names_set(const char *const (&names)[N]) {
+  for (const char *name : names)
+    if (name == nullptr || name[0] == '\0')
+      return false;
+  return true;
+}
+
+static_assert(all_names_set(TILE_SHAPE_NAMES));
+static_assert(all_names_set(MASK_SHAPE_NAMES));
+static_assert(all_names_set(DISTRIBUTION_MODE_NAMES));
+static_assert(all_names_set(CONNECTION_RULE_NAMES));
+static_assert(all_names_set(UNARY_FUNCTION_NAMES));
+static_assert(all_names_set(DISPLACEMENT_FUNCTION_NAMES));
+static_assert(all_names_set(RNG_NAMES_32BIT));
+static_assert(all_names_set(RNG_NAMES_64BIT));
 } // namespace sapi
 
 #endif
