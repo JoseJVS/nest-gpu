@@ -132,7 +132,10 @@ template <typename T> struct OmpLock {
   }
 
   OmpLock(const OmpLock &) = delete;
-  OmpLock(OmpLock &&) noexcept = default;
+  // omp_lock_t must not be copied bitwise: both copies would be destroyed.
+  // A moved-to lock is a fresh, unlocked lock; locks are never moved while
+  // held.
+  OmpLock(OmpLock &&) noexcept : OmpLock() {}
 
   ~OmpLock() noexcept {
 #ifdef HAVE_OMP

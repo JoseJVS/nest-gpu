@@ -23,6 +23,7 @@
 #ifndef TILE_GRID_H
 #define TILE_GRID_H
 
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -119,6 +120,9 @@ template <Coordinate CoordT> struct TileGrid {
 
 template <Coordinate CoordT>
 TileGrid<CoordT> &TileGrid<CoordT>::operator=(TileGrid &&tg) noexcept {
+  if (this == &tg)
+    return *this;
+
   has_split_ = tg.has_split_;
   tg.has_split_ = false;
 
@@ -144,6 +148,7 @@ TileGrid<CoordT> &TileGrid<CoordT>::operator=(TileGrid &&tg) noexcept {
 
 template <Coordinate CoordT>
 void TileGrid<CoordT>::prepare(const GridPosition<CoordT> &dimensions) {
+  assert(positions_.empty());
   num_tiles_ = 1;
   dimensions_ = dimensions;
 

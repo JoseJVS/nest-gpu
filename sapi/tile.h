@@ -44,7 +44,7 @@ template <Coordinate CoordT> struct Tile {
 
   Tile() noexcept = default;
   Tile(const Tile &) = delete;
-  Tile(Tile &&) noexcept = default;
+  Tile(Tile &&) noexcept;
   ~Tile() noexcept = default;
 
   Tile(const TILE_SHAPE shape, const CoordT origin,
@@ -100,8 +100,25 @@ Tile<CoordT>::Tile(TILE_SHAPE &&shape, CircumscribedRadius<CoordT> &&c_radius,
     : shape_(shape), c_radius_(std::move(c_radius)),
       vertices_(std::move(vertices)) {}
 
+// An unsplit tile may list itself as its only leaf (split(0, true)), so the
+// self-pointer is retargeted after a move.
+template <Coordinate CoordT>
+Tile<CoordT>::Tile(Tile &&t) noexcept
+    : shape_(t.shape_), index_(t.index_), c_radius_(std::move(t.c_radius_)),
+      vertices_(std::move(t.vertices_)),
+      helper_vectors_(std::move(t.helper_vectors_)),
+      helper_scalars_(std::move(t.helper_scalars_)),
+      sub_tiles_(std::move(t.sub_tiles_)),
+      leaf_tiles_(std::move(t.leaf_tiles_)) {
+  if (!leaf_tiles_.empty() && leaf_tiles_.front() == &t)
+    leaf_tiles_.front() = this;
+}
+
 template <Coordinate CoordT>
 inline Tile<CoordT> &Tile<CoordT>::operator=(Tile &&t) noexcept {
+  if (this == &t)
+    return *this;
+
   shape_ = t.shape_;
   index_ = t.index_;
   c_radius_ = t.c_radius_;
@@ -120,6 +137,8 @@ inline Tile<CoordT> &Tile<CoordT>::operator=(Tile &&t) noexcept {
 
   leaf_tiles_.swap(t.leaf_tiles_);
   t.leaf_tiles_.clear();
+  if (!leaf_tiles_.empty() && leaf_tiles_.front() == &t)
+    leaf_tiles_.front() = this;
 
   t.shape_ = TILE_SHAPE::NULL_TS;
   t.index_ = -1;

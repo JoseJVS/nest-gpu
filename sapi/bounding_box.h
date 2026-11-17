@@ -84,6 +84,9 @@ BoundingBox<CoordT>::BoundingBox(
 template <Coordinate CoordT>
 inline BoundingBox<CoordT> &
 BoundingBox<CoordT>::operator=(BoundingBox &&bb) noexcept {
+  if (this == &bb)
+    return *this;
+
   tile_index_ = bb.tile_index_;
   bb.tile_index_ = -1;
 

@@ -23,6 +23,7 @@
 #ifndef GRID_NEIGHBORHOOD_H
 #define GRID_NEIGHBORHOOD_H
 
+#include <cassert>
 #include <set>
 #include <utility>
 
@@ -86,12 +87,14 @@ struct GridNeighborhood {
 
 inline const std::set<vp_t> &
 GridNeighborhood::get_rank_neighborhood(const bool edge_wrap) const {
+  assert(has_owners_);
   return edge_wrap ? local_rank_neighbors_->second
                    : local_rank_neighbors_->first;
 }
 
 inline bool GridNeighborhood::in_neighborhood(const vp_t rank,
                                               const bool edge_wrap) const {
+  assert(has_owners_);
   if (edge_wrap)
     return local_rank_neighbors_->second.contains(rank);
   else
