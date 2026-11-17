@@ -23,6 +23,8 @@
 #ifndef MASK_TILE_PROCESSING_H
 #define MASK_TILE_PROCESSING_H
 
+#include <cassert>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -53,20 +55,6 @@ inline bool no_overlap(const Tile<CoordT> &tile,
   }
 }
 
-// The driver is always the source tile and the pool the target tile, on both
-// the source and the (inverted) target side, see tile_pair_overlap callers
-template <Coordinate CoordT, bool filter_source, bool filter_target>
-inline bool tile_overlap(const Tile<CoordT> &driver, const Tile<CoordT> &pool,
-                         const MaskCollection<CoordT> *const mask_collection,
-                         const bool is_shifted) {
-  return !(no_overlap<CoordT, false, filter_source, filter_target>(
-               driver, mask_collection) ||
-           (!is_shifted &&
-            no_overlap<CoordT, true, filter_source, filter_target>(
-                pool, mask_collection))) &&
-         mask_collection->blueprint_overlap(driver, pool);
-}
-
 template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void insert_leaf_tiles_within_range(
@@ -95,15 +83,38 @@ void insert_leaf_tiles_within_range(
     const auto p_sub_tiles = pool.sub_tiles_.data();
     const auto rem_splits = splits - 1;
 
+    // Sub-tiles passing their mask, one bit per position in sub_tiles_, so
+    // each sub-tile is tested once instead of once per pair. The driver is
+    // always the source tile and the pool the target tile, on both the source
+    // and the (inverted) target side, see tile_pair_overlap callers. Without
+    // source/target filtering no_overlap is false and the bits are all set.
+    assert(d_st_count <= 64 && p_st_count <= 64);
+    const auto mask_collection = mc_array.get_local_thread_item();
+    uint64_t d_st_ok = 0, p_st_ok = 0;
+    for (std::size_t st = 0; st < d_st_count; ++st)
+      d_st_ok |= static_cast<uint64_t>(
+                     !no_overlap<CoordT, false, filter_source, filter_target>(
+                         d_sub_tiles[st], mask_collection))
+                 << st;
+    for (std::size_t st = 0; st < p_st_count; ++st)
+      p_st_ok |= static_cast<uint64_t>(
+                     is_shifted ||
+                     !no_overlap<CoordT, true, filter_source, filter_target>(
+                         p_sub_tiles[st], mask_collection))
+                 << st;
+
+    if (0 == d_st_ok || 0 == p_st_ok)
+      return;
+
 #pragma omp taskloop collapse(2) num_tasks(strict : 4) nogroup mergeable       \
 final(rem_splits < 2) default(none) shared(leaf_pairs, mc_array)               \
     firstprivate(d_st_count, d_sub_tiles, p_st_count, p_sub_tiles,             \
-                     image_index, is_shifted, rem_splits)
+                     image_index, is_shifted, rem_splits, d_st_ok, p_st_ok)
     for (std::size_t d_st = 0; d_st < d_st_count; ++d_st) {
       for (std::size_t p_st = 0; p_st < p_st_count; ++p_st) {
-        if (tile_overlap<CoordT, filter_source, filter_target>(
-                d_sub_tiles[d_st], p_sub_tiles[p_st],
-                mc_array.get_local_thread_item(), is_shifted)) {
+        if ((d_st_ok >> d_st & 1) && (p_st_ok >> p_st & 1) &&
+            mc_array.get_local_thread_item()->blueprint_overlap(
+                d_sub_tiles[d_st], p_sub_tiles[p_st])) {
           insert_leaf_tiles_within_range<CoordT, inverted_source_target,
                                          filter_source, filter_target>(
               leaf_pairs, d_sub_tiles[d_st], p_sub_tiles[p_st], mc_array,

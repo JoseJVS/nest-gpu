@@ -185,8 +185,9 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
       coord_in_mask(tile.c_radius_.origin_).first)
     return OVERLAP_LEVEL::PARTIAL;
 
-  // Continue from last vertex check if possible
-  for (; tile_vit != tile_vend; ++tile_vit)
+  // Continue after the vertex that failed the first loop (it always broke at
+  // one, otherwise the tile would be FULL)
+  for (++tile_vit; tile_vit != tile_vend; ++tile_vit)
     if (coord_in_mask(*tile_vit).first)
       return OVERLAP_LEVEL::PARTIAL; // return on first success
 
