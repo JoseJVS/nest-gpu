@@ -419,7 +419,8 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
   vertidx_t hex_idx;
   space_t m0, m1, m2;
   std::uniform_real_distribution<space_t> space_dist(0., 1.);
-  std::uniform_int_distribution<vertidx_t> partition_dist(0, 5);
+  std::uniform_int_distribution<uniform_int_type_t<vertidx_t>> partition_dist(
+      0, 5);
   for (nodeidx_t idx = 0; idx < coord_count; ++idx) {
     m0 = static_cast<space_t>(space_dist(rng));
     m1 = static_cast<space_t>(space_dist(rng));
@@ -427,7 +428,7 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
     m0 = adjust * std::fmax(std::fmin(1., 1. - m0), 0.) + !adjust * m0;
     m1 = adjust * std::fmax(std::fmin(1., 1. - m1), 0.) + !adjust * m1;
     m2 = std::fmax(std::fmin(1., 1. - m0 - m1), 0.);
-    hex_idx = partition_dist(rng);
+    hex_idx = static_cast<vertidx_t>(partition_dist(rng));
     vec.emplace_back(std::make_pair(
         first_index + idx,
         construct_coord_2D(

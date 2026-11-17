@@ -36,6 +36,21 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
+// std::uniform_int_distribution only accepts short, int, long, long long and
+// their unsigned versions. Map an integer type to the closest accepted type so
+// that distributions are declared with the type their results are used as.
+template <std::integral T> struct uniform_int_type {
+  using type = T;
+};
+template <> struct uniform_int_type<signed char> {
+  using type = short;
+};
+template <> struct uniform_int_type<unsigned char> {
+  using type = unsigned short;
+};
+template <std::integral T>
+using uniform_int_type_t = typename uniform_int_type<T>::type;
+
 template <typename RT> struct StateLessCreator {
   virtual ~StateLessCreator() noexcept = default;
 

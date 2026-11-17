@@ -175,7 +175,8 @@ void batched_draw(std::vector<I> &buffer, I &batches, AnyRNG &rng,
     auto dist_it = distributions_first;
     for (auto pos_it = dimension_pos.begin(); pos_it != dimension_pos.end();
          ++pos_it)
-      *pos_it = (*dist_it++)(rng);
+      *pos_it =
+          static_cast<typename DimensionBoundsT::value_type>((*dist_it++)(rng));
     ++buffer[collapse_dimensions(dimension_pos, dimensions)];
     --batches;
   }
@@ -270,10 +271,11 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   auto [full_batches, partial_batches] =
       batch_node_counts_by_thread_count(num_nodes, num_threads);
 
-  std::vector<std::uniform_int_distribution<tileidx_t>> distributions;
+  using dist_t = uniform_int_type_t<typename DimensionBoundsT::value_type>;
+  std::vector<std::uniform_int_distribution<dist_t>> distributions;
   distributions.reserve(dimensions.size());
   for (const auto &dim : dimensions)
-    distributions.emplace_back(0, static_cast<tileidx_t>(dim - 1));
+    distributions.emplace_back(0, static_cast<dist_t>(dim - 1));
 
   if (0 < full_batches) {
     std::vector<std::vector<I>> buffers(num_threads);
