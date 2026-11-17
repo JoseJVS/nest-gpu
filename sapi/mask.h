@@ -23,7 +23,9 @@
 #ifndef MASK_H
 #define MASK_H
 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <deque>
 #include <utility>
 
@@ -111,19 +113,48 @@ Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
       .first;
 }
 
+// Two-argument (blueprint) methods: the anchor comes from the arguments, so
+// only offset_ and c_radius_.radius2_ of the mask are used. Every pair the
+// node test accepts lies within sqrt(radius2_) of the offset anchor, so the
+// tests are exact for circular blueprints and conservative for other shapes.
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
-  return coord_in_mask(coord, tile.project_point_to_surface(coord)).first;
+  const CoordT shifted = coord + offset_;
+  return tile.coord_in_tile(shifted) ||
+         leq_test(distance2(shifted, tile.project_point_to_surface(shifted)),
+                  c_radius_.radius2_);
 }
 
 template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
-  return coord_in_mask(a.project_point_to_surface(b.c_radius_.origin_),
-                       b.project_point_to_surface(a.c_radius_.origin_))
-      .first;
+  // Driver tile translated by the offset: A' = A + offset_
+  // 1. Circumscribed circles of A' and B too far apart for the blueprint
+  if (!a.c_radius_
+           .coord_in_radius(b.c_radius_.origin_ - offset_,
+                            std::sqrt(b.c_radius_.radius2_) +
+                                std::sqrt(c_radius_.radius2_))
+           .first)
+    return false;
+
+  // 2. Polygon distance between A' and B within the blueprint radius
+  if (leq_test(std::fmin(
+                   min_vertex_edge_distance2(a.vertices_, offset_, b.vertices_),
+                   min_vertex_edge_distance2(b.vertices_, offset_.negative(),
+                                             a.vertices_)),
+               c_radius_.radius2_))
+    return true;
+
+  // 3. A' and B overlap without a vertex close to the other perimeter
+  return std::ranges::any_of(
+             a.vertices_,
+             [&](const CoordT &v) { return b.coord_in_tile(v + offset_); }) ||
+         std::ranges::any_of(
+             b.vertices_,
+             [&](const CoordT &w) { return a.coord_in_tile(w - offset_); }) ||
+         edges_cross(a.vertices_, offset_, b.vertices_);
 }
 
 template <Coordinate CoordT>

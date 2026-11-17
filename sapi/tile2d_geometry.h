@@ -115,6 +115,13 @@ project_point_to_polygon_perimeter(const Coord2D &coord,
 Coord2D project_point_to_triangle_perimeter(
     const Coord2D &coord, const std::vector<Coord2D> &vertices,
     const CircumscribedRadius<Coord2D> &c_radius);
+
+space_t min_vertex_edge_distance2_2D(const std::vector<Coord2D> &from,
+                                     const Coord2D &shift,
+                                     const std::vector<Coord2D> &to);
+
+bool edges_cross_2D(const std::vector<Coord2D> &a, const Coord2D &shift,
+                    const std::vector<Coord2D> &b);
 } // namespace sapi
 
 #endif

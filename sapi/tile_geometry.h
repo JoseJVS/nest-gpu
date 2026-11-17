@@ -23,6 +23,8 @@
 #ifndef TILE_GEOMETRY_H
 #define TILE_GEOMETRY_H
 
+#include <cassert>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -237,6 +239,31 @@ CoordT project_point_to_surface(const CoordT &coord,
     }
   } else {
     throw std::runtime_error("3D implementation not available yet");
+  }
+}
+
+// Called inside parallel regions: the unimplemented 3D branch asserts instead
+// of throwing
+template <Coordinate CoordT>
+space_t min_vertex_edge_distance2(const std::vector<CoordT> &from,
+                                  const CoordT &shift,
+                                  const std::vector<CoordT> &to) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    return min_vertex_edge_distance2_2D(from, shift, to);
+  } else {
+    assert(false && "3D implementation not available yet");
+    return std::numeric_limits<space_t>::max();
+  }
+}
+
+template <Coordinate CoordT>
+bool edges_cross(const std::vector<CoordT> &a, const CoordT &shift,
+                 const std::vector<CoordT> &b) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    return edges_cross_2D(a, shift, b);
+  } else {
+    assert(false && "3D implementation not available yet");
+    return true;
   }
 }
 

@@ -136,6 +136,40 @@ inline std::vector<Coord2D> sample_region(const std::vector<P> &v,
   return s;
 }
 
+// Convex hull (counter-clockwise), used for Minkowski differences of tiles
+inline std::vector<P> convex_hull(std::vector<P> points) {
+  std::sort(points.begin(), points.end(), [](const P a, const P b) {
+    return a.x < b.x || (a.x == b.x && a.y < b.y);
+  });
+  std::vector<P> hull(2 * points.size());
+  std::size_t k = 0;
+  for (std::size_t i = 0; i < points.size(); ++i) {
+    while (k >= 2 &&
+           cross(hull[k - 1] - hull[k - 2], points[i] - hull[k - 2]) <= 0)
+      --k;
+    hull[k++] = points[i];
+  }
+  for (std::size_t i = points.size() - 1, lower = k + 1; i > 0; --i) {
+    while (k >= lower &&
+           cross(hull[k - 1] - hull[k - 2], points[i - 1] - hull[k - 2]) <= 0)
+      --k;
+    hull[k++] = points[i - 1];
+  }
+  hull.resize(k - 1);
+  return hull;
+}
+
+// B - A - shift: every displacement from a point of A to a point of B
+inline std::vector<P> minkowski_difference(const Tile<Coord2D> &a,
+                                           const Tile<Coord2D> &b,
+                                           const P shift) {
+  std::vector<P> differences;
+  for (const auto &vb : b.vertices_)
+    for (const auto &va : a.vertices_)
+      differences.push_back(from(vb) - from(va) - shift);
+  return convex_hull(differences);
+}
+
 struct NamedTile {
   std::string name;
   const Tile<Coord2D> *tile;

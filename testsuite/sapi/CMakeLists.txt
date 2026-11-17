@@ -54,6 +54,8 @@ node_sequence_jointure_test.cpp
 tile2d_projection_test.cpp
 mask_tile_overlap_test.cpp
 source_target_mask_test.cpp
+blueprint_range_test.cpp
+geometry_connections_test.cpp
 )
 
 set( sapi_tests )
@@ -111,6 +113,7 @@ set( multi_processing_tests
     repeatability_test
     c_api_test
     source_target_mask_test
+    geometry_connections_test
 )
 
 string( REPLACE ";" " " MPI_TESTS "${multi_processing_tests}" )

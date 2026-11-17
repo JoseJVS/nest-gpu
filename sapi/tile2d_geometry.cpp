@@ -487,4 +487,45 @@ Coord2D project_point_to_triangle_perimeter(
 
   return project_point_to_polygon_perimeter(coord, vertices);
 }
+
+// Minimum squared distance from the vertices of `from`, translated by `shift`,
+// to the perimeter of `to`. For disjoint convex polygons the closest pair of
+// points always includes a vertex, so the minimum over both directions is the
+// polygon distance.
+space_t min_vertex_edge_distance2_2D(const std::vector<Coord2D> &from,
+                                     const Coord2D &shift,
+                                     const std::vector<Coord2D> &to) {
+  space_t min_d2 = std::numeric_limits<space_t>::max();
+  for (const auto &vertex : from) {
+    const Coord2D shifted = vertex + shift;
+    min_d2 = std::fmin(
+        min_d2,
+        distance2(shifted, project_point_to_polygon_perimeter(shifted, to)));
+  }
+  return min_d2;
+}
+
+// Whether an edge of `a` translated by `shift` properly crosses an edge of `b`
+// (strict orientation signs: touching contacts are not crossings)
+bool edges_cross_2D(const std::vector<Coord2D> &a, const Coord2D &shift,
+                    const std::vector<Coord2D> &b) {
+  const auto orientation = [](const Coord2D &p, const Coord2D &q,
+                              const Coord2D &r) {
+    return vector_cross(q - p, r - p).sum();
+  };
+  const auto a_count = a.size();
+  const auto b_count = b.size();
+  for (std::size_t i = 0; i < a_count; ++i) {
+    const Coord2D a0 = a[i] + shift;
+    const Coord2D a1 = a[(i + 1) % a_count] + shift;
+    for (std::size_t j = 0; j < b_count; ++j) {
+      const Coord2D &b0 = b[j];
+      const Coord2D &b1 = b[(j + 1) % b_count];
+      if (orientation(a0, a1, b0) * orientation(a0, a1, b1) < 0 &&
+          orientation(b0, b1, a0) * orientation(b0, b1, a1) < 0)
+        return true;
+    }
+  }
+  return false;
+}
 } // namespace sapi
