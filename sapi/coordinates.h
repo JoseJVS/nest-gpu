@@ -355,8 +355,11 @@ template <Coordinate CoordT> struct Displacement {
   bool operator==(const Displacement &) const;
 };
 
-// Forward definition to link with coordinate_geometry.h
-template <Coordinate CoordT> space_t vector_norm2(const CoordT &vector);
+// Defined here rather than in coordinate_geometry.h because Displacement
+// needs it and coordinate_geometry.h includes this header.
+template <Coordinate CoordT> inline space_t vector_norm2(const CoordT &vector) {
+  return (vector * vector).sum();
+}
 
 template <Coordinate CoordT>
 inline Displacement<CoordT> construct_displacement(CoordT &&vector) {

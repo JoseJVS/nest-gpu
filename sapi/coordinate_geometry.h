@@ -55,10 +55,6 @@ inline Coord3D vector_cross(const Coord3D &coordA, const Coord3D &coordB) {
           .sum());
 }
 
-template <Coordinate CoordT> inline space_t vector_norm2(const CoordT &coord) {
-  return vector_dot(coord, coord);
-}
-
 template <Coordinate CoordT> inline space_t vector_norm(const CoordT &coord) {
   return std::sqrt(vector_norm2(coord));
 }

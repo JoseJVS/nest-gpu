@@ -23,7 +23,7 @@
 #ifndef COMPARISONS_H
 #define COMPARISONS_H
 
-#include "mask_containers.h"
+#include "node_containers.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {

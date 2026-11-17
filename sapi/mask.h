@@ -205,4 +205,8 @@ Mask<CoordT>::get_overlapping_leaf_sub_tiles(const Tile<CoordT> &tile) const {
 }
 } // namespace sapi
 
+// Definitions of the 2D functions declared in mask_geometry.h. They need the
+// complete Mask, so they are included after it.
+#include "mask2d_geometry.h"
+
 #endif

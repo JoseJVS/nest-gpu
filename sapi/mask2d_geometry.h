@@ -23,33 +23,11 @@
 #ifndef MASK2D_GEOMETRY_H
 #define MASK2D_GEOMETRY_H
 
+#include "coordinate_geometry.h"
 #include "mask.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to link with coordinate_geometry.h
-Coord2D rotate_displacement(const Coord2D &displacement,
-                            const Coord2D &angular_coord);
-bool displacement_in_ellipse(const Coord2D &displacement,
-                             const Coord2D &semi_axes);
-template <Coordinate CoordT, bool triangular_comparison>
-bool algebraic_projection_comparison(const CoordT &vectorBA,
-                                     const CoordT &vectorBC,
-                                     const CoordT &vectorBD,
-                                     const space_t det_BCD);
-
-void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
-                                      const std::vector<space_t> &mask_params);
-
-void initialize_elliptical_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
-void initialize_parallelogram_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
-void initialize_triangular_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
                                                const Mask<Coord2D> &mask) {
   return mask.c_radius_.coord_in_radius(coord);

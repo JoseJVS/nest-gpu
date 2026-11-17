@@ -24,20 +24,11 @@
 #define CONNECTION_GENERATOR_H
 
 #include "connection_containers.h"
+#include "connection_rules.h"
 #include "numeric_functors.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to connection_rules.h
-template <Coordinate CoordT, bool allow_self_connections,
-          bool allow_multiplicity>
-std::size_t
-generate_connections(AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
-                     ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
-                     const NFCollection &functors,
-                     const count_t connection_counts,
-                     const CONNECTION_RULE method);
-
 struct ConnectionGenerator {
   bool partition_connections_ = false;
   bool allow_self_connections_ = false;

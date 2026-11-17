@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "bounding_box.h"
+#include "coordinate_geometry.h"
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "node_distribution.h"
@@ -34,10 +35,6 @@
 #include "tile.h"
 
 namespace sapi {
-// Forward definition to coordinate_geometry.h
-template <Coordinate CoordT>
-space_t distance2(const CoordT &coordA, const CoordT &coordB);
-
 template <Coordinate CoordT>
 bool recursive_bounds_test(const CoordT &coord,
                            TiledCoordMap<CoordT> &tile_coord_map,

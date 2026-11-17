@@ -27,12 +27,9 @@
 #include "mask_containers.h"
 #include "random_manager.h"
 #include "sapi_forward_declarations.h"
+#include "vp_interface.h"
 
 namespace sapi {
-// Forward definition to link with vp_interface.h
-vp_t get_thread_num();
-vp_t get_max_omp_threads();
-
 // Forward definition to connection_containers.h
 struct RankConnectionInfo;
 

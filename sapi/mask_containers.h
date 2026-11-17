@@ -25,16 +25,11 @@
 
 #include <forward_list>
 
+#include "comparisons.h"
 #include "node_containers.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to comparisons.h
-template <Coordinate CoordT>
-bool compare_indexed_node_ptr_maps(
-    const FilteredTileNodeCollection<CoordT> &left,
-    const FilteredTileNodeCollection<CoordT> &right);
-
 struct LeafPairInfo {
   tileidx_t source_index_;
   tileidx_t target_index_;

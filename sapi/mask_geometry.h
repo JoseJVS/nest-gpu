@@ -95,17 +95,19 @@ void initialize_mask_helpers(Mask<CoordT> &mask,
   }
 }
 
-OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
-                                        const Mask<Coord2D> &mask);
+// The 2D coord_in_*_mask functions are defined inline in mask2d_geometry.h,
+// which mask.h includes after defining Mask.
+inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
+                                               const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
-                                          const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
+                                                 const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
-                                             const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
+                                                    const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
-                                          const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
+                                                 const Mask<Coord2D> &mask);
 
 template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
@@ -131,17 +133,21 @@ OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
   }
 }
 
-OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &a, const Coord2D &b,
-                                        const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &a,
+                                               const Coord2D &b,
+                                               const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a, const Coord2D &b,
-                                          const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a,
+                                                 const Coord2D &b,
+                                                 const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a, const Coord2D &b,
-                                             const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a,
+                                                    const Coord2D &b,
+                                                    const Mask<Coord2D> &mask);
 
-OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a, const Coord2D &b,
-                                          const Mask<Coord2D> &mask);
+inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a,
+                                                 const Coord2D &b,
+                                                 const Mask<Coord2D> &mask);
 
 template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,

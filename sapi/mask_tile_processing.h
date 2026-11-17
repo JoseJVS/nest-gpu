@@ -30,14 +30,10 @@
 #include "grid_neighborhood.h"
 #include "mask_containers.h"
 #include "node_containers.h"
+#include "payload_preparation.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to link with payload_preparation.h
-template <Coordinate CoordT>
-void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
-                          const TileSetInfo<CoordT> &tile_set_info);
-
 template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 inline bool no_overlap(const Tile<CoordT> &tile,
