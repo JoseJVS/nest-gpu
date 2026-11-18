@@ -83,22 +83,8 @@ void aggregate_local_node_positions(std::deque<CoordT> &coords,
     return;
   }
 
-  auto &tiled_coords = tiled_coord_map[tile_index];
-  tiled_coords.resize(copy_count);
-
-  nodeidx_t copied_coords = 0;
-  nodeidx_t skipped_coords = 0;
-  while (!coords.empty()) {
-    if (skip_count <= skipped_coords++) {
-      tiled_coords[copied_coords++] = coords.front();
-
-      if (copy_count <= copied_coords)
-        break;
-    }
-
-    coords.pop_front();
-  }
-
+  const auto copy_begin = coords.cbegin() + skip_count;
+  tiled_coord_map[tile_index].assign(copy_begin, copy_begin + copy_count);
   coords.clear();
 }
 
@@ -263,10 +249,9 @@ void insert_node_positions_in_leafs(std::deque<CoordT> &coords,
     auto &coord_vec = indexed_coord_col->emplace_back();
     coord_vec.reserve(st_coords.size());
 
-    while (!st_coords.empty()) {
-      coord_vec.emplace_back(st_node_index++, st_coords.front());
-      st_coords.pop_front();
-    }
+    for (const auto &coord : st_coords)
+      coord_vec.emplace_back(st_node_index++, coord);
+    st_coords.clear();
   }
   assert((st_node_index - node_sequence.first) == node_sequence.second);
 
@@ -288,6 +273,13 @@ void insert_node_positions_in_tiles(
     throw std::invalid_argument(
         "Tiled node sequence mismatch with tiled coord map");
 
+  // Each tile reads and clears only its own coords and fills only its own
+  // leaf collection, and its node indices come from its node sequence, so
+  // the tiles are independent tasks.
+#pragma omp parallel default(none)                                             \
+    shared(tiled_coord_map, grid_node_col, node_seq_per_tile, tile_grid)
+#pragma omp master
+#pragma omp taskgroup
   for (const auto &[tile_index, node_sequence] : node_seq_per_tile) {
     const auto tcm_it = tiled_coord_map.find(tile_index);
     const auto tnc_it = grid_node_col.begin() + tile_index;
@@ -295,6 +287,8 @@ void insert_node_positions_in_tiles(
            0 <= node_sequence.first && 0 < node_sequence.second &&
            std::cmp_equal(tcm_it->second.size(), node_sequence.second));
 
+#pragma omp task default(none) shared(tile_grid)                               \
+    firstprivate(tcm_it, tnc_it, tile_index, node_sequence)
     insert_node_positions_in_leafs(tcm_it->second, *tnc_it,
                                    tile_grid.positions_[tile_index],
                                    node_sequence);

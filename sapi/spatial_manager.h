@@ -398,16 +398,9 @@ SpatialManager<CoordT>::insert_positions_in_grid(
     throw std::invalid_argument("Invalid positions to insert");
 
   std::deque<CoordT> coords;
-  coords.resize(coord_count / CoordT::D);
-  for (std::size_t index = 0; index < coord_count; index += CoordT::D) {
-    auto &coord = coords[index / CoordT::D];
-    coord.x_ = coordinates[index];
-    coord.y_ = coordinates[index + 1];
-
-    if constexpr (std::is_same_v<CoordT, Coord3D>) {
-      coord.z_ = coordinates[index + 2];
-    }
-  }
+  auto read_it = coordinates;
+  for (std::size_t index = 0; index < coord_count; index += CoordT::D)
+    coords.emplace_back(CoordT::copy_from_vec(read_it));
 
   auto [node_counts_per_rank, tiled_node_counts_per_rank, tiled_coord_map] =
       insert_node_positions_in_grid(coords, tile_grid_, grid_neighborhood_,
@@ -418,11 +411,9 @@ SpatialManager<CoordT>::insert_positions_in_grid(
 
   std::vector<space_t> leftovers(coords.size() * CoordT::D);
   auto lt_it = leftovers.begin();
-  while (!coords.empty()) {
-    auto coord = coords.front();
-    coords.pop_front();
+  for (const auto &coord : coords)
     coord.copy_to_vec(lt_it);
-  }
+  coords.clear();
 
   nit->stop();
 
