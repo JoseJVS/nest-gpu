@@ -69,10 +69,10 @@ void insert_leaf_tiles_within_range(
     assert(splits == 0 && 0 <= pool.index_ && 0 <= driver.index_);
 
     if constexpr (inverted_source_target) {
-#pragma omp critical
+#pragma omp critical(sapi_leaf_pairs)
       leaf_pairs[pool.index_][driver.index_] |= 1 << image_index;
     } else {
-#pragma omp critical
+#pragma omp critical(sapi_leaf_pairs)
       leaf_pairs[driver.index_][pool.index_] |= 1 << image_index;
     }
   } else {
@@ -321,7 +321,7 @@ void aggregate_tile_set_info(
 #pragma omp atomic
   tsi.total_node_count_ += total_nodes;
 
-#pragma omp critical
+#pragma omp critical(sapi_filtered_coords)
   {
     const auto emplace_res =
         icp.emplace(source_tile_idx, std::move(checked_leaves)).second;
