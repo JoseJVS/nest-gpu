@@ -391,11 +391,66 @@ Coord3D circumscribed_center(const std::vector<Coord3D> &coords);
 // X^2 / a^2 + Y^2 / b^2 <= 1
 // With X = ( x - h ) * cos @ + ( y - k ) * sin @
 // and  Y = - ( x - h ) * sin @ + ( y - k ) * cos @
-bool displacement_in_ellipse(const Coord2D &displacement,
-                             const Coord2D &semi_axes);
+inline bool displacement_in_ellipse(const Coord2D &displacement,
+                                    const Coord2D &semi_axes) {
+  switch ((almost_zero(displacement.x_) << 0) +
+          (almost_zero(displacement.y_) << 1)) {
+  case 3:
+    return true;
 
-bool displacement_in_ellipsoid(const Coord3D &displacement,
-                               const Coord3D &semi_axes);
+  case 1:
+    return leq_test(displacement.y_ * displacement.y_, semi_axes.y_);
+
+  case 2:
+    return leq_test(displacement.x_ * displacement.x_, semi_axes.x_);
+
+  default:
+    return leq_test(semi_axes.y_ * displacement.x_ * displacement.x_ +
+                        semi_axes.x_ * displacement.y_ * displacement.y_,
+                    semi_axes.product());
+  }
+}
+
+inline bool displacement_in_ellipsoid(const Coord3D &displacement,
+                                      const Coord3D &semi_axes) {
+  switch ((almost_zero(displacement.x_) << 0) +
+          (almost_zero(displacement.y_) << 1) +
+          (almost_zero(displacement.z_) << 2)) {
+  case 7:
+    return true;
+
+  case 1:
+    return leq_test(semi_axes.z_ * displacement.y_ * displacement.y_ +
+                        semi_axes.y_ * displacement.z_ * displacement.z_,
+                    semi_axes.y_ * semi_axes.z_);
+
+  case 2:
+    return leq_test(semi_axes.z_ * displacement.x_ * displacement.x_ +
+                        semi_axes.x_ * displacement.z_ * displacement.z_,
+                    semi_axes.x_ * semi_axes.z_);
+
+  case 4:
+    return leq_test(semi_axes.y_ * displacement.x_ * displacement.x_ +
+                        semi_axes.x_ * displacement.y_ * displacement.y_,
+                    semi_axes.x_ * semi_axes.y_);
+
+  case 3:
+    return leq_test(displacement.z_ * displacement.z_, semi_axes.z_);
+
+  case 5:
+    return leq_test(displacement.y_ * displacement.y_, semi_axes.y_);
+
+  case 6:
+    return leq_test(displacement.x_ * displacement.x_, semi_axes.x_);
+
+  default:
+    return leq_test(
+        semi_axes.y_ * semi_axes.z_ * displacement.x_ * displacement.x_ +
+            semi_axes.x_ * semi_axes.z_ * displacement.y_ * displacement.y_ +
+            semi_axes.x_ * semi_axes.y_ * displacement.z_ * displacement.z_,
+        semi_axes.product());
+  }
+}
 } // namespace sapi
 
 #endif
