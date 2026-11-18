@@ -25,6 +25,7 @@
 
 #include <cassert>
 
+#include "dispatch.h"
 #include "mask_node_processing.h"
 #include "mask_tile_processing.h"
 #include "sapi_forward_declarations.h"
@@ -103,42 +104,14 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
         "compute_distributed_tile_overlap_time");
     tile_overlap_timer->start();
 
-    std::pair<bool, bool> available_targets;
-
-    switch ((edge_wrap << 0) + (only_neighborhood << 1)) {
-    case 1: {
-      available_targets = compute_distributed_tile_overlap<CoordT, true, false>(
-          dpi, dist_tns_source, dist_tns_target, tile_grid, grid_neighborhood,
-          grid_node_col, mc_array);
-
-      break;
-    }
-
-    case 2: {
-      available_targets = compute_distributed_tile_overlap<CoordT, false, true>(
-          dpi, dist_tns_source, dist_tns_target, tile_grid, grid_neighborhood,
-          grid_node_col, mc_array);
-
-      break;
-    }
-
-    case 3: {
-      available_targets = compute_distributed_tile_overlap<CoordT, true, true>(
-          dpi, dist_tns_source, dist_tns_target, tile_grid, grid_neighborhood,
-          grid_node_col, mc_array);
-
-      break;
-    }
-
-    default: {
-      available_targets =
-          compute_distributed_tile_overlap<CoordT, false, false>(
+    const std::pair<bool, bool> available_targets = dispatch_bools(
+        [&]<bool edge_wrap_v, bool only_neighborhood_v>() {
+          return compute_distributed_tile_overlap<CoordT, edge_wrap_v,
+                                                  only_neighborhood_v>(
               dpi, dist_tns_source, dist_tns_target, tile_grid,
               grid_neighborhood, grid_node_col, mc_array);
-
-      break;
-    }
-    }
+        },
+        edge_wrap, only_neighborhood);
 
     tile_overlap_timer->stop();
 

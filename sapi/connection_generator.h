@@ -25,6 +25,7 @@
 
 #include "connection_containers.h"
 #include "connection_rules.h"
+#include "dispatch.h"
 #include "numeric_functors.h"
 #include "sapi_forward_declarations.h"
 
@@ -80,48 +81,17 @@ std::size_t ConnectionGenerator::generate_connections(
     AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
     ConnectionTask<CoordT> &task, const Mask<CoordT> &mask,
     const bool generate_remote_connections) const {
-  switch ((generate_remote_connections << 0) + (allow_self_connections_ << 1) +
-          (allow_multiplicity_ << 2)) {
-  case 1:
-    return sapi::generate_connections<CoordT, true, false>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 2:
-    return sapi::generate_connections<CoordT, true, false>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 3:
-    return sapi::generate_connections<CoordT, true, false>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 7:
-    return sapi::generate_connections<CoordT, true, true>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 6:
-    return sapi::generate_connections<CoordT, true, true>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 5:
-    return sapi::generate_connections<CoordT, true, true>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  case 4:
-    return sapi::generate_connections<CoordT, false, true>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-
-  default:
-    return sapi::generate_connections<CoordT, false, false>(
-        rng, proc_block, task, mask, numeric_functors_, connection_counts_,
-        rule_);
-  }
+  // Pairs across ranks are never self-connections, so remote generation can
+  // skip the self-connection check.
+  return dispatch_bools(
+      [&]<bool allow_self_connections, bool allow_multiplicity>() {
+        return sapi::generate_connections<CoordT, allow_self_connections,
+                                          allow_multiplicity>(
+            rng, proc_block, task, mask, numeric_functors_, connection_counts_,
+            rule_);
+      },
+      generate_remote_connections || allow_self_connections_,
+      allow_multiplicity_);
 }
 } // namespace sapi
 

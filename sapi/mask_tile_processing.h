@@ -28,6 +28,7 @@
 #include <memory>
 #include <utility>
 
+#include "dispatch.h"
 #include "enum_store.h"
 #include "grid_neighborhood.h"
 #include "mask_containers.h"
@@ -481,47 +482,15 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     shared(dpi, dist_tns_target, tile_grid, grid_neighborhood, grid_node_col,  \
                mc_array) firstprivate(filter_source, filter_target,            \
                                           source_side, force_prepare_payload)
-      switch ((filter_source << 0) + (filter_target << 1)) {
-      case 1: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, false, true,
-                            false>(dpi.source_side_info_, source_side->second,
-                                   dist_tns_target, tile_grid,
-                                   grid_neighborhood, grid_node_col, mc_array,
-                                   force_prepare_payload);
-
-        break;
-      }
-
-      case 2: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, false, false,
-                            true>(dpi.source_side_info_, source_side->second,
-                                  dist_tns_target, tile_grid, grid_neighborhood,
-                                  grid_node_col, mc_array,
-                                  force_prepare_payload);
-
-        break;
-      }
-
-      case 3: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, false, true,
-                            true>(dpi.source_side_info_, source_side->second,
-                                  dist_tns_target, tile_grid, grid_neighborhood,
-                                  grid_node_col, mc_array,
-                                  force_prepare_payload);
-
-        break;
-      }
-
-      default: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, false, false,
-                            false>(dpi.source_side_info_, source_side->second,
-                                   dist_tns_target, tile_grid,
-                                   grid_neighborhood, grid_node_col, mc_array,
-                                   force_prepare_payload);
-
-        break;
-      }
-      }
+      dispatch_bools(
+          [&]<bool filter_source_v, bool filter_target_v>() {
+            distributed_overlap<CoordT, edge_wrap, only_neighborhood, false,
+                                filter_source_v, filter_target_v>(
+                dpi.source_side_info_, source_side->second, dist_tns_target,
+                tile_grid, grid_neighborhood, grid_node_col, mc_array,
+                force_prepare_payload);
+          },
+          filter_source, filter_target);
     }
 
     if (target_side != dist_tns_target.end()) {
@@ -529,47 +498,15 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     shared(dpi, dist_tns_source, tile_grid, grid_neighborhood, grid_node_col,  \
                mc_array) firstprivate(filter_source, filter_target,            \
                                           target_side, force_prepare_payload)
-      switch ((filter_source << 0) + (filter_target << 1)) {
-      case 1: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, true, true,
-                            false>(dpi.target_side_info_, target_side->second,
-                                   dist_tns_source, tile_grid,
-                                   grid_neighborhood, grid_node_col, mc_array,
-                                   force_prepare_payload);
-
-        break;
-      }
-
-      case 2: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, true, false,
-                            true>(dpi.target_side_info_, target_side->second,
-                                  dist_tns_source, tile_grid, grid_neighborhood,
-                                  grid_node_col, mc_array,
-                                  force_prepare_payload);
-
-        break;
-      }
-
-      case 3: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, true, true,
-                            true>(dpi.target_side_info_, target_side->second,
-                                  dist_tns_source, tile_grid, grid_neighborhood,
-                                  grid_node_col, mc_array,
-                                  force_prepare_payload);
-
-        break;
-      }
-
-      default: {
-        distributed_overlap<CoordT, edge_wrap, only_neighborhood, true, false,
-                            false>(dpi.target_side_info_, target_side->second,
-                                   dist_tns_source, tile_grid,
-                                   grid_neighborhood, grid_node_col, mc_array,
-                                   force_prepare_payload);
-
-        break;
-      }
-      }
+      dispatch_bools(
+          [&]<bool filter_source_v, bool filter_target_v>() {
+            distributed_overlap<CoordT, edge_wrap, only_neighborhood, true,
+                                filter_source_v, filter_target_v>(
+                dpi.target_side_info_, target_side->second, dist_tns_source,
+                tile_grid, grid_neighborhood, grid_node_col, mc_array,
+                force_prepare_payload);
+          },
+          filter_source, filter_target);
     }
   }
 
