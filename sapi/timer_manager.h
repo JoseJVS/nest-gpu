@@ -64,6 +64,38 @@ inline StopWatch *TimerRegister::get_register_timer(std::string &&name) {
   return &registered_timers_[std::move(name)];
 }
 
+// Starts the named timer on construction and stops it on destruction or on
+// the first call to stop(), whichever comes first.
+class ScopedTimer {
+public:
+  [[nodiscard]] ScopedTimer(TimerRegister *const registry, std::string &&name);
+
+  ScopedTimer(const ScopedTimer &) = delete;
+  ScopedTimer &operator=(const ScopedTimer &) = delete;
+
+  ~ScopedTimer();
+
+  void stop();
+
+private:
+  StopWatch *watch_;
+};
+
+inline ScopedTimer::ScopedTimer(TimerRegister *const registry,
+                                std::string &&name)
+    : watch_(registry->get_register_timer(std::move(name))) {
+  watch_->start();
+}
+
+inline ScopedTimer::~ScopedTimer() { stop(); }
+
+inline void ScopedTimer::stop() {
+  if (watch_ != nullptr) {
+    watch_->stop();
+    watch_ = nullptr;
+  }
+}
+
 struct RecordedTimes {
   std::unordered_map<std::string, double> rank_times_;
   std::unordered_map<std::string, std::vector<double>> thread_times_;

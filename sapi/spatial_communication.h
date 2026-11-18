@@ -48,22 +48,18 @@ void compute_target_connections(RankConnectionInfo &rci,
                                 const vp_t target_rank) {
   const auto thread_timer_registry = timer_manager.get_thread_registry();
 
-  const auto node_disp_timer = thread_timer_registry->get_register_timer(
-      "compute_node_displacements_time");
-  node_disp_timer->start();
+  ScopedTimer node_disp_timer(thread_timer_registry,
+                              "compute_node_displacements_time");
 
   compute_displacement_checks_across_tile_pairs<CoordT, inverted_source_target>(
       rci, rpi, mc_array, cg_array, rng_manager, target_rank);
 
-  node_disp_timer->stop();
+  node_disp_timer.stop();
 
-  const auto map_consolidation_timer =
-      thread_timer_registry->get_register_timer("consolidate_connections_time");
-  map_consolidation_timer->start();
+  ScopedTimer map_consolidation_timer(thread_timer_registry,
+                                      "consolidate_connections_time");
 
   rci.consolidate_connection_map();
-
-  map_consolidation_timer->stop();
 }
 
 template <Coordinate CoordT>
@@ -84,9 +80,8 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
 
   const auto rank_timer_registry = timer_manager.get_rank_registry();
 
-  const auto connect_timer = rank_timer_registry->get_register_timer(
-      "compute_distributed_spatial_connections_time");
-  connect_timer->start();
+  ScopedTimer connect_timer(rank_timer_registry,
+                            "compute_distributed_spatial_connections_time");
 
   DistributedConnectionInfo dci;
   DistributedPairInfo<CoordT> dpi;
@@ -100,9 +95,8 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
 #pragma omp master
 #pragma omp taskgroup
   {
-    const auto tile_overlap_timer = rank_timer_registry->get_register_timer(
-        "compute_distributed_tile_overlap_time");
-    tile_overlap_timer->start();
+    ScopedTimer tile_overlap_timer(rank_timer_registry,
+                                   "compute_distributed_tile_overlap_time");
 
     const std::pair<bool, bool> available_targets = dispatch_bools(
         [&]<bool edge_wrap_v, bool only_neighborhood_v>() {
@@ -113,11 +107,10 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
         },
         edge_wrap, only_neighborhood);
 
-    tile_overlap_timer->stop();
+    tile_overlap_timer.stop();
 
-    const auto node_overlap_timer = rank_timer_registry->get_register_timer(
-        "dispatch_distributed_node_overlap_time");
-    node_overlap_timer->start();
+    ScopedTimer node_overlap_timer(rank_timer_registry,
+                                   "dispatch_distributed_node_overlap_time");
 
     if (available_targets.first) {
       const auto ssi_it =
@@ -156,25 +149,18 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
       assert(empty_dpi <= available_targets.first);
 
       if (!empty_dpi && grid_neighborhood.num_processes_ > 1) {
-        const auto communicate_timer = rank_timer_registry->get_register_timer(
-            "dispatch_communicate_node_positions_time");
-        communicate_timer->start();
+        ScopedTimer communicate_timer(
+            rank_timer_registry, "dispatch_communicate_node_positions_time");
 
         communicate_connect_distributed_pair_data(dci, dpi, mc_array, cg_array,
                                                   rng_manager, timer_manager);
-
-        communicate_timer->stop();
       }
-
-      node_overlap_timer->stop();
     }
   }
 
-  connect_timer->stop();
+  connect_timer.stop();
 
-  const auto reseed_timer =
-      rank_timer_registry->get_register_timer("seed_update_cleanup_time");
-  reseed_timer->start();
+  ScopedTimer reseed_timer(rank_timer_registry, "seed_update_cleanup_time");
 
   for (auto &rank_map :
        {&dci.incoming_connections_, &dci.outgoing_connections_}) {
@@ -189,8 +175,6 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
         ++rci_it;
     }
   }
-
-  reseed_timer->stop();
 
   return dci;
 }
@@ -313,9 +297,8 @@ void communicate_connect_distributed_pair_data(
 
   const auto rank_timer_registry = timer_manager.get_rank_registry();
 
-  const auto send_async_timer =
-      rank_timer_registry->get_register_timer("send_async_positions_time");
-  send_async_timer->start();
+  ScopedTimer send_async_timer(rank_timer_registry,
+                               "send_async_positions_time");
 
   if (!distributed_pair_data.source_side_info_.empty())
     communicate_payload_async(source_side_queue, req_it,
@@ -331,25 +314,21 @@ void communicate_connect_distributed_pair_data(
 
   assert(req_it == send_requests.end());
 
-  send_async_timer->stop();
+  send_async_timer.stop();
 
-  const auto trigger_send_timer =
-      rank_timer_registry->get_register_timer("trigger_send_timer");
-  trigger_send_timer->start();
+  ScopedTimer trigger_send_timer(rank_timer_registry, "trigger_send_timer");
 
   vp_t flag;
   MPI_Testall(send_requests.size(), send_requests.data(), &flag,
               MPI_STATUSES_IGNORE);
 
-  trigger_send_timer->stop();
+  trigger_send_timer.stop();
 
-  const auto last_dispatch_timer = rank_timer_registry->get_register_timer(
-      "last_compute_connection_dispatch_timer");
-  const auto first_dispatch_timer = rank_timer_registry->get_register_timer(
-      "first_compute_connection_dispatch_timer");
-
-  last_dispatch_timer->start();
-  first_dispatch_timer->start();
+  ScopedTimer last_dispatch_timer(rank_timer_registry,
+                                  "last_compute_connection_dispatch_timer");
+  // Always stopped explicitly: num_requests > 0, so at least one dispatch runs
+  ScopedTimer first_dispatch_timer(rank_timer_registry,
+                                   "first_compute_connection_dispatch_timer");
 
   MPI_Status status;
   bool first_dispatch = true;
@@ -369,7 +348,7 @@ void communicate_connect_distributed_pair_data(
           rng_manager, timer_manager);
 
       if (first_dispatch) {
-        first_dispatch_timer->stop();
+        first_dispatch_timer.stop();
         first_dispatch = false;
       }
     }
@@ -386,17 +365,15 @@ void communicate_connect_distributed_pair_data(
           rng_manager, timer_manager);
 
       if (first_dispatch) {
-        first_dispatch_timer->stop();
+        first_dispatch_timer.stop();
         first_dispatch = false;
       }
     }
   }
 
-  last_dispatch_timer->stop();
+  last_dispatch_timer.stop();
 
-  const auto wait_send_timer =
-      rank_timer_registry->get_register_timer("wait_send_timer");
-  wait_send_timer->start();
+  ScopedTimer wait_send_timer(rank_timer_registry, "wait_send_timer");
 
   MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
 
@@ -405,8 +382,6 @@ void communicate_connect_distributed_pair_data(
                                   &distributed_pair_data.target_side_info_})
     for (auto &rpi_pair : *rpi_map_ptr)
       rpi_pair.second.sender_info_.data_payload_.clear();
-
-  wait_send_timer->stop();
 #endif
 }
 } // namespace sapi

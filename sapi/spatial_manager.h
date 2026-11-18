@@ -278,8 +278,7 @@ inline void SpatialManager<CoordT>::update_num_threads() {
 template <Coordinate CoordT>
 split_t SpatialManager<CoordT>::_initialize_grid_parameters(
     const GridParameters &grid_parameters) {
-  const auto gpt = rank_timer_registry_->get_register_timer("grid_param_time");
-  gpt->start();
+  ScopedTimer gpt(rank_timer_registry_, "grid_param_time");
 
   const auto gc = construct_gf_collection<CoordT>(
       grid_parameters.grid_origin_, grid_parameters.grid_dimensions_,
@@ -299,8 +298,6 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
 
   gc_array_.clone(gc);
 
-  gpt->stop();
-
   return num_splits;
 }
 
@@ -313,47 +310,36 @@ void SpatialManager<CoordT>::initialize_tile_grid(
 
   const auto num_splits = _initialize_grid_parameters(grid_parameters);
 
-  const auto ggt =
-      rank_timer_registry_->get_register_timer("grid_generation_time");
-  ggt->start();
+  ScopedTimer ggt(rank_timer_registry_, "grid_generation_time");
 
   tile_grid_ = generate_tile_grid(gc_array_);
 
-  ggt->stop();
+  ggt.stop();
 
-  const auto got =
-      rank_timer_registry_->get_register_timer("grid_ownership_time");
-  got->start();
+  ScopedTimer got(rank_timer_registry_, "grid_ownership_time");
 
   grid_neighborhood_.set_tile_ownership(std::move(rank_tiles_ownership),
                                         tile_grid_);
 
-  got->stop();
+  got.stop();
 
-  const auto gst =
-      rank_timer_registry_->get_register_timer("grid_splitting_time");
-  gst->start();
+  ScopedTimer gst(rank_timer_registry_, "grid_splitting_time");
 
   split_tiles_in_grid(tile_grid_, *grid_neighborhood_.locally_owned_tiles_,
                       num_splits);
 
-  gst->stop();
+  gst.stop();
 
-  const auto gnt =
-      rank_timer_registry_->get_register_timer("grid_node_collections_time");
-  gnt->start();
+  ScopedTimer gnt(rank_timer_registry_, "grid_node_collections_time");
 
   initialize_local_grid_node_collection(
       grid_collection_, *grid_neighborhood_.locally_owned_tiles_, tile_grid_);
 
-  gnt->stop();
+  gnt.stop();
 
-  const auto ct = rank_timer_registry_->get_register_timer("cleanup_time");
-  ct->start();
+  ScopedTimer ct(rank_timer_registry_, "cleanup_time");
 
   gc_array_.clear();
-
-  ct->stop();
 }
 
 template <Coordinate CoordT>
@@ -361,9 +347,7 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
     const largenodeidx_t num_nodes,
     const std::optional<std::set<tileidx_t>> &target_tiles,
     const DISTRIBUTION_MODE distribution_mode) {
-  const auto ndt =
-      rank_timer_registry_->get_register_timer("node_distribution_time");
-  ndt->start();
+  ScopedTimer ndt(rank_timer_registry_, "node_distribution_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -376,8 +360,6 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
   temp_node_generation_data_.emplace_front(
       std::move(tiled_node_counts_per_rank));
 
-  ndt->stop();
-
   return node_counts_per_rank;
 }
 
@@ -386,9 +368,7 @@ std::pair<NodeCountVector, std::vector<space_t>>
 SpatialManager<CoordT>::insert_positions_in_grid(
     const dim_t dimensions, const std::size_t coord_count,
     const space_t *const coordinates) {
-  const auto nit =
-      rank_timer_registry_->get_register_timer("node_insertion_time");
-  nit->start();
+  ScopedTimer nit(rank_timer_registry_, "node_insertion_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -415,8 +395,6 @@ SpatialManager<CoordT>::insert_positions_in_grid(
     coord.copy_to_vec(lt_it);
   coords.clear();
 
-  nit->stop();
-
   return std::make_pair(std::move(node_counts_per_rank), std::move(leftovers));
 }
 
@@ -424,9 +402,7 @@ template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank,
     const DISTRIBUTION_MODE distribution_mode) {
-  const auto nct =
-      rank_timer_registry_->get_register_timer("node_consolidation_time");
-  nct->start();
+  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -441,11 +417,9 @@ std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
 
   temp_node_generation_data_.pop_front();
 
-  nct->stop();
+  nct.stop();
 
-  const auto ngt =
-      rank_timer_registry_->get_register_timer("node_generation_time");
-  ngt->start();
+  ScopedTimer ngt(rank_timer_registry_, "node_generation_time");
 
   if (const auto local_tns_it = ref.find(grid_neighborhood_.local_rank_);
       local_tns_it != ref.end()) {
@@ -454,17 +428,13 @@ std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
                                     distribution_mode);
   }
 
-  ngt->stop();
-
   return index;
 }
 
 template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank) {
-  const auto nct =
-      rank_timer_registry_->get_register_timer("node_consolidation_time");
-  nct->start();
+  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -477,11 +447,9 @@ std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
       consolidate_node_sequences_per_tile_per_rank(
           node_sequences_per_rank, temp_node_insertion_data_.front().first));
 
-  nct->stop();
+  nct.stop();
 
-  const auto ngt =
-      rank_timer_registry_->get_register_timer("node_insertion_time");
-  ngt->start();
+  ScopedTimer ngt(rank_timer_registry_, "node_insertion_time");
 
   if (const auto local_tns_it = ref.find(grid_neighborhood_.local_rank_);
       local_tns_it != ref.end())
@@ -493,16 +461,13 @@ std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
 
   temp_node_insertion_data_.pop_front();
 
-  ngt->stop();
-
   return index;
 }
 
 template <Coordinate CoordT>
 void SpatialManager<CoordT>::_initialize_mask_parameters(
     const MaskParameters &mask_parameters) {
-  const auto mpt = rank_timer_registry_->get_register_timer("mask_param_time");
-  mpt->start();
+  ScopedTimer mpt(rank_timer_registry_, "mask_param_time");
 
   const auto mask_collection = create_mask_collection<CoordT>(
       mask_parameters.mask_blueprint_name_,
@@ -514,15 +479,12 @@ void SpatialManager<CoordT>::_initialize_mask_parameters(
       mask_parameters.target_mask_offset_, mk_registry_);
 
   mc_array_.clone(mask_collection);
-
-  mpt->stop();
 }
 
 template <Coordinate CoordT>
 void SpatialManager<CoordT>::_initialize_connection_parameters(
     const ConnectionParameters &connection_parameters) {
-  const auto cpt = rank_timer_registry_->get_register_timer("conn_param_time");
-  cpt->start();
+  ScopedTimer cpt(rank_timer_registry_, "conn_param_time");
 
   auto cg = cg_registry_.get_creator(connection_parameters.rule_)->create();
   cg.connection_counts_ = connection_parameters.connection_counts_;
@@ -552,8 +514,6 @@ void SpatialManager<CoordT>::_initialize_connection_parameters(
     throw std::invalid_argument("Invalid connection parameters");
 
   cg_array_.clone(cg);
-
-  cpt->stop();
 }
 
 template <Coordinate CoordT>
@@ -562,9 +522,7 @@ SpatialManager<CoordT>::compute_spatial_connections(
     const std::size_t source_index, const std::size_t target_index,
     const MaskParameters &mask_parameters,
     const ConnectionParameters &connection_parameters) {
-  const auto sct =
-      rank_timer_registry_->get_register_timer("spatial_conn_time");
-  sct->start();
+  ScopedTimer sct(rank_timer_registry_, "spatial_conn_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -581,15 +539,12 @@ SpatialManager<CoordT>::compute_spatial_connections(
           random_manager_, timer_manager_, connection_parameters.edge_wrap_,
           connection_parameters.only_neighborhood_));
 
-  sct->stop();
+  sct.stop();
 
-  const auto ct = rank_timer_registry_->get_register_timer("cleanup_time");
-  ct->start();
+  ScopedTimer ct(rank_timer_registry_, "cleanup_time");
 
   mc_array_.clear();
   cg_array_.clear();
-
-  ct->stop();
 
   return std::make_pair(index, connection_map);
 }
@@ -598,9 +553,7 @@ template <Coordinate CoordT>
 IndexedNodeCoordinates
 SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
                                   const MaskParameters &mask_parameters) {
-  const auto sst =
-      rank_timer_registry_->get_register_timer("spatial_slicing_time");
-  sst->start();
+  ScopedTimer sst(rank_timer_registry_, "spatial_slicing_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -616,11 +569,9 @@ SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
   const auto slice = slice_tiled_node_maps(
       dist_tns, tile_grid_, grid_neighborhood_, grid_collection_, mc_array_);
 
-  sst->stop();
+  sst.stop();
 
-  const auto sct =
-      rank_timer_registry_->get_register_timer("slice_conversion_time");
-  sct->start();
+  ScopedTimer sct(rank_timer_registry_, "slice_conversion_time");
 
   IndexedNodeCoordinates res;
 
@@ -648,22 +599,18 @@ SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
     }
   }
 
-  sct->stop();
+  sct.stop();
 
-  const auto ct = rank_timer_registry_->get_register_timer("cleanup_time");
-  ct->start();
+  ScopedTimer ct(rank_timer_registry_, "cleanup_time");
 
   mc_array_.clear();
-
-  ct->stop();
 
   return res;
 }
 
 template <Coordinate CoordT>
 GridVertexMap SpatialManager<CoordT>::get_grid_vertices() {
-  const auto gvt = rank_timer_registry_->get_register_timer("grid_vertex_time");
-  gvt->start();
+  ScopedTimer gvt(rank_timer_registry_, "grid_vertex_time");
 
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
@@ -722,8 +669,6 @@ GridVertexMap SpatialManager<CoordT>::get_grid_vertices() {
         throw std::runtime_error("Error exporting owned leaf vertices");
     }
   }
-
-  gvt->stop();
 
   return grid_vertices;
 }
