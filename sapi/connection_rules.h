@@ -64,6 +64,27 @@ inline void check_minimal_displacement(OptDisp<CoordT> &&computed_displacement,
   }
 }
 
+// Minimal displacement from driver to pool over the image displacements
+// selected by the used_displacements bitmask; first is false if none is in
+// the mask.
+template <Coordinate CoordT>
+inline OptDisp<CoordT>
+find_minimal_displacement(const std::pair<nodeidx_t, CoordT> &driver_node,
+                          const std::pair<nodeidx_t, CoordT> &pool_node,
+                          const Mask<CoordT> &mask,
+                          const std::vector<CoordT> &image_displacements,
+                          const count_t used_displacements) {
+  shift_t index = 0;
+  OptDisp<CoordT> min_displacement;
+  for (const auto &disp : image_displacements)
+    if (0 != (used_displacements & 1 << index++))
+      check_minimal_displacement(
+          mask.coord_in_mask(driver_node.second, pool_node.second + disp),
+          min_displacement);
+
+  return min_displacement;
+}
+
 template <Coordinate CoordT, typename DistributionT,
           bool allow_self_connections, bool allow_multiplicity>
 count_t compute_minimal_displacement(
@@ -80,13 +101,8 @@ count_t compute_minimal_displacement(
       return conn_limit;
   }
 
-  shift_t index = 0;
-  OptDisp<CoordT> min_displacement;
-  for (const auto &disp : image_displacements)
-    if (0 != (used_displacements & 1 << index++))
-      check_minimal_displacement(
-          mask.coord_in_mask(driver_node.second, pool_node.second + disp),
-          min_displacement);
+  const OptDisp<CoordT> min_displacement = find_minimal_displacement(
+      driver_node, pool_node, mask, image_displacements, used_displacements);
 
   if (!min_displacement.first)
     return conn_limit;
@@ -193,13 +209,8 @@ void compute_minimal_displacement(
       return;
   }
 
-  shift_t index = 0;
-  OptDisp<CoordT> min_displacement;
-  for (const auto &disp : image_displacements)
-    if (0 != (used_displacements & 1 << index++))
-      check_minimal_displacement(
-          mask.coord_in_mask(driver_node.second, pool_node.second + disp),
-          min_displacement);
+  const OptDisp<CoordT> min_displacement = find_minimal_displacement(
+      driver_node, pool_node, mask, image_displacements, used_displacements);
 
   if (!min_displacement.first)
     return;
