@@ -78,7 +78,7 @@ inline bool TilePosition<CoordT>::in_neighborhood(const tileidx_t index,
 
 template <Coordinate CoordT>
 std::string TilePosition<CoordT>::to_string() const {
-  std::string res = tile_->c_radius_.origin_.to_string() + ": [ ";
+  std::string res = tile_.c_radius_.origin_.to_string() + ": [ ";
   auto num_neighbors = wrapped_tile_neighborhood_.size();
   for (const auto &neighbor_index : wrapped_tile_neighborhood_)
     res += std::to_string(neighbor_index) + (num_neighbors-- > 1 ? ", " : " ]");
@@ -166,7 +166,7 @@ template <Coordinate CoordT> std::string TileGrid<CoordT>::to_string() const {
   std::string res = "";
   tileidx_t idx = 0;
   for (const auto &pos : positions_)
-    res += std::to_string(idx++) + ": " + pos->to_string() + "\n";
+    res += std::to_string(idx++) + ": " + pos.to_string() + "\n";
 
   return res;
 }

@@ -56,14 +56,11 @@ RecordedTimes TimerManager::get_times() const {
 
   times.rank_times_ = rank_registry_->to_map();
 
-  std::vector<std::unordered_map<std::string, double>> thread_times(
-      get_max_omp_threads());
-
-#pragma omp parallel default(none) shared(thread_times, thread_registers_)
-  {
-    const auto tid = get_thread_num();
-    thread_times[tid] = thread_registers_.get_thread_item(tid)->to_map();
-  }
+  const vp_t num_threads = get_max_omp_threads();
+  std::vector<std::unordered_map<std::string, double>> thread_times;
+  thread_times.reserve(static_cast<std::size_t>(num_threads));
+  for (vp_t tid = 0; tid < num_threads; ++tid)
+    thread_times.push_back(thread_registers_.get_thread_item(tid)->to_map());
 
   vp_t tid = 0;
   for (const auto &tts : thread_times) {

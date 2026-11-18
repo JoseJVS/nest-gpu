@@ -32,7 +32,7 @@
 
 namespace sapi {
 struct StopWatch {
-  std::chrono::high_resolution_clock::time_point start_;
+  std::chrono::steady_clock::time_point start_;
   std::chrono::nanoseconds duration_{};
 
   void start();
@@ -42,12 +42,10 @@ struct StopWatch {
   double time() const;
 };
 
-inline void StopWatch::start() {
-  start_ = std::chrono::high_resolution_clock::now();
-}
+inline void StopWatch::start() { start_ = std::chrono::steady_clock::now(); }
 
 inline void StopWatch::stop() {
-  duration_ += std::chrono::high_resolution_clock::now() - start_;
+  duration_ += std::chrono::steady_clock::now() - start_;
 }
 
 inline double StopWatch::time() const { return duration_.count() / 1e9; }

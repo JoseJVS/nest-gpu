@@ -220,6 +220,8 @@ protected:
 
   void _initialize_registers();
 
+  void _initialize_managers();
+
   split_t _initialize_grid_parameters(const GridParameters &grid_parameters);
 
   void _initialize_mask_parameters(const MaskParameters &mask_parameters);
@@ -231,9 +233,7 @@ protected:
 template <Coordinate CoordT>
 SpatialManager<CoordT>::SpatialManager() : BaseSpatialManager() {
   _initialize_registers();
-  timer_manager_.initialize();
-  random_manager_.initialize();
-  rank_timer_registry_ = timer_manager_.get_rank_registry();
+  _initialize_managers();
 }
 
 template <Coordinate CoordT>
@@ -241,9 +241,7 @@ SpatialManager<CoordT>::SpatialManager(const vp_t local_rank,
                                        const vp_t num_processes)
     : BaseSpatialManager(local_rank, num_processes) {
   _initialize_registers();
-  timer_manager_.initialize();
-  random_manager_.initialize();
-  rank_timer_registry_ = timer_manager_.get_rank_registry();
+  _initialize_managers();
 }
 
 template <Coordinate CoordT>
@@ -255,6 +253,13 @@ inline void SpatialManager<CoordT>::_initialize_registers() {
   initialize_gsc_registry(gsc_registry_);
   initialize_soc_registry(soc_registry_);
   initialize_ctc_registry(ctc_registry_);
+}
+
+template <Coordinate CoordT>
+inline void SpatialManager<CoordT>::_initialize_managers() {
+  timer_manager_.initialize();
+  random_manager_.initialize();
+  rank_timer_registry_ = timer_manager_.get_rank_registry();
 }
 
 template <Coordinate CoordT>
@@ -270,9 +275,7 @@ inline void SpatialManager<CoordT>::update_num_threads() {
   gc_array_.prepare();
   mc_array_.prepare();
   cg_array_.prepare();
-  timer_manager_.initialize();
-  random_manager_.initialize();
-  rank_timer_registry_ = timer_manager_.get_rank_registry();
+  _initialize_managers();
 }
 
 template <Coordinate CoordT>

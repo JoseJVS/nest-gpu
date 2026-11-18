@@ -29,13 +29,11 @@
 #include <utility>
 
 #include "connection_containers.h"
+#include "coordinates.h"
 #include "numeric_functors.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-template <Coordinate CoordT>
-using OptDisp = std::pair<bool, Displacement<CoordT>>;
-
 template <typename DistributionT, bool allow_multiplicity>
 inline count_t draw_connections(AnyRNG &rng, DistributionT &dist,
                                 const conn_param_t probability) {
