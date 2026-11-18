@@ -61,41 +61,20 @@ constexpr inline bool almost_zero(const space_t x) {
 }
 
 constexpr inline bool almost_equal(const space_t a, const space_t b) {
+  // Trivial case
+  if (a == b)
+    return true;
+
+  // Check if the numbers are really close -- needed
+  // when comparing numbers near zero.
   const space_t diff = std::fabs(a - b);
-  switch (
-      // Trivial case
-      ((a == b) << 0)
-      // Check if the numbers are really close -- needed
-      // when comparing numbers near zero.
-      + (std::islessequal(diff, SP_EPSILON) << 1)
-      // Sign comparison
-      + ((std::signbit(a) != std::signbit(b)) << 2)) {
-  case 1:
+  if (std::islessequal(diff, SP_EPSILON))
     return true;
 
-  case 3:
-    return true;
-
-  case 5:
-    return true;
-
-  case 7:
-    return true;
-
-  case 2:
-    return true;
-
-  case 6:
-    return true;
-
-  case 4:
-    return false;
-
-  default:
-    // Relative epsilon difference comparison
-    return std::islessequal(diff * SP_RELATIVE_EPSILON,
-                            std::fabs(a) + std::fabs(b));
-  }
+  // Relative epsilon difference comparison, only for equal signs
+  return std::signbit(a) == std::signbit(b) &&
+         std::islessequal(diff * SP_RELATIVE_EPSILON,
+                          std::fabs(a) + std::fabs(b));
 }
 
 constexpr inline bool interval_test(const space_t lower_bound,
