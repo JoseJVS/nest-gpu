@@ -347,10 +347,10 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
     const largenodeidx_t num_nodes,
     const std::optional<std::set<tileidx_t>> &target_tiles,
     const DISTRIBUTION_MODE distribution_mode) {
-  ScopedTimer ndt(rank_timer_registry_, "node_distribution_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
+
+  ScopedTimer ndt(rank_timer_registry_, "node_distribution_time");
 
   auto [node_counts_per_rank, tiled_node_counts_per_rank] =
       distribute_node_counts_in_grid(num_nodes, target_tiles, tile_grid_,
@@ -368,14 +368,14 @@ std::pair<NodeCountVector, std::vector<space_t>>
 SpatialManager<CoordT>::insert_positions_in_grid(
     const dim_t dimensions, const std::size_t coord_count,
     const space_t *const coordinates) {
-  ScopedTimer nit(rank_timer_registry_, "node_insertion_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
   if (dimensions != CoordT::D || coord_count % CoordT::D != 0 ||
       coordinates == nullptr)
     throw std::invalid_argument("Invalid positions to insert");
+
+  ScopedTimer nit(rank_timer_registry_, "node_insertion_time");
 
   std::deque<CoordT> coords;
   auto read_it = coordinates;
@@ -402,13 +402,13 @@ template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank,
     const DISTRIBUTION_MODE distribution_mode) {
-  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
   if (temp_node_generation_data_.empty())
     throw std::invalid_argument("Incorrect node generation data cache");
+
+  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
 
   const auto index = cached_distributed_tiled_node_sequences_.size();
   const auto &ref = cached_distributed_tiled_node_sequences_.emplace_back(
@@ -434,13 +434,13 @@ std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
 template <Coordinate CoordT>
 std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank) {
-  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
   if (temp_node_insertion_data_.empty())
     throw std::invalid_argument("Incorrect node insertion data cache");
+
+  ScopedTimer nct(rank_timer_registry_, "node_consolidation_time");
 
   const auto index = cached_distributed_tiled_node_sequences_.size();
   const auto &ref = cached_distributed_tiled_node_sequences_.emplace_back(
@@ -522,13 +522,13 @@ SpatialManager<CoordT>::compute_spatial_connections(
     const std::size_t source_index, const std::size_t target_index,
     const MaskParameters &mask_parameters,
     const ConnectionParameters &connection_parameters) {
-  ScopedTimer sct(rank_timer_registry_, "spatial_conn_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
   _initialize_mask_parameters(mask_parameters);
   _initialize_connection_parameters(connection_parameters);
+
+  ScopedTimer sct(rank_timer_registry_, "spatial_conn_time");
 
   const auto index = cached_connection_maps_.size();
   const auto connection_map = &cached_connection_maps_.emplace_back(
@@ -553,18 +553,17 @@ template <Coordinate CoordT>
 IndexedNodeCoordinates
 SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
                                   const MaskParameters &mask_parameters) {
-  ScopedTimer sst(rank_timer_registry_, "spatial_slicing_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
-  DistributedTiledNodeSequenceMap *dist_tns = nullptr;
-
-  if (index.has_value()) {
-    dist_tns = &cached_distributed_tiled_node_sequences_.at(index.value());
-  }
+  const auto *const dist_tns =
+      index.has_value()
+          ? &cached_distributed_tiled_node_sequences_.at(index.value())
+          : nullptr;
 
   _initialize_mask_parameters(mask_parameters);
+
+  ScopedTimer sst(rank_timer_registry_, "spatial_slicing_time");
 
   const auto slice = slice_tiled_node_maps(
       dist_tns, tile_grid_, grid_neighborhood_, grid_collection_, mc_array_);
@@ -610,10 +609,10 @@ SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
 
 template <Coordinate CoordT>
 GridVertexMap SpatialManager<CoordT>::get_grid_vertices() {
-  ScopedTimer gvt(rank_timer_registry_, "grid_vertex_time");
-
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
+
+  ScopedTimer gvt(rank_timer_registry_, "grid_vertex_time");
 
   GridVertexMap grid_vertices;
   grid_vertices.dimensions_ = CoordT::D;
