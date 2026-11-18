@@ -32,6 +32,16 @@ enum class TILE_SHAPE : uint8_t { RECTANGLE, TRIANGLE, HEXAGON, NULL_TS };
 constexpr static const char *const TILE_SHAPE_NAMES[uint8_t(
     TILE_SHAPE::NULL_TS)] = {"rectangle", "triangle", "hexagon"};
 
+// Sub-tiles produced by one split of each tile shape. It is the radix of
+// every split level in the leaf numbering, so the split functions, the leaf
+// count and the per-level branches must all use these values. A hexagon
+// splits into triangles, so its deeper levels use TRIANGLE_SPLITS.
+enum class TILE_SPLITS : uint8_t {
+  RECTANGLE_SPLITS = 4,
+  TRIANGLE_SPLITS = 2,
+  HEXAGON_SPLITS = 6
+};
+
 enum class MASK_SHAPE : uint8_t {
   CIRCULAR,
   ELLIPTICAL,

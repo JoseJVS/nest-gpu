@@ -159,19 +159,14 @@ inline void Tile<CoordT>::split(const split_t splits,
     return;
 
   if (0 < splits) {
-    SplitBranch split_tree;
-    const auto possible_branches =
-        sapi::get_possible_sub_tile_branches(splits, shape_);
-
     if (generate_total_leaves_vector) {
       const auto num_leaves = compute_leaves_count(splits);
       assert(0 < num_leaves);
       leaf_tiles_.resize(num_leaves, nullptr);
     }
 
-    sapi::split_tile(sub_tiles_, leaf_tiles_, vertices_, c_radius_, split_tree,
-                     possible_branches, splits, generate_total_leaves_vector,
-                     shape_);
+    sapi::split_tile(sub_tiles_, leaf_tiles_, vertices_, c_radius_, splits,
+                     generate_total_leaves_vector, shape_);
   } else {
     index_ = 0;
 

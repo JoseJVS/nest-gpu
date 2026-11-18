@@ -28,13 +28,16 @@ namespace sapi {
 tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape) {
   switch (shape) {
   case TILE_SHAPE::RECTANGLE:
-    return std::pow(4, splits);
+    return std::pow(uint8_t(TILE_SPLITS::RECTANGLE_SPLITS), splits);
 
   case TILE_SHAPE::TRIANGLE:
-    return std::pow(2, splits);
+    return std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits);
 
   case TILE_SHAPE::HEXAGON:
-    return splits > 0 ? 6 * std::pow(2, splits - 1) : 1;
+    return splits > 0
+               ? uint8_t(TILE_SPLITS::HEXAGON_SPLITS) *
+                     std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits - 1)
+               : 1;
 
   default:
     throw std::invalid_argument("Invalid tile shape");
@@ -48,14 +51,15 @@ std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
 
   switch (shape) {
   case TILE_SHAPE::RECTANGLE:
-    return std::vector<split_t>(splits, 4);
+    return std::vector<split_t>(splits, split_t(TILE_SPLITS::RECTANGLE_SPLITS));
 
   case TILE_SHAPE::TRIANGLE:
-    return std::vector<split_t>(splits, 2);
+    return std::vector<split_t>(splits, split_t(TILE_SPLITS::TRIANGLE_SPLITS));
 
   case TILE_SHAPE::HEXAGON: {
-    std::vector<split_t> split_vec(splits, 2);
-    split_vec[0] = 6;
+    std::vector<split_t> split_vec(splits,
+                                   split_t(TILE_SPLITS::TRIANGLE_SPLITS));
+    split_vec[0] = split_t(TILE_SPLITS::HEXAGON_SPLITS);
     return split_vec;
   }
 

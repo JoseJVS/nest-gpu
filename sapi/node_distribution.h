@@ -38,9 +38,20 @@ namespace sapi {
 vp_t get_thread_num();
 vp_t get_max_omp_threads();
 
-// Forward definition to link with split_tree.h
-tileidx_t collapse_dimensions(const std::vector<split_t> &branch_sequence,
-                              const std::vector<split_t> &split_sequence);
+// Leaf index from the partition taken at each split level, most significant
+// first; the same mixed-radix numbering the tile split assigns to leaves.
+inline tileidx_t
+collapse_dimensions(const std::vector<split_t> &branch_sequence,
+                    const std::vector<split_t> &split_sequence) {
+  assert(!branch_sequence.empty() &&
+         branch_sequence.size() == split_sequence.size());
+  auto bs_it = branch_sequence.begin();
+  tileidx_t index = *bs_it++;
+  for (auto ss_it = split_sequence.begin() + 1; ss_it != split_sequence.end();
+       ++ss_it)
+    index = *bs_it++ + *ss_it * index;
+  return index;
+}
 
 template <typename I>
   requires std::integral<std::remove_cvref_t<I>>

@@ -129,20 +129,20 @@ void initialize_hexagon_helpers(std::vector<Coord2D> &helper_vectors,
   assert(!almost_zero(helper_scalars[0]));
 }
 
+// Leaf indices are the mixed-radix number of the partitions taken from the
+// root, most significant first, with each split's fan-out as its radix (see
+// get_possible_sub_tile_branches). prefix carries the digits above this split.
 void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
                      std::vector<const Tile<Coord2D> *> &leaf_tiles,
                      const std::vector<Coord2D> &vertices,
                      const CircumscribedRadius<Coord2D> &c_radius,
-                     SplitBranch &split_tree,
-                     const std::vector<split_t> &possible_branches,
-                     const split_t splits,
+                     const tileidx_t prefix, const split_t splits,
                      const bool generate_total_leaves_vector) {
-  assert(0 < splits && sub_tiles.empty() && split_tree.children_.empty() &&
-         !possible_branches.empty() &&
+  assert(0 < splits && sub_tiles.empty() && 0 <= prefix &&
          leaf_tiles.empty() != generate_total_leaves_vector);
 
-  sub_tiles.reserve(4);
-  split_tree.children_.reserve(4);
+  constexpr split_t branches = split_t(TILE_SPLITS::RECTANGLE_SPLITS);
+  sub_tiles.reserve(branches);
   const split_t rem_splits = splits - 1;
   const space_t radius2 = c_radius.radius2_ / 4;
   assert(!almost_zero(radius2));
@@ -151,34 +151,31 @@ void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
   for (vertidx_t vix = 0; vix < 4; ++vix)
     midpoints[vix] = midpoint(vertices[vix], vertices[(vix + 1) % 4]);
 
-  for (split_t partition = 0; partition < 4; ++partition) {
+  for (split_t partition = 0; partition < branches; ++partition) {
     sub_tiles.emplace_back(Tile<Coord2D>(
         TILE_SHAPE::RECTANGLE,
         construct_circumscribed_radius(
             midpoint(c_radius.origin_, vertices[partition]), radius2),
         {vertices[partition], midpoints[partition], c_radius.origin_,
          midpoints[(partition + 3) % 4]}));
-
-    split_tree.children_.emplace_back(partition, &split_tree);
   }
 
 #pragma omp taskloop num_tasks(strict : 4)                                     \
     mergeable final(rem_splits < 3) default(none)                              \
-    shared(sub_tiles, leaf_tiles, split_tree, possible_branches)               \
-    firstprivate(rem_splits, generate_total_leaves_vector)
-  for (vertidx_t partition = 0; partition < 4; ++partition) {
+    shared(sub_tiles, leaf_tiles)                                              \
+    firstprivate(prefix, rem_splits, generate_total_leaves_vector)
+  for (split_t partition = 0; partition < branches; ++partition) {
     const auto st_it = sub_tiles.begin() + partition;
     initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
                           st_it->vertices_);
+    const tileidx_t child_prefix = prefix * branches + partition;
 
     if (0 < rem_splits) {
       split_rectangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
-                      st_it->c_radius_, split_tree.children_[partition],
-                      possible_branches, rem_splits,
+                      st_it->c_radius_, child_prefix, rem_splits,
                       generate_total_leaves_vector);
     } else {
-      st_it->index_ = get_index_from_branches(&split_tree.children_[partition],
-                                              possible_branches);
+      st_it->index_ = child_prefix;
 
       if (generate_total_leaves_vector) {
         const auto lt_it = leaf_tiles.begin() + st_it->index_;
@@ -192,16 +189,15 @@ void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
 void split_triangle(std::vector<Tile<Coord2D>> &sub_tiles,
                     std::vector<const Tile<Coord2D> *> &leaf_tiles,
                     const std::vector<Coord2D> &vertices,
-                    SplitBranch &split_tree,
-                    const std::vector<split_t> &possible_branches,
-                    const split_t splits,
+                    const tileidx_t prefix, const split_t splits,
                     const bool generate_total_leaves_vector) {
-  assert(0 < splits && sub_tiles.empty() && split_tree.children_.empty() &&
-         !possible_branches.empty() &&
+  assert(0 < splits && sub_tiles.empty() && 0 <= prefix &&
          leaf_tiles.empty() != generate_total_leaves_vector);
 
-  sub_tiles.reserve(2);
-  split_tree.children_.reserve(2);
+  // The two halves are built explicitly below.
+  constexpr split_t branches = split_t(TILE_SPLITS::TRIANGLE_SPLITS);
+  static_assert(branches == 2);
+  sub_tiles.reserve(branches);
   const split_t rem_splits = splits - 1;
 
   // Get AB, the largest edge of triangle ABC
@@ -215,29 +211,26 @@ void split_triangle(std::vector<Tile<Coord2D>> &sub_tiles,
   std::vector<Coord2D> left = {sorted_coords[2], coordD, sorted_coords[0]};
   sub_tiles.emplace_back(Tile<Coord2D>(
       TILE_SHAPE::TRIANGLE, compute_c_radius(left), std::move(left)));
-  split_tree.children_.emplace_back(0, &split_tree);
 
   std::vector<Coord2D> right = {sorted_coords[2], coordD, sorted_coords[1]};
   sub_tiles.emplace_back(Tile<Coord2D>(
       TILE_SHAPE::TRIANGLE, compute_c_radius(right), std::move(right)));
-  split_tree.children_.emplace_back(1, &split_tree);
 
 #pragma omp taskloop num_tasks(strict : 2)                                     \
     mergeable final(rem_splits < 5) default(none)                              \
-    shared(sub_tiles, leaf_tiles, split_tree, possible_branches)               \
-    firstprivate(rem_splits, generate_total_leaves_vector)
-  for (vertidx_t partition = 0; partition < 2; ++partition) {
+    shared(sub_tiles, leaf_tiles)                                              \
+    firstprivate(prefix, rem_splits, generate_total_leaves_vector)
+  for (split_t partition = 0; partition < branches; ++partition) {
     const auto st_it = sub_tiles.begin() + partition;
     initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
                           st_it->vertices_);
+    const tileidx_t child_prefix = prefix * branches + partition;
 
     if (0 < rem_splits) {
       split_triangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
-                     split_tree.children_[partition], possible_branches,
-                     rem_splits, generate_total_leaves_vector);
+                     child_prefix, rem_splits, generate_total_leaves_vector);
     } else {
-      st_it->index_ = get_index_from_branches(&split_tree.children_[partition],
-                                              possible_branches);
+      st_it->index_ = child_prefix;
 
       if (generate_total_leaves_vector) {
         const auto lt_it = leaf_tiles.begin() + st_it->index_;
@@ -252,21 +245,18 @@ void split_hexagon(std::vector<Tile<Coord2D>> &sub_tiles,
                    std::vector<const Tile<Coord2D> *> &leaf_tiles,
                    const std::vector<Coord2D> &vertices,
                    const CircumscribedRadius<Coord2D> &c_radius,
-                   SplitBranch &split_tree,
-                   const std::vector<split_t> &possible_branches,
-                   const split_t splits,
+                   const tileidx_t prefix, const split_t splits,
                    const bool generate_total_leaves_vector) {
-  assert(0 < splits && sub_tiles.empty() && split_tree.children_.empty() &&
-         !possible_branches.empty() &&
+  assert(0 < splits && sub_tiles.empty() && 0 <= prefix &&
          leaf_tiles.empty() != generate_total_leaves_vector);
 
-  sub_tiles.reserve(6);
-  split_tree.children_.reserve(6);
+  constexpr split_t branches = split_t(TILE_SPLITS::HEXAGON_SPLITS);
+  sub_tiles.reserve(branches);
   const split_t rem_splits = splits - 1;
   const space_t radius2 = c_radius.radius2_ / 3;
   assert(!almost_zero(radius2));
 
-  for (split_t partition = 0; partition < 6; ++partition) {
+  for (split_t partition = 0; partition < branches; ++partition) {
     const split_t next_partition = (partition + 1) % 6;
 
     sub_tiles.emplace_back(Tile<Coord2D>(
@@ -276,26 +266,23 @@ void split_hexagon(std::vector<Tile<Coord2D>> &sub_tiles,
                 ((vertices[partition] + vertices[next_partition]) / 3),
             radius2),
         {c_radius.origin_, vertices[partition], vertices[next_partition]}));
-
-    split_tree.children_.emplace_back(partition, &split_tree);
   }
 
 #pragma omp taskloop num_tasks(strict : 3)                                     \
     mergeable final(rem_splits < 4) default(none)                              \
-    shared(sub_tiles, leaf_tiles, split_tree, possible_branches)               \
-    firstprivate(rem_splits, generate_total_leaves_vector)
-  for (split_t partition = 0; partition < 6; ++partition) {
+    shared(sub_tiles, leaf_tiles)                                              \
+    firstprivate(prefix, rem_splits, generate_total_leaves_vector)
+  for (split_t partition = 0; partition < branches; ++partition) {
     const auto st_it = sub_tiles.begin() + partition;
     initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
                           st_it->vertices_);
+    const tileidx_t child_prefix = prefix * branches + partition;
 
     if (0 < rem_splits) {
       split_triangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
-                     split_tree.children_[partition], possible_branches,
-                     rem_splits, generate_total_leaves_vector);
+                     child_prefix, rem_splits, generate_total_leaves_vector);
     } else {
-      st_it->index_ = get_index_from_branches(&split_tree.children_[partition],
-                                              possible_branches);
+      st_it->index_ = child_prefix;
 
       if (generate_total_leaves_vector) {
         const auto lt_it = leaf_tiles.begin() + st_it->index_;

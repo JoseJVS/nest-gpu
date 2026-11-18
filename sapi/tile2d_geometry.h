@@ -25,7 +25,6 @@
 
 #include "coordinates.h"
 #include "sapi_forward_declarations.h"
-#include "split_tree.h"
 
 namespace sapi {
 void initialize_vertices_2D(std::vector<Coord2D> &vertices,
@@ -51,26 +50,20 @@ void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
                      std::vector<const Tile<Coord2D> *> &leaf_tiles,
                      const std::vector<Coord2D> &vertices,
                      const CircumscribedRadius<Coord2D> &c_radius,
-                     SplitBranch &split_tree,
-                     const std::vector<split_t> &possible_branches,
-                     const split_t splits,
+                     const tileidx_t prefix, const split_t splits,
                      const bool generate_total_leaves_vector);
 
 void split_triangle(std::vector<Tile<Coord2D>> &sub_tiles,
                     std::vector<const Tile<Coord2D> *> &leaf_tiles,
                     const std::vector<Coord2D> &vertices,
-                    SplitBranch &split_tree,
-                    const std::vector<split_t> &possible_branches,
-                    const split_t splits,
+                    const tileidx_t prefix, const split_t splits,
                     const bool generate_total_leaves_vector);
 
 void split_hexagon(std::vector<Tile<Coord2D>> &sub_tiles,
                    std::vector<const Tile<Coord2D> *> &leaf_tiles,
                    const std::vector<Coord2D> &vertices,
                    const CircumscribedRadius<Coord2D> &c_radius,
-                   SplitBranch &split_tree,
-                   const std::vector<split_t> &possible_branches,
-                   const split_t splits,
+                   const tileidx_t prefix, const split_t splits,
                    const bool generate_total_leaves_vector);
 
 bool coord_in_rectangle(const Coord2D &coord,

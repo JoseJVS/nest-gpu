@@ -23,7 +23,6 @@ node_slicing.h
 tile_geometry.h
 api_converters.h
 mask_containers.h
-split_tree.h
 grid_generation.h
 sapi_config.h
 sapi_forward_declarations.h
@@ -49,7 +48,6 @@ gf2d_geometry.h
 node_insertion.h
 node_creation.h
 grid_functors.h
-split_tree.cpp
 numeric_functors.cpp
 node_containers.h
 numeric_functors.h

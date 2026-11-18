@@ -126,29 +126,27 @@ void split_tile(std::vector<Tile<CoordT>> &sub_tiles,
                 std::vector<const Tile<CoordT> *> &leaf_tiles,
                 const std::vector<CoordT> &vertices,
                 const CircumscribedRadius<CoordT> &c_radius,
-                SplitBranch &split_tree,
-                const std::vector<split_t> &possible_branches,
                 const split_t splits, const bool generate_total_leaves_vector,
                 const TILE_SHAPE shape) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
     switch (shape) {
     case TILE_SHAPE::RECTANGLE: {
-      split_rectangle(sub_tiles, leaf_tiles, vertices, c_radius, split_tree,
-                      possible_branches, splits, generate_total_leaves_vector);
+      split_rectangle(sub_tiles, leaf_tiles, vertices, c_radius, 0, splits,
+                      generate_total_leaves_vector);
 
       break;
     }
 
     case TILE_SHAPE::TRIANGLE: {
-      split_triangle(sub_tiles, leaf_tiles, vertices, split_tree,
-                     possible_branches, splits, generate_total_leaves_vector);
+      split_triangle(sub_tiles, leaf_tiles, vertices, 0, splits,
+                     generate_total_leaves_vector);
 
       break;
     }
 
     case TILE_SHAPE::HEXAGON: {
-      split_hexagon(sub_tiles, leaf_tiles, vertices, c_radius, split_tree,
-                    possible_branches, splits, generate_total_leaves_vector);
+      split_hexagon(sub_tiles, leaf_tiles, vertices, c_radius, 0, splits,
+                    generate_total_leaves_vector);
 
       break;
     }

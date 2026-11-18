@@ -232,8 +232,20 @@ void distribute_node_counts_in_tiles(
     GridNodeCollection<CoordT> &grid_node_col,
     const TileIdxNodeSequenceMap &node_seq_per_tile,
     const TileGrid<CoordT> &tile_grid, const RandomManager &rng_manager) {
+  // Every tile of a grid has the grid's shape, so the split radices are the
+  // same for all tiles.
+  std::vector<split_t> possible_branches;
+  if constexpr (use_branches)
+    if (!node_seq_per_tile.empty())
+      possible_branches =
+          tile_grid
+              .positions_[static_cast<std::size_t>(
+                  node_seq_per_tile.cbegin()->first)]
+              .tile_.get_possible_sub_tile_branches(tile_grid.splits_);
+
 #pragma omp parallel default(none)                                             \
-    shared(node_seq_per_tile, grid_node_col, tile_grid, rng_manager)
+    shared(node_seq_per_tile, grid_node_col, tile_grid, rng_manager,           \
+               possible_branches)
 #pragma omp master
 #pragma omp taskgroup
   {
@@ -245,6 +257,10 @@ void distribute_node_counts_in_tiles(
       assert(tile_nc_it != grid_node_col.end() && !tile_nc_it->empty() &&
              tile_pos_it != tile_grid.positions_.cend() &&
              tile_nc_it->size() == tile_pos_it->tile_.leaf_tiles_.size());
+      assert(!use_branches ||
+             possible_branches ==
+                 tile_pos_it->tile_.get_possible_sub_tile_branches(
+                     tile_grid.splits_));
 
       NodeCountVector node_count_per_sub_tile;
 
@@ -253,9 +269,7 @@ void distribute_node_counts_in_tiles(
             uniform_distribute_node_counts<nodeidx_t, std::vector<split_t>,
                                            false>(
                 node_sequence.second,
-                static_cast<tileidx_t>(tile_nc_it->size()),
-                tile_pos_it->tile_.get_possible_sub_tile_branches(
-                    tile_grid.splits_),
+                static_cast<tileidx_t>(tile_nc_it->size()), possible_branches,
                 rng_manager);
       } else {
         node_count_per_sub_tile =
