@@ -33,6 +33,10 @@
 #include "tile2d_geometry.h"
 
 namespace sapi {
+// The tile functions below run inside parallel regions (grid generation,
+// splitting, node generation, insertion, slicing, mask overlap). Shapes come
+// from checked registry keys and no 3D manager can be built, so their default
+// and 3D branches assert instead of throwing.
 template <Coordinate CoordT>
 void initialize_tile_vertices(std::vector<CoordT> &vertices,
                               CircumscribedRadius<CoordT> &c_radius,
@@ -62,10 +66,10 @@ void initialize_tile_vertices(std::vector<CoordT> &vertices,
       break;
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
   }
 }
 
@@ -95,10 +99,10 @@ void initialize_tile_helpers(std::vector<CoordT> &helper_vectors,
     }
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
   }
 }
 
@@ -133,10 +137,10 @@ void split_tile(std::vector<Tile<CoordT>> &sub_tiles,
     }
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
   }
 }
 
@@ -162,10 +166,12 @@ bool coord_in_tile(const CoordT &coord,
                               helper_scalars);
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
+      return false;
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return false;
   }
 }
 
@@ -190,10 +196,12 @@ std::vector<std::pair<nodeidx_t, CoordT>> generate_coords_in_tile(
                                         c_radius);
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
+      return {};
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return {};
   }
 }
 
@@ -214,10 +222,12 @@ CoordT project_point_to_surface(const CoordT &coord,
       return project_point_to_triangle_perimeter(coord, vertices, c_radius);
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
+      return coord;
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return coord;
   }
 }
 

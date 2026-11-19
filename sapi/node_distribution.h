@@ -64,12 +64,10 @@ NodeCountVector safe_convert_vector(std::vector<I> &&count_vector) {
     NodeCountVector output_copy(count_vector.size());
     auto out_it = output_copy.begin();
     for (const auto &count : count_vector) {
-      if (std::cmp_greater_equal(count, 0) &&
-          std::cmp_less(count, std::numeric_limits<nodeidx_t>::max()))
-        *out_it++ = static_cast<nodeidx_t>(count);
-      else
-        throw std::runtime_error(
-            "Could not distribute node counts over available bins");
+      // The per-bin bound is checked in distribute_node_counts_in_grid
+      assert(std::cmp_greater_equal(count, 0) &&
+             std::cmp_less(count, std::numeric_limits<nodeidx_t>::max()));
+      *out_it++ = static_cast<nodeidx_t>(count);
     }
 
     count_vector.clear();

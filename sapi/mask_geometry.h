@@ -23,6 +23,7 @@
 #ifndef MASK_GEOMETRY_H
 #define MASK_GEOMETRY_H
 
+#include <cassert>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -126,10 +127,12 @@ OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
       return coord_in_triangular_mask(coord, mask);
 
     default:
-      throw std::invalid_argument("Invalid mask shape");
+      assert(false && "Invalid mask shape");
+      return {};
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return {};
   }
 }
 
@@ -167,10 +170,12 @@ OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,
       return coord_in_triangular_mask(a, b, mask);
 
     default:
-      throw std::invalid_argument("Invalid mask shape");
+      assert(false && "Invalid mask shape");
+      return {};
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return {};
   }
 }
 } // namespace sapi

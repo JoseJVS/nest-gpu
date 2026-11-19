@@ -488,7 +488,8 @@ generate_connections(AnyRNG &rng, ProceduralConnectivityBlocks &proc_block,
   }
 
   default:
-    throw std::runtime_error("Invalid connection method");
+    assert(false && "Invalid connection method");
+    return 0;
   }
 }
 } // namespace sapi

@@ -69,8 +69,8 @@ void aggregate_tiled_node_count_by_rank(
   const auto tile_owners =
       grid_neighborhood.tile_ranks_ownership_map_.cbegin() + tile_index;
   assert(tile_owners != grid_neighborhood.tile_ranks_ownership_map_.end());
-  if (tile_owners->empty())
-    throw std::runtime_error("Tile with allocated nodes has no owning rank");
+  // Target tiles are checked for owners in distribute_node_counts_in_grid
+  assert(!tile_owners->empty());
 
   const auto node_counts_per_owning_rank =
       uniform_distribute_node_counts<nodeidx_t, balanced, true>(

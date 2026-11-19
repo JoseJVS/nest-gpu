@@ -84,8 +84,8 @@ Tile<CoordT>::Tile(const TILE_SHAPE shape, const CoordT origin,
                    const std::vector<space_t> &side_lengths,
                    const std::vector<angle_t> &angular_offsets)
     : shape_(shape) {
-  if (side_lengths.empty())
-    throw std::invalid_argument("Invalid tile side lengths vector");
+  // Built inside grid generation tasks from validated side lengths
+  assert(!side_lengths.empty());
 
   c_radius_.origin_ = origin;
 

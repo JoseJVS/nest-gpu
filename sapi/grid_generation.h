@@ -54,8 +54,8 @@ private:
 template <Coordinate CoordT>
 inline void DimensionalNavigator<CoordT>::initialize(
     const GridPosition<CoordT> &grid_dimensions) {
-  if (!std::ranges::all_of(grid_dimensions, positiveTix))
-    throw std::invalid_argument("Invalid navigator dimensions");
+  // Grid dimensions are checked in construct_gf_collection
+  assert(std::ranges::all_of(grid_dimensions, positiveTix));
 
   next_ = true;
   dimensions_ = grid_dimensions;

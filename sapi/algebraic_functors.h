@@ -23,7 +23,7 @@
 #ifndef ALGEBRAIC_FUNCTORS_H
 #define ALGEBRAIC_FUNCTORS_H
 
-#include <stdexcept>
+#include <cassert>
 
 #include "enum_store.h"
 #include "numerics.h"
@@ -85,7 +85,8 @@ inline space_t UnaryFunctor::operator()(const space_t x) const {
   }
 
   default:
-    throw std::invalid_argument("Invalid unary function name");
+    assert(false && "Invalid unary function name");
+    return x;
   }
 }
 
@@ -123,7 +124,8 @@ DisplacementFunctor::operator()(const Displacement<CoordT> &d) const {
     if constexpr (std::is_same_v<CoordT, Coord3D>)
       return d.displacement_.z_;
     else
-      throw std::invalid_argument("Invalid displacement function name");
+      assert(false && "Invalid displacement function name");
+    return 0;
   }
 
   case DISPLACEMENT_FUNCTION::DISTANCE_X:
@@ -136,11 +138,13 @@ DisplacementFunctor::operator()(const Displacement<CoordT> &d) const {
     if constexpr (std::is_same_v<CoordT, Coord3D>)
       return std::fabs(d.displacement_.z_);
     else
-      throw std::invalid_argument("Invalid displacement function name");
+      assert(false && "Invalid displacement function name");
+    return 0;
   }
 
   default:
-    throw std::invalid_argument("Invalid displacement function name");
+    assert(false && "Invalid displacement function name");
+    return 0;
   }
 }
 } // namespace sapi

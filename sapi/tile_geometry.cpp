@@ -20,6 +20,7 @@
  *
  */
 
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -42,7 +43,8 @@ tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape) {
                : 1;
 
   default:
-    throw std::invalid_argument("Invalid tile shape");
+    assert(false && "Invalid tile shape");
+    return 1;
   }
 }
 
@@ -83,7 +85,8 @@ std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
   }
 
   default:
-    throw std::invalid_argument("Invalid tile shape");
+    assert(false && "Invalid tile shape");
+    return {};
   }
 }
 

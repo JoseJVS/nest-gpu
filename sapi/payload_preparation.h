@@ -82,11 +82,12 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
       payload_sizes(tile_set_info.valid_tiles_, tile_set_info.valid_leaves_,
                     tile_set_info.total_node_count_, CoordT::D);
 
-  // A payload is one MPI message with an int count
-  if (!sizes.fits_message())
-    throw std::runtime_error("Could not compute total payload size");
+  // A payload is one MPI message with an int count; the largest one is
+  // checked in compute_distributed_spatial_connections
+  assert(sizes.fits_message());
 
-  const int32_t _32bit_header_size = static_cast<int32_t>(sizes.header_fields_);
+  [[maybe_unused]] const int32_t _32bit_header_size =
+      static_cast<int32_t>(sizes.header_fields_);
   const int32_t total_header_size = static_cast<int32_t>(sizes.header_words_);
   const int32_t total_content_size = static_cast<int32_t>(sizes.content_words_);
   const int32_t total_payload_size = total_header_size + total_content_size;
@@ -151,8 +152,8 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
 
   const auto payload_size = comm_info.data_payload_.size();
 
-  if (payload_size < 2)
-    throw std::runtime_error("Cannot reconstruct invalid data payload");
+  // Senders always write the two size fields
+  assert(2 <= payload_size);
 
   // If only two elements are received it means
   // the payload content is empty and only

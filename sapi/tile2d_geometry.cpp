@@ -36,9 +36,9 @@ void initialize_vertices_2D(std::vector<Coord2D> &vertices,
                             const angle_t angular_offset,
                             const bool triangular_vertices) {
   assert(vertices.empty());
-  for (const auto &side : side_lengths)
-    if (almost_zero(side * side) || std::signbit(side))
-      throw std::invalid_argument("Invalid 2D side length");
+  // Side values and radius are checked in validate_tile_parameters_2D
+  for ([[maybe_unused]] const auto &side : side_lengths)
+    assert(!almost_zero(side * side) && !std::signbit(side));
 
   const auto half_width = side_lengths[0] / 2;
   const auto half_height =
@@ -72,8 +72,7 @@ void initialize_vertices_2D(std::vector<Coord2D> &vertices,
   }
 
   c_radius.radius2_ = distance2(c_radius.origin_, vertices[0]);
-  if (almost_zero(c_radius.radius2_))
-    throw std::invalid_argument("Invalid 2D radius");
+  assert(!almost_zero(c_radius.radius2_));
 }
 
 void initialize_hexagon_vertices(std::vector<Coord2D> &vertices,
@@ -83,8 +82,8 @@ void initialize_hexagon_vertices(std::vector<Coord2D> &vertices,
   assert(vertices.empty());
 
   c_radius.radius2_ = side_length * side_length;
-  if (std::signbit(side_length) || almost_zero(c_radius.radius2_))
-    throw std::invalid_argument("Invalid hexagon side length");
+  // Checked in validate_tile_parameters_2D
+  assert(!std::signbit(side_length) && !almost_zero(c_radius.radius2_));
 
   vertices.reserve(6);
   for (angle_t angle_ix = 0; angle_ix < 6; ++angle_ix)

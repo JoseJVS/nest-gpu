@@ -23,6 +23,7 @@
 #ifndef GF_GEOMETRY_H
 #define GF_GEOMETRY_H
 
+#include <cassert>
 #include <stdexcept>
 
 #include "coordinates.h"
@@ -101,10 +102,12 @@ create_shifted_origin(const CoordT &grid_origin,
                                              grid_position_parity, soc);
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
+      return grid_origin;
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return grid_origin;
   }
 }
 
@@ -207,10 +210,12 @@ Tile<CoordT> create_tile(const CoordT &tile_origin,
       return create_hexagon(tile_origin, ctc);
 
     default:
-      throw std::invalid_argument("Invalid tile shape");
+      assert(false && "Invalid tile shape");
+      return Tile<CoordT>{};
     }
   } else {
-    throw std::runtime_error("3D implementation not available yet");
+    assert(false && "3D implementation not available yet");
+    return Tile<CoordT>{};
   }
 }
 } // namespace sapi
