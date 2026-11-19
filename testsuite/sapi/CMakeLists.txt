@@ -21,6 +21,7 @@
 set( sapi_tests_helper_headers
 test_helpers.h
 geometry_test_helpers.h
+api_test_helpers.h
 )
 
 set ( sapi_tests_sources
@@ -56,6 +57,10 @@ mask_tile_overlap_test.cpp
 source_target_mask_test.cpp
 blueprint_range_test.cpp
 geometry_connections_test.cpp
+capi_error_handling_test.cpp
+input_validation_test.cpp
+tileless_rank_test.cpp
+invalid_kernel_test.cpp
 )
 
 set( sapi_tests )
@@ -114,9 +119,24 @@ set( multi_processing_tests
     c_api_test
     source_target_mask_test
     geometry_connections_test
+    capi_error_handling_test
+    input_validation_test
+    tileless_rank_test
+    invalid_kernel_test
 )
 
 string( REPLACE ";" " " MPI_TESTS "${multi_processing_tests}" )
+
+# Tests that pass oversized inputs (huge grids, billions of nodes) on purpose.
+# They run with a virtual memory limit per process, so a broken input check
+# fails the test instead of exhausting the memory of the machine.
+set( memory_capped_tests
+    input_validation_test
+)
+set( SAPI_TEST_MEMORY_CAP_KB "4000000" CACHE STRING
+    "Virtual memory limit (KiB, per process) for SAPI tests with oversized inputs" )
+
+string( REPLACE ";" " " MEMORY_CAPPED_TESTS "${memory_capped_tests}" )
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/testsuite/sapi/run_tests.sh.in"

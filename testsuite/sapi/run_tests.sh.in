@@ -11,13 +11,28 @@ mpi_max_procs="@MPIEXEC_MAX_NUMPROCS@"
 
 all_tests="@ALL_TESTS@"
 
+# Tests with oversized inputs run in a subshell with a virtual memory limit
+# (inherited by the MPI launcher and every process it starts)
+memory_capped_tests="@MEMORY_CAPPED_TESTS@"
+memory_cap_kb="@SAPI_TEST_MEMORY_CAP_KB@"
+
+run_test() {
+    local test="$1"
+    shift
+    if [[ " ${memory_capped_tests} " == *" ${test} "* ]]; then
+        (ulimit -v "${memory_cap_kb}" && "$@")
+    else
+        "$@"
+    fi
+}
+
 if [[ "${use_mpi}" == "false" ]]; then
     for test in ${all_tests}; do
-        $test
+        run_test ${test} ${test}
     done
 else
     for test in ${all_tests}; do
-        ${mpi_executable} ${mpi_np_flag} 1 ${mpi_pre_exec_flag} ${test} ${mpi_post_exec_flag}
+        run_test ${test} ${mpi_executable} ${mpi_np_flag} 1 ${mpi_pre_exec_flag} ${test} ${mpi_post_exec_flag}
     done
 
     mpi_tests="@MPI_TESTS@"
@@ -40,7 +55,7 @@ else
     if [ ! -z "${mpi_max_procs}" ]; then
         for test in ${mpi_tests}; do
             for np in $(seq 2 ${mpi_max_procs}); do
-                ${mpi_executable} ${mpi_np_flag} ${np} ${mpi_pre_exec_flag} ${test} ${mpi_post_exec_flag}
+                run_test ${test} ${mpi_executable} ${mpi_np_flag} ${np} ${mpi_pre_exec_flag} ${test} ${mpi_post_exec_flag}
             done
         done
     fi
