@@ -73,6 +73,7 @@ RankConnectionInfo::build_connection_map() const {
   return conn_map;
 }
 
+namespace {
 template <bool inverted_pivot>
 void copy_to_connection_vector(std::vector<conn_index_t>::iterator &source_it,
                                std::vector<conn_index_t>::iterator &target_it,
@@ -121,6 +122,8 @@ void copy_to_connection_vector(std::vector<conn_index_t>::iterator &source_it,
   }
 }
 
+} // namespace
+
 void ConnectionVectors::copy_from_procedural_connections(
     std::vector<ProceduralConnectivityBlocks> &procedural_connections,
     const std::size_t total_procedural_connections, const bool inverted_pivot) {
@@ -152,6 +155,7 @@ void ConnectionVectors::copy_from_procedural_connections(
   assert(source_it == connection_sources_.end());
 }
 
+namespace {
 // Adds a connection to partition p_index. Partition numbers are produced in
 // order (a pivot's or source index's k-th connection goes to partition k), so
 // p_index is at most the current number of partitions.
@@ -260,6 +264,8 @@ void consolidate_partitions(
 
   procedural_partitions.clear();
 }
+
+} // namespace
 
 void RankConnectionInfo::consolidate_connection_map() {
   assert(partitioned_connections_.empty());
