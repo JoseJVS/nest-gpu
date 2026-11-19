@@ -272,6 +272,36 @@ std::vector<I> thread_histograms(const RandomManager &rng_manager,
   return count_vec;
 }
 
+// The uniform part of both distribution drivers: num_nodes draws, split into
+// full batches per thread (thread_histograms) and a partial batch on the rank
+// stream, added to init_val per bin. distribution and bounds are passed on to
+// batched_draw unchanged.
+template <bool global, typename I, typename DistT, typename BoundsT>
+  requires std::integral<std::remove_cvref_t<I>>
+std::vector<I>
+uniform_histogram(const I num_nodes, const tileidx_t num_bins, const I init_val,
+                  const RandomManager &rng_manager, const DistT &distribution,
+                  const BoundsT &bounds) {
+  const auto num_threads = get_max_omp_threads();
+  auto [full_batches, partial_batches] =
+      batch_node_counts_by_thread_count(num_nodes, num_threads);
+
+  std::vector<I> count_vec;
+  if (0 < full_batches)
+    count_vec =
+        thread_histograms<global>(rng_manager, num_threads, num_bins,
+                                  full_batches, init_val, distribution, bounds);
+  else
+    count_vec.assign(static_cast<std::size_t>(num_bins), init_val);
+
+  if (0 < partial_batches)
+    batched_draw<false, false>(count_vec, partial_batches,
+                               rank_rng<global>(rng_manager), distribution,
+                               bounds);
+
+  return count_vec;
+}
+
 template <typename I, bool balanced, bool global>
   requires std::integral<std::remove_cvref_t<I>>
 NodeCountVector
@@ -304,24 +334,8 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
     return safe_convert_vector(std::move(count_vec));
   }
 
-  const auto num_threads = get_max_omp_threads();
-  auto [full_batches, partial_batches] =
-      batch_node_counts_by_thread_count(num_nodes, num_threads);
-
-  std::vector<I> count_vec;
-  if (0 < full_batches)
-    count_vec = thread_histograms<global>(rng_manager, num_threads, num_bins,
-                                          full_batches, init_val, tile_idx_dist,
-                                          num_bins);
-  else
-    count_vec.assign(bins, init_val);
-
-  if (0 < partial_batches)
-    batched_draw<false, false>(count_vec, partial_batches,
-                               rank_rng<global>(rng_manager), tile_idx_dist,
-                               num_bins);
-
-  return safe_convert_vector(std::move(count_vec));
+  return safe_convert_vector(uniform_histogram<global>(
+      num_nodes, num_bins, init_val, rng_manager, tile_idx_dist, num_bins));
 }
 
 template <typename I, typename DimensionBoundsT, bool global>
@@ -334,13 +348,9 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   if (num_bins == 1)
     return safe_convert_vector(std::vector<I>{num_nodes});
 
-  const auto bins = static_cast<std::size_t>(num_bins);
   if (num_nodes == 0)
-    return safe_convert_vector(std::vector<I>(bins, 0));
-
-  const auto num_threads = get_max_omp_threads();
-  auto [full_batches, partial_batches] =
-      batch_node_counts_by_thread_count(num_nodes, num_threads);
+    return safe_convert_vector(
+        std::vector<I>(static_cast<std::size_t>(num_bins), 0));
 
   using dist_t = uniform_int_type_t<typename DimensionBoundsT::value_type>;
   std::vector<std::uniform_int_distribution<dist_t>> distributions;
@@ -348,20 +358,8 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   for (const auto &dim : dimensions)
     distributions.emplace_back(0, static_cast<dist_t>(dim - 1));
 
-  std::vector<I> count_vec;
-  if (0 < full_batches)
-    count_vec = thread_histograms<global>(rng_manager, num_threads, num_bins,
-                                          full_batches, I{0}, distributions,
-                                          dimensions);
-  else
-    count_vec.assign(bins, 0);
-
-  if (0 < partial_batches)
-    batched_draw<false, false>(count_vec, partial_batches,
-                               rank_rng<global>(rng_manager), distributions,
-                               dimensions);
-
-  return safe_convert_vector(std::move(count_vec));
+  return safe_convert_vector(uniform_histogram<global>(
+      num_nodes, num_bins, I{0}, rng_manager, distributions, dimensions));
 }
 
 // Here it is assumed that node sequences in each rank are generated externally
