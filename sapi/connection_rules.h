@@ -197,7 +197,7 @@ template <Coordinate CoordT, bool allow_self_connections, bool inverted_pivot,
 void compute_minimal_displacement(
     std::deque<ConnectionInfo> &possible_connections,
     std::deque<conn_param_t> &connection_probabilities,
-    const std::pair<nodeidx_t, CoordT> &driver_node,
+    count_t &positive_counts, const std::pair<nodeidx_t, CoordT> &driver_node,
     const std::pair<nodeidx_t, CoordT> &pool_node, const Mask<CoordT> &mask,
     const NFCollection &functors,
     const std::vector<CoordT> &image_displacements,
@@ -224,8 +224,14 @@ void compute_minimal_displacement(
   }
 
   if constexpr (compute_probability) {
-    connection_probabilities.emplace_back(
-        functors.probability_functor_(min_displacement.second));
+    const auto probability =
+        functors.probability_functor_(min_displacement.second);
+    // Also rejects NaN
+    assert(std::isgreaterequal(probability, 0));
+    if (std::isless(0, probability))
+      ++positive_counts;
+
+    connection_probabilities.emplace_back(probability);
   }
 }
 
@@ -313,15 +319,12 @@ void compute_fixed_connections(
         }
       }
 
-      if (inserted < connection_counts) {
-        std::sample(possible_connections.begin(), possible_connections.end(),
-                    selected_connections.begin(), connection_counts, rng);
-      } else {
-        std::ranges::transform(priority_map, selected_connections.begin(),
-                               [&](const auto &entry) {
-                                 return possible_connections[entry.second];
-                               });
-      }
+      // Only positive candidates reach this point, more than requested
+      assert(inserted == connection_counts);
+      std::ranges::transform(priority_map, selected_connections.begin(),
+                             [&](const auto &entry) {
+                               return possible_connections[entry.second];
+                             });
     }
   } else {
     assert(connection_probabilities.empty());
@@ -349,6 +352,7 @@ std::size_t generate_fixed_number_connections(
 
   std::deque<ConnectionInfo> possible_connections;
   std::deque<conn_param_t> connection_probabilities;
+  count_t positive_counts = 0;
 
   std::size_t tracked_conn_counts = 0;
   proc_block.resize(task.pivot_view_->second.size());
@@ -370,16 +374,36 @@ std::size_t generate_fixed_number_connections(
         if constexpr (inverted_pivot) {
           compute_minimal_displacement<CoordT, allow_self_connections,
                                        inverted_pivot, has_kernel>(
-              possible_connections, connection_probabilities, combination_pair,
-              pivot_pair, mask, functors, image_displacements,
+              possible_connections, connection_probabilities, positive_counts,
+              combination_pair, pivot_pair, mask, functors, image_displacements,
               combination.second.used_displacements_);
         } else {
           compute_minimal_displacement<CoordT, allow_self_connections,
                                        inverted_pivot, has_kernel>(
-              possible_connections, connection_probabilities, pivot_pair,
-              combination_pair, mask, functors, image_displacements,
+              possible_connections, connection_probabilities, positive_counts,
+              pivot_pair, combination_pair, mask, functors, image_displacements,
               combination.second.used_displacements_);
         }
+      }
+    }
+
+    // Candidates with probability 0 are never selected: drop them, keeping
+    // the order of the others, before the selection
+    if constexpr (has_kernel) {
+      if (std::cmp_less(positive_counts, possible_connections.size())) {
+        auto conn_keep = possible_connections.begin();
+        auto prob_keep = connection_probabilities.begin();
+        auto prob_it = connection_probabilities.cbegin();
+        for (const auto &conn : possible_connections) {
+          if (std::isless(0, *prob_it)) {
+            *conn_keep++ = conn;
+            *prob_keep++ = *prob_it;
+          }
+          ++prob_it;
+        }
+        possible_connections.erase(conn_keep, possible_connections.end());
+        connection_probabilities.erase(prob_keep,
+                                       connection_probabilities.end());
       }
     }
 
@@ -389,6 +413,7 @@ std::size_t generate_fixed_number_connections(
 
     possible_connections.clear();
     connection_probabilities.clear();
+    positive_counts = 0;
 
     tracked_conn_counts += block_it->second.size();
     ++block_it;
