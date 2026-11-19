@@ -23,12 +23,14 @@
 #ifndef CREATOR_REGISTRY_H
 #define CREATOR_REGISTRY_H
 
+#include <algorithm>
 #include <concepts>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #include "sapi_forward_declarations.h"
 
@@ -58,7 +60,26 @@ inline void CreatorRegistry<RT>::register_creator(std::string &&name) {
 template <typename RT>
 inline const std::unique_ptr<StateLessCreator<RT>> &
 CreatorRegistry<RT>::get_creator(const std::string &name) const {
-  return registry_.at(name);
+  if (const auto it = registry_.find(name); it != registry_.end())
+    return it->second;
+
+  // Sorted, so the message does not depend on the hash order
+  std::vector<std::string> names;
+  names.reserve(registry_.size());
+  for (const auto &entry : registry_)
+    names.push_back(entry.first);
+  std::ranges::sort(names);
+
+  std::string message = "Unknown name \"" + name + "\"; ";
+  if (names.empty()) {
+    message += "no names are registered";
+  } else {
+    message += "registered names: " + names.front();
+    for (auto it = names.cbegin() + 1; it != names.cend(); ++it)
+      message += ", " + *it;
+  }
+
+  throw std::invalid_argument(message);
 }
 } // namespace sapi
 
