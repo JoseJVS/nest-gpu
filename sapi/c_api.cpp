@@ -105,42 +105,37 @@ void CAPI::generate_tile_grid(const NestedTileIdxArray &rank_tiles_ownership,
     throw std::runtime_error(
         "Cannot initialize spatial grid more than once without resetting api");
 
+  // Configured and initialized locally, so a failure at any point leaves the
+  // api without a manager and the original exception propagates unchanged.
+  std::unique_ptr<BaseSpatialManager> manager;
   switch (grid_parameters.grid_dimensions_.size_) {
-  case 2: {
-    auto uptr =
+  case 2:
+    manager =
         std::make_unique<SpatialManager<Coord2D>>(local_rank_, num_processes_);
-    spatial_manager_ = uptr.get();
-    spatial_storage_.collect(std::move(uptr));
     break;
-  }
 
-  case 3: {
-    auto uptr =
+  case 3:
+    manager =
         std::make_unique<SpatialManager<Coord3D>>(local_rank_, num_processes_);
-    spatial_manager_ = uptr.get();
-    spatial_storage_.collect(std::move(uptr));
     break;
-  }
 
   default:
     throw std::invalid_argument("Invalid grid dimensions");
   }
 
   if (seed_ != DEFAULT_BASE_SEED_)
-    spatial_manager_->set_rng_seed(seed_);
+    manager->set_rng_seed(seed_);
 
   if (rng_type_ != DEFAULT_RNG_TYPE_)
-    spatial_manager_->set_rng_type(rng_type_);
+    manager->set_rng_type(rng_type_);
 
-  try {
-    spatial_manager_->initialize_tile_grid(
-        nested_array_to_set_vector(rank_tiles_ownership),
-        gpstruct_to_grid_params(grid_parameters));
-  } catch (const std::exception &e) {
-    spatial_storage_.free_gc();
-    spatial_manager_ = nullptr;
-    throw e;
-  }
+  manager->initialize_tile_grid(
+      nested_array_to_set_vector(rank_tiles_ownership),
+      gpstruct_to_grid_params(grid_parameters));
+
+  const auto manager_ptr = manager.get();
+  spatial_storage_.collect(std::move(manager));
+  spatial_manager_ = manager_ptr;
 }
 
 NodeCountVector CAPI::generate_nodes_in_grid(const largenodeidx_t num_nodes,
