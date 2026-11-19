@@ -23,9 +23,11 @@
 #ifndef NODE_DISTRIBUTION
 #define NODE_DISTRIBUTION
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <concepts>
+#include <numeric>
 #include <random>
 #include <type_traits>
 #include <utility>
@@ -141,21 +143,25 @@ inline AnyRNG &rank_rng(const RandomManager &rng_manager) {
 
 // Draws `batches` bins into out (see add_to_bin), in draw order. The counter
 // and the distribution are copies, so a task's firstprivate values are never
-// modified and every call draws with its own distribution object.
+// modified and every call draws with its own distribution object. With
+// balanced, the bins are distinct: the first `batches` steps of a Fisher-Yates
+// shuffle of all bins.
 template <bool balanced, bool record, typename T, typename I>
   requires std::integral<std::remove_cvref_t<I>>
 void batched_draw(std::vector<T> &out, I batches, AnyRNG &rng,
                   std::uniform_int_distribution<tileidx_t> distribution,
                   const tileidx_t num_bins) {
   if constexpr (balanced) {
-    assert(batches < num_bins && 1 < num_bins);
-    std::vector<tileidx_t> indexes(num_bins);
+    assert(0 < batches && batches < num_bins);
+    std::vector<tileidx_t> indexes(static_cast<std::size_t>(num_bins));
     std::iota(indexes.begin(), indexes.end(), 0);
-    std::shuffle(indexes.begin(), indexes.end(), rng);
 
-    while (0 < batches) {
-      add_to_bin<record>(out, indexes[batches]);
-      --batches;
+    using param_t = std::uniform_int_distribution<tileidx_t>::param_type;
+    for (auto it = indexes.begin(); 0 < batches; ++it, --batches) {
+      const auto step = static_cast<tileidx_t>(it - indexes.begin());
+      distribution.param(param_t(step, num_bins - 1));
+      std::iter_swap(it, indexes.begin() + distribution(rng));
+      add_to_bin<record>(out, *it);
     }
   } else {
     while (0 < batches) {
@@ -205,8 +211,7 @@ void batched_draw(std::vector<T> &out, I batches, AnyRNG &rng,
 // recorded and added up; otherwise each thread fills a dense buffer and one
 // taskloop over bin chunks sums the buffers. The integer sums do not depend
 // on the merge order.
-template <bool global, bool balanced, typename I, typename DistT,
-          typename BoundsT>
+template <bool global, typename I, typename DistT, typename BoundsT>
   requires std::integral<std::remove_cvref_t<I>>
 std::vector<I> thread_histograms(const RandomManager &rng_manager,
                                  const vp_t num_threads,
@@ -226,9 +231,9 @@ std::vector<I> thread_histograms(const RandomManager &rng_manager,
     for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
       auto &curr_drawn = drawn[static_cast<std::size_t>(curr_idx)];
       curr_drawn.reserve(static_cast<std::size_t>(full_batches));
-      batched_draw<balanced, true>(curr_drawn, full_batches,
-                                   thread_rng<global>(rng_manager, curr_idx),
-                                   distribution, bounds);
+      batched_draw<false, true>(curr_drawn, full_batches,
+                                thread_rng<global>(rng_manager, curr_idx),
+                                distribution, bounds);
     }
 
     std::vector<I> count_vec(bins, init_val);
@@ -247,9 +252,9 @@ std::vector<I> thread_histograms(const RandomManager &rng_manager,
   for (vp_t curr_idx = 0; curr_idx < num_threads; ++curr_idx) {
     auto &curr_buff = buffers[static_cast<std::size_t>(curr_idx)];
     curr_buff.resize(bins, 0);
-    batched_draw<balanced, false>(curr_buff, full_batches,
-                                  thread_rng<global>(rng_manager, curr_idx),
-                                  distribution, bounds);
+    batched_draw<false, false>(curr_buff, full_batches,
+                               thread_rng<global>(rng_manager, curr_idx),
+                               distribution, bounds);
   }
 
   auto count_vec = std::move(buffers[0]);
@@ -286,24 +291,35 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
   if (num_nodes == 0)
     return safe_convert_vector(std::vector<I>(bins, init_val));
 
+  const std::uniform_int_distribution<tileidx_t> tile_idx_dist(0, num_bins - 1);
+
+  // The remainder (fewer nodes than bins) goes to distinct bins, drawn once on
+  // the rank stream, so every bin gets init_val or init_val + 1 regardless of
+  // the thread count
+  if constexpr (balanced) {
+    std::vector<I> count_vec(bins, init_val);
+    batched_draw<true, false>(count_vec, num_nodes,
+                              rank_rng<global>(rng_manager), tile_idx_dist,
+                              num_bins);
+    return safe_convert_vector(std::move(count_vec));
+  }
+
   const auto num_threads = get_max_omp_threads();
   auto [full_batches, partial_batches] =
       batch_node_counts_by_thread_count(num_nodes, num_threads);
 
-  const std::uniform_int_distribution<tileidx_t> tile_idx_dist(0, num_bins - 1);
-
   std::vector<I> count_vec;
   if (0 < full_batches)
-    count_vec = thread_histograms<global, balanced>(
-        rng_manager, num_threads, num_bins, full_batches, init_val,
-        tile_idx_dist, num_bins);
+    count_vec = thread_histograms<global>(rng_manager, num_threads, num_bins,
+                                          full_batches, init_val, tile_idx_dist,
+                                          num_bins);
   else
     count_vec.assign(bins, init_val);
 
   if (0 < partial_batches)
-    batched_draw<balanced, false>(count_vec, partial_batches,
-                                  rank_rng<global>(rng_manager), tile_idx_dist,
-                                  num_bins);
+    batched_draw<false, false>(count_vec, partial_batches,
+                               rank_rng<global>(rng_manager), tile_idx_dist,
+                               num_bins);
 
   return safe_convert_vector(std::move(count_vec));
 }
@@ -334,9 +350,9 @@ uniform_distribute_node_counts(I num_nodes, const tileidx_t num_bins,
 
   std::vector<I> count_vec;
   if (0 < full_batches)
-    count_vec = thread_histograms<global, false>(rng_manager, num_threads,
-                                                 num_bins, full_batches, I{0},
-                                                 distributions, dimensions);
+    count_vec = thread_histograms<global>(rng_manager, num_threads, num_bins,
+                                          full_batches, I{0}, distributions,
+                                          dimensions);
   else
     count_vec.assign(bins, 0);
 
