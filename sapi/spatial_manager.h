@@ -313,6 +313,15 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
       grid_parameters.tile_angular_offsets_, gsc_registry_, soc_registry_,
       ctc_registry_);
 
+  // Number of tiles, in a wider type than tileidx_t (the dimensions are
+  // positive, see construct_gf_collection)
+  int64_t num_tiles = 1;
+  for (const auto dimension : gc.grid_dimensions_) {
+    num_tiles *= dimension;
+    if (std::numeric_limits<tileidx_t>::max() < num_tiles)
+      throw std::invalid_argument("Too many tiles in the grid");
+  }
+
   const auto num_splits =
       grid_parameters.compute_splits_
           ? compute_minimal_splits(
@@ -322,6 +331,10 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
                                 std::multiplies<tileidx_t>{}),
                 grid_parameters.expected_nodes_per_leaf_, gc.ctc_.shape_)
           : grid_parameters.num_splits_;
+
+  if (max_splits(gc.ctc_.shape_) < num_splits)
+    throw std::invalid_argument("Too many splits for the tile shape, at most " +
+                                std::to_string(max_splits(gc.ctc_.shape_)));
 
   gc_array_.clone(gc);
 
@@ -542,6 +555,19 @@ void SpatialManager<CoordT>::_initialize_connection_parameters(
       connection_parameters.prob_df_params_, df_registry_,
       connection_parameters.prob_ufs_names_,
       connection_parameters.prob_ufs_params_, uf_registry_);
+
+  // Displacements on a 2D grid have no z component
+  if constexpr (CoordT::D < 3) {
+    const auto uses_z = [](const NumericFunctor &functor) {
+      return functor.df_.func_ == DISPLACEMENT_FUNCTION::DISPLACEMENT_Z ||
+             functor.df_.func_ == DISPLACEMENT_FUNCTION::DISTANCE_Z;
+    };
+    const auto &functors = cg.numeric_functors_;
+    if (uses_z(functors.weight_functor_) || uses_z(functors.delay_functor_) ||
+        uses_z(functors.probability_functor_))
+      throw std::invalid_argument(
+          "displacement_z and distance_z need a 3D grid");
+  }
 
   if (!cg.check_parameters())
     throw std::invalid_argument("Invalid connection parameters");

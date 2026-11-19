@@ -78,6 +78,36 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
   if (!mc_array.get_local_thread_item()->has_blueprint())
     throw std::invalid_argument("Spatial connections require mask blueprints");
 
+  // Largest payload any rank can send (all its owned tiles, leaves and nodes
+  // of either population) has to fit one MPI message; every rank knows every
+  // rank's counts, so all ranks reach the same decision
+  if (0 < tile_grid.num_tiles_) {
+    const int64_t leaves_per_tile = compute_leaves_count(
+        tile_grid.splits_, tile_grid.positions_[0].tile_.shape_);
+    const auto local_nodes = [](const DistributedTiledNodeSequenceMap &dist_tns,
+                                const vp_t rank) {
+      int64_t nodes = 0;
+      if (const auto rank_it = dist_tns.find(rank); rank_it != dist_tns.end())
+        for (const auto &tile_sequence : rank_it->second)
+          nodes += tile_sequence.second.second;
+      return nodes;
+    };
+    for (vp_t rank = 0; rank < grid_neighborhood.num_processes_; ++rank) {
+      const int64_t tiles = static_cast<int64_t>(
+          grid_neighborhood
+              .rank_tiles_ownership_map_[static_cast<std::size_t>(rank)]
+              .size());
+      if (!payload_sizes(tiles, tiles * leaves_per_tile,
+                         std::max(local_nodes(dist_tns_source, rank),
+                                  local_nodes(dist_tns_target, rank)),
+                         CoordT::D)
+               .fits_message())
+        throw std::invalid_argument(
+            "Too many nodes on rank " + std::to_string(rank) +
+            " to exchange them in one connection payload");
+    }
+  }
+
   const auto rank_timer_registry = timer_manager.get_rank_registry();
 
   ScopedTimer connect_timer(rank_timer_registry,

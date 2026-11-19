@@ -28,11 +28,14 @@
 
 #include "coordinates.h"
 #include "enum_store.h"
+#include "numerics.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
 // Checks the 2D parameters shared by tiles and grid functors: at most one
-// angular offset, then the side lengths of the shape. Returns the angular
+// angular offset, then the number and the values of the side lengths of the
+// shape (the same conditions the tile vertices are built under, see
+// initialize_vertices_2D and initialize_hexagon_vertices). Returns the angular
 // offset, 0 when none is given.
 inline angle_t
 validate_tile_parameters_2D(const TILE_SHAPE shape,
@@ -60,6 +63,20 @@ validate_tile_parameters_2D(const TILE_SHAPE shape,
 
   default:
     throw std::invalid_argument("Invalid tile shape");
+  }
+
+  for (const auto side : side_lengths)
+    if (almost_zero(side * side) || std::signbit(side))
+      throw std::invalid_argument(shape == TILE_SHAPE::HEXAGON
+                                      ? "Invalid hexagon side length"
+                                      : "Invalid 2D side length");
+
+  // Circumscribed radius of a rectangle or triangle: half its diagonal
+  if (shape != TILE_SHAPE::HEXAGON) {
+    const auto half_width = side_lengths[0] / 2;
+    const auto half_height = 1 < lengths ? side_lengths[1] / 2 : half_width;
+    if (almost_zero(half_width * half_width + half_height * half_height))
+      throw std::invalid_argument("Invalid 2D radius");
   }
 
   return angular_offsets.empty() ? angle_t(0) : angular_offsets[0];

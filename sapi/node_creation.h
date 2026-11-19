@@ -23,9 +23,12 @@
 #ifndef NODE_CREATION_H
 #define NODE_CREATION_H
 
+#include <algorithm>
 #include <cassert>
 #include <concepts>
+#include <limits>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "dispatch.h"
@@ -124,6 +127,35 @@ distribute_node_counts_in_grid(
   if (tile_set.has_value() && mode == DISTRIBUTION_MODE::FREE)
     throw std::invalid_argument("Tile specific distribution of nodes cannot be "
                                 "done using free distribution mode");
+
+  if (tile_set.has_value() && (tile_set->empty() || *tile_set->cbegin() < 0 ||
+                               tile_grid.num_tiles_ <= *tile_set->crbegin()))
+    throw std::invalid_argument("Target tiles must be a non-empty set of "
+                                "tile indexes of the grid");
+
+  // Nodes can only be placed in tiles that some rank owns
+  const auto has_owner = [&grid_neighborhood](const tileidx_t tile_index) {
+    return !grid_neighborhood
+                .tile_ranks_ownership_map_[static_cast<std::size_t>(tile_index)]
+                .empty();
+  };
+  if (tile_set.has_value()
+          ? !std::ranges::all_of(*tile_set, has_owner)
+          : !std::ranges::all_of(
+                grid_neighborhood.tile_ranks_ownership_map_,
+                [](const auto &owners) { return !owners.empty(); }))
+    throw std::invalid_argument(
+        "Nodes can only be distributed over tiles owned by some rank");
+
+  // A balanced distribution gives each tile at most ceil(nodes / tiles)
+  if (large_distribution &&
+      std::cmp_less(std::numeric_limits<nodeidx_t>::max(),
+                    num_nodes / tile_grid.num_tiles_ +
+                        (num_nodes % tile_grid.num_tiles_ != 0)))
+    throw std::invalid_argument(
+        "Distribution of a large number of nodes needs more tiles: at most " +
+        std::to_string(std::numeric_limits<nodeidx_t>::max()) +
+        " nodes per tile");
 
   NodeCountVector node_counts_per_rank(grid_neighborhood.num_processes_, 0);
   RankTileIdxNodeCountPairs tiled_node_counts_per_rank(

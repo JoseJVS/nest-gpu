@@ -248,6 +248,9 @@ bool edges_cross(const std::vector<CoordT> &a, const CoordT &shift,
 
 tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape);
 
+// Largest number of splits whose leaf count fits tileidx_t
+split_t max_splits(const TILE_SHAPE shape);
+
 std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
                                                     const TILE_SHAPE shape);
 

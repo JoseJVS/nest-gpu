@@ -51,27 +51,45 @@ inline int32_t header_read(std::vector<uint64_t>::const_iterator &payload_it,
   }
 }
 
+// Payload sizes: a header of 32-bit fields (3 fixed, 2 per tile, 2 per leaf,
+// 1 per node) packed two per uint64_t word, then D coordinates per node.
+// Computed in int64_t, so they cannot overflow for int32_t counts.
+struct PayloadSizes {
+  int64_t header_fields_;
+  int64_t header_words_;
+  int64_t content_words_;
+
+  bool fits_message() const {
+    return header_words_ + content_words_ <=
+           std::numeric_limits<int32_t>::max();
+  }
+};
+
+inline PayloadSizes payload_sizes(const int64_t tiles, const int64_t leaves,
+                                  const int64_t nodes, const dim_t dimensions) {
+  const int64_t header_fields = 3 + 2 * (tiles + leaves) + nodes;
+  return {.header_fields_ = header_fields,
+          .header_words_ = (header_fields + header_fields % 2) / 2,
+          .content_words_ = nodes * dimensions};
+}
+
 template <Coordinate CoordT>
 void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
                           const TileSetInfo<CoordT> &tile_set_info) {
   static_assert(sizeof(tileidx_t) == 4ul && sizeof(nodeidx_t) == 4ul);
 
-  // Compute total data length
-  const int32_t _32bit_header_size =
-      3 + 2 * (tile_set_info.valid_tiles_ + tile_set_info.valid_leaves_) +
-      tile_set_info.total_node_count_;
+  const auto sizes =
+      payload_sizes(tile_set_info.valid_tiles_, tile_set_info.valid_leaves_,
+                    tile_set_info.total_node_count_, CoordT::D);
 
-  // compact for 64bit
-  const int32_t total_header_size =
-      (_32bit_header_size + _32bit_header_size % 2) / 2;
-  const int32_t total_content_size =
-      tile_set_info.total_node_count_ * CoordT::D;
-  const int32_t total_payload_size = total_header_size + total_content_size;
-
-  // Check overflow
-  if (!(2 <= total_header_size && 0 <= total_content_size &&
-        2 <= total_payload_size))
+  // A payload is one MPI message with an int count
+  if (!sizes.fits_message())
     throw std::runtime_error("Could not compute total payload size");
+
+  const int32_t _32bit_header_size = static_cast<int32_t>(sizes.header_fields_);
+  const int32_t total_header_size = static_cast<int32_t>(sizes.header_words_);
+  const int32_t total_content_size = static_cast<int32_t>(sizes.content_words_);
+  const int32_t total_payload_size = total_header_size + total_content_size;
 
   assert((2 < total_payload_size) != comm_info.filtered_coords_.empty());
 

@@ -21,6 +21,8 @@
  */
 
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 #include "tile_geometry.h"
 
@@ -42,6 +44,23 @@ tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape) {
   default:
     throw std::invalid_argument("Invalid tile shape");
   }
+}
+
+split_t max_splits(const TILE_SHAPE shape) {
+  const auto branches = get_possible_sub_tile_branches(
+      std::numeric_limits<split_t>::max(), shape);
+
+  // Leaf count after each split, in a wider type than tileidx_t
+  int64_t leaves = 1;
+  split_t splits = 0;
+  for (const auto fan_out : branches) {
+    leaves *= fan_out;
+    if (std::numeric_limits<tileidx_t>::max() < leaves)
+      break;
+    ++splits;
+  }
+
+  return splits;
 }
 
 std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
