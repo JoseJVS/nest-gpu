@@ -34,6 +34,17 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
+// Probability of a candidate. Negative kernel values and NaN are not valid
+// probabilities: they count as 0, so the candidate is never connected.
+template <Coordinate CoordT>
+inline conn_param_t
+kernel_probability(const NumericFunctor &kernel,
+                   const Displacement<CoordT> &displacement) {
+  const auto probability = kernel(displacement);
+  return std::isgreaterequal(probability, 0) ? probability : 0;
+}
+
+// probability is never negative or NaN (see kernel_probability)
 template <typename DistributionT, bool allow_multiplicity>
 inline count_t draw_connections(AnyRNG &rng, DistributionT &dist,
                                 const conn_param_t probability) {
@@ -41,6 +52,10 @@ inline count_t draw_connections(AnyRNG &rng, DistributionT &dist,
                                std::uniform_real_distribution<conn_param_t>>) {
     return std::isless(dist(rng), probability);
   } else {
+    // A Poisson mean has to be positive
+    if (!std::isless(0, probability))
+      return 0;
+
     dist.param(typename DistributionT::param_type(probability));
     if constexpr (allow_multiplicity) {
       return dist(rng);
@@ -105,12 +120,14 @@ count_t compute_minimal_displacement(
   if (!min_displacement.first)
     return conn_limit;
 
+  const auto probability = kernel_probability(functors.probability_functor_,
+                                              min_displacement.second);
+
   if constexpr (std::is_same_v<DistributionT,
                                std::poisson_distribution<count_t>>) {
     const count_t multiplicity = std::min(
-        conn_limit,
-        draw_connections<DistributionT, allow_multiplicity>(
-            rng, dist, functors.probability_functor_(min_displacement.second)));
+        conn_limit, draw_connections<DistributionT, allow_multiplicity>(
+                        rng, dist, probability));
 
     if (0 == multiplicity)
       return conn_limit;
@@ -124,8 +141,7 @@ count_t compute_minimal_displacement(
     return conn_limit - multiplicity;
   } else {
     if ((bool)draw_connections<DistributionT, allow_multiplicity>(
-            rng, dist,
-            functors.probability_functor_(min_displacement.second))) {
+            rng, dist, probability)) {
       connections.emplace_back(construct_connection_info(
           pool_node.first, functors.weight_functor_(min_displacement.second),
           functors.delay_functor_(min_displacement.second)));
@@ -224,10 +240,8 @@ void compute_minimal_displacement(
   }
 
   if constexpr (compute_probability) {
-    const auto probability =
-        functors.probability_functor_(min_displacement.second);
-    // Also rejects NaN
-    assert(std::isgreaterequal(probability, 0));
+    const auto probability = kernel_probability(functors.probability_functor_,
+                                                min_displacement.second);
     if (std::isless(0, probability))
       ++positive_counts;
 
