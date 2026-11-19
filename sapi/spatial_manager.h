@@ -63,6 +63,11 @@ public:
 
   void set_rng_type(const std::string &name);
 
+  // True once random numbers were drawn; from then on the operations that
+  // reset the RNG streams (seed, type, thread count) are refused. Code that
+  // configures OpenMP checks this before changing the thread count.
+  bool rng_used() const noexcept;
+
   const DistributedTiledNodeSequenceMap &
   get_distributed_node_sequence(const std::size_t index) const;
 
@@ -115,18 +120,32 @@ public:
 protected:
   TimerManager timer_manager_;
   RandomManager random_manager_;
+  bool rng_used_ = false;
   GridNeighborhood grid_neighborhood_;
   std::deque<DistributedTiledNodeSequenceMap>
       cached_distributed_tiled_node_sequences_;
   std::deque<DistributedConnectionInfo> cached_connection_maps_;
+
+  void _throw_if_rng_used(const char *const operation) const;
 };
 
 inline void BaseSpatialManager::set_rng_seed(const rng_seed_t seed) {
+  _throw_if_rng_used("set the RNG seed");
   random_manager_.set_rng_seed(seed);
 }
 
 inline void BaseSpatialManager::set_rng_type(const std::string &name) {
+  _throw_if_rng_used("set the RNG type");
   random_manager_.set_rng_type(name);
+}
+
+inline bool BaseSpatialManager::rng_used() const noexcept { return rng_used_; }
+
+inline void
+BaseSpatialManager::_throw_if_rng_used(const char *const operation) const {
+  if (rng_used_)
+    throw std::runtime_error(std::string("Cannot ") + operation +
+                             " after random numbers were drawn");
 }
 
 inline const DistributedTiledNodeSequenceMap &
@@ -272,6 +291,7 @@ inline bool SpatialManager<CoordT>::is_initialized() const {
 
 template <Coordinate CoordT>
 inline void SpatialManager<CoordT>::update_num_threads() {
+  _throw_if_rng_used("update the number of threads");
   gc_array_.prepare();
   mc_array_.prepare();
   cg_array_.prepare();
@@ -355,6 +375,7 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
 
   ScopedTimer ndt(rank_timer_registry_, "node_distribution_time");
 
+  rng_used_ = true;
   auto [node_counts_per_rank, tiled_node_counts_per_rank] =
       distribute_node_counts_in_grid(num_nodes, target_tiles, tile_grid_,
                                      grid_neighborhood_, random_manager_,
@@ -385,6 +406,7 @@ SpatialManager<CoordT>::insert_positions_in_grid(
   for (std::size_t index = 0; index < coord_count; index += CoordT::D)
     coords.emplace_back(CoordT::copy_from_vec(read_it));
 
+  rng_used_ = true;
   auto [node_counts_per_rank, tiled_node_counts_per_rank, tiled_coord_map] =
       insert_node_positions_in_grid(coords, tile_grid_, grid_neighborhood_,
                                     random_manager_);
@@ -424,6 +446,9 @@ std::size_t SpatialManager<CoordT>::generate_nodes_in_tiles(
 
   ScopedTimer ngt(rank_timer_registry_, "node_generation_time");
 
+  // Set on every rank, also those without local tiles, so the guarded
+  // operations are refused consistently across ranks
+  rng_used_ = true;
   if (const auto local_tns_it = ref.find(grid_neighborhood_.local_rank_);
       local_tns_it != ref.end()) {
     distribute_node_counts_in_tiles(grid_collection_, local_tns_it->second,
@@ -533,6 +558,7 @@ SpatialManager<CoordT>::compute_spatial_connections(
 
   ScopedTimer sct(rank_timer_registry_, "spatial_conn_time");
 
+  rng_used_ = true;
   const auto index = cached_connection_maps_.size();
   const auto connection_map = &cached_connection_maps_.emplace_back(
       compute_distributed_spatial_connections(

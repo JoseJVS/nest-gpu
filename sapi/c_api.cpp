@@ -78,6 +78,12 @@ void CAPI::set_num_processes(const vp_t num_processes) {
 vp_t CAPI::get_num_threads() const { return get_max_omp_threads(); }
 
 void CAPI::set_num_threads(const vp_t num_threads) {
+  // Checked before OpenMP changes, so a refusal leaves the per-thread data
+  // sized for the current team
+  if (spatial_manager_ != nullptr && spatial_manager_->rng_used())
+    throw std::runtime_error(
+        "Cannot change the number of threads after random numbers were drawn");
+
   set_max_omp_threads(num_threads);
   if (spatial_manager_ != nullptr)
     spatial_manager_->update_num_threads();
@@ -86,17 +92,20 @@ void CAPI::set_num_threads(const vp_t num_threads) {
 rng_seed_t CAPI::get_rng_seed() const { return seed_; }
 
 void CAPI::set_rng_seed(const rng_seed_t seed) {
-  seed_ = seed;
+  // Stored only once the manager accepted it
   if (spatial_manager_ != nullptr)
     spatial_manager_->set_rng_seed(seed);
+  seed_ = seed;
 }
 
 CharArray *CAPI::get_rng_type() { return string_to_charray(rng_type_, gc_); }
 
 void CAPI::set_rng_type(const CharArray &rng_type) {
-  rng_type_ = charray_to_string(rng_type);
+  // Stored only once the manager accepted it
+  auto name = charray_to_string(rng_type);
   if (spatial_manager_ != nullptr)
-    spatial_manager_->set_rng_type(rng_type_);
+    spatial_manager_->set_rng_type(name);
+  rng_type_ = std::move(name);
 }
 
 void CAPI::generate_tile_grid(const NestedTileIdxArray &rank_tiles_ownership,
