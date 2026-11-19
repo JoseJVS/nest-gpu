@@ -124,9 +124,12 @@ slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
                       const GridNodeCollection<CoordT> &grid_node_col,
                       const TAArray<MaskCollection<CoordT>> &mc_array) {
   assert(tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
-         !grid_node_col.empty() && mc_array.is_initialized());
+         mc_array.is_initialized());
 
   std::deque<FilteringCoordQueue<CoordT>> tiled_coords;
+  // A rank without tiles has no nodes to slice
+  if (grid_node_col.empty())
+    return tiled_coords;
   std::optional<DistTns_IT> opt_dist_tns_it;
   if (dist_tns != nullptr) {
     assert(!dist_tns->empty());

@@ -219,6 +219,7 @@ public:
 protected:
   TileGrid<CoordT> tile_grid_;
   GridNodeCollection<CoordT> grid_collection_;
+  bool initialized_ = false;
   CreatorRegistry<UnaryFunctor> uf_registry_;
   CreatorRegistry<Mask<CoordT>> mk_registry_;
   CreatorRegistry<DisplacementFunctor> df_registry_;
@@ -283,10 +284,13 @@ inline void SpatialManager<CoordT>::_initialize_managers() {
 
 template <Coordinate CoordT>
 inline bool SpatialManager<CoordT>::is_initialized() const {
-  assert(tile_grid_.has_split_ == grid_neighborhood_.has_owners_ &&
-         grid_neighborhood_.has_owners_ == !grid_collection_.empty());
-  return tile_grid_.has_split_ && grid_neighborhood_.has_owners_ &&
-         !grid_collection_.empty();
+  // A rank without tiles has an empty grid collection, so emptiness cannot
+  // tell whether the grid was initialized
+  assert(!initialized_ ||
+         (tile_grid_.has_split_ && grid_neighborhood_.has_owners_ &&
+          grid_collection_.empty() ==
+              grid_neighborhood_.locally_owned_tiles_->empty()));
+  return initialized_;
 }
 
 template <Coordinate CoordT>
@@ -357,6 +361,7 @@ void SpatialManager<CoordT>::initialize_tile_grid(
 
   initialize_local_grid_node_collection(
       grid_collection_, *grid_neighborhood_.locally_owned_tiles_, tile_grid_);
+  initialized_ = true;
 
   gnt.stop();
 
