@@ -23,10 +23,48 @@
 #ifndef TILE2D_GEOMETRY_H
 #define TILE2D_GEOMETRY_H
 
+#include <stdexcept>
+#include <vector>
+
 #include "coordinates.h"
+#include "enum_store.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
+// Checks the 2D parameters shared by tiles and grid functors: at most one
+// angular offset, then the side lengths of the shape. Returns the angular
+// offset, 0 when none is given.
+inline angle_t
+validate_tile_parameters_2D(const TILE_SHAPE shape,
+                            const std::vector<space_t> &side_lengths,
+                            const std::vector<angle_t> &angular_offsets) {
+  if (1 < angular_offsets.size())
+    throw std::invalid_argument("Invalid offsets for tile 2D");
+  const auto lengths = side_lengths.size();
+
+  switch (shape) {
+  case TILE_SHAPE::RECTANGLE:
+    if (lengths < 1 || 2 < lengths)
+      throw std::invalid_argument("Invalid rectangle length vector");
+    break;
+
+  case TILE_SHAPE::TRIANGLE:
+    if (lengths < 1 || 2 < lengths)
+      throw std::invalid_argument("Invalid triangle length vector");
+    break;
+
+  case TILE_SHAPE::HEXAGON:
+    if (lengths != 1)
+      throw std::invalid_argument("Invalid hexagon length vector");
+    break;
+
+  default:
+    throw std::invalid_argument("Invalid tile shape");
+  }
+
+  return angular_offsets.empty() ? angle_t(0) : angular_offsets[0];
+}
+
 void initialize_vertices_2D(std::vector<Coord2D> &vertices,
                             CircumscribedRadius<Coord2D> &c_radius,
                             const std::vector<space_t> &side_lengths,

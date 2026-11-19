@@ -29,6 +29,7 @@
 #include "enum_store.h"
 #include "grid_containers.h"
 #include "sapi_forward_declarations.h"
+#include "tile2d_geometry.h"
 
 namespace sapi {
 void initialize_soc_2D(ShiftedOriginCreator<Coord2D> &soc,
@@ -44,40 +45,18 @@ void initialize_soc(ShiftedOriginCreator<CoordT> &soc,
                     const std::vector<space_t> &side_lengths,
                     const std::vector<angle_t> &angular_offsets) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    if (1 < angular_offsets.size())
-      throw std::invalid_argument("Invalid offsets for tile 2D");
-    const auto lengths = side_lengths.size();
+    const angle_t angular_offset =
+        validate_tile_parameters_2D(soc.shape_, side_lengths, angular_offsets);
 
     switch (soc.shape_) {
-    case TILE_SHAPE::RECTANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid rectangle length vector");
-
-      initialize_soc_2D(soc, side_lengths,
-                        angular_offsets.empty() ? 0 : angular_offsets[0]);
-
+    case TILE_SHAPE::RECTANGLE:
+    case TILE_SHAPE::TRIANGLE:
+      initialize_soc_2D(soc, side_lengths, angular_offset);
       break;
-    }
 
-    case TILE_SHAPE::TRIANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid triangle length vector");
-
-      initialize_soc_2D(soc, side_lengths,
-                        angular_offsets.empty() ? 0 : angular_offsets[0]);
-
+    case TILE_SHAPE::HEXAGON:
+      initialize_hexagonal_soc(soc, side_lengths, angular_offset);
       break;
-    }
-
-    case TILE_SHAPE::HEXAGON: {
-      if (lengths != 1)
-        throw std::invalid_argument("Invalid hexagon length vector");
-
-      initialize_hexagonal_soc(
-          soc, side_lengths, angular_offsets.empty() ? 0 : angular_offsets[0]);
-
-      break;
-    }
 
     default:
       throw std::invalid_argument("Invalid tile shape");
@@ -145,43 +124,22 @@ template <Coordinate CoordT>
 void initialize_ctc(CachedTileCreator<CoordT> &ctc,
                     const std::vector<space_t> &side_lengths,
                     const std::vector<angle_t> &angular_offsets) {
-  const auto lengths = side_lengths.size();
-  const auto rotations = angular_offsets.size();
-
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    if (1 < rotations)
-      throw std::invalid_argument("Invalid offsets for tile 2D");
+    const angle_t angular_offset =
+        validate_tile_parameters_2D(ctc.shape_, side_lengths, angular_offsets);
 
     switch (ctc.shape_) {
-    case TILE_SHAPE::RECTANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid rectangle length vector");
-
-      initialize_rectangular_ctc(
-          ctc, side_lengths, angular_offsets.empty() ? 0 : angular_offsets[0]);
-
+    case TILE_SHAPE::RECTANGLE:
+      initialize_rectangular_ctc(ctc, side_lengths, angular_offset);
       break;
-    }
 
-    case TILE_SHAPE::TRIANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid triangle length vector");
-
-      initialize_triangular_ctc(
-          ctc, side_lengths, angular_offsets.empty() ? 0 : angular_offsets[0]);
-
+    case TILE_SHAPE::TRIANGLE:
+      initialize_triangular_ctc(ctc, side_lengths, angular_offset);
       break;
-    }
 
-    case TILE_SHAPE::HEXAGON: {
-      if (lengths != 1)
-        throw std::invalid_argument("Invalid hexagon length vector");
-
-      initialize_hexagonal_ctc(
-          ctc, side_lengths, angular_offsets.empty() ? 0 : angular_offsets[0]);
-
+    case TILE_SHAPE::HEXAGON:
+      initialize_hexagonal_ctc(ctc, side_lengths, angular_offset);
       break;
-    }
 
     default:
       throw std::invalid_argument("Invalid tile shape");

@@ -129,6 +129,32 @@ void initialize_hexagon_helpers(std::vector<Coord2D> &helper_vectors,
   assert(!almost_zero(helper_scalars[0]));
 }
 
+namespace {
+// Shared body of the split taskloops: initializes the helpers of a sub-tile
+// and, at the last split, assigns its leaf index and registers it. Returns
+// whether the sub-tile has to be split further.
+bool prepare_sub_tile(Tile<Coord2D> &sub_tile,
+                      std::vector<const Tile<Coord2D> *> &leaf_tiles,
+                      const tileidx_t child_prefix, const split_t rem_splits,
+                      const bool generate_total_leaves_vector) {
+  initialize_helpers_2D(sub_tile.helper_vectors_, sub_tile.helper_scalars_,
+                        sub_tile.vertices_);
+
+  if (0 < rem_splits)
+    return true;
+
+  sub_tile.index_ = child_prefix;
+
+  if (generate_total_leaves_vector) {
+    const auto lt_it = leaf_tiles.begin() + sub_tile.index_;
+    assert(lt_it != leaf_tiles.end() && *lt_it == nullptr);
+    *lt_it = &sub_tile;
+  }
+
+  return false;
+}
+} // namespace
+
 // Leaf indices are the mixed-radix number of the partitions taken from the
 // root, most significant first, with each split's fan-out as its radix (see
 // get_possible_sub_tile_branches). prefix carries the digits above this split.
@@ -165,24 +191,14 @@ void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
     shared(sub_tiles, leaf_tiles)                                              \
     firstprivate(prefix, rem_splits, generate_total_leaves_vector)
   for (split_t partition = 0; partition < branches; ++partition) {
-    const auto st_it = sub_tiles.begin() + partition;
-    initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
-                          st_it->vertices_);
+    auto &sub_tile = sub_tiles[static_cast<std::size_t>(partition)];
     const tileidx_t child_prefix = prefix * branches + partition;
 
-    if (0 < rem_splits) {
-      split_rectangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
-                      st_it->c_radius_, child_prefix, rem_splits,
+    if (prepare_sub_tile(sub_tile, leaf_tiles, child_prefix, rem_splits,
+                         generate_total_leaves_vector))
+      split_rectangle(sub_tile.sub_tiles_, leaf_tiles, sub_tile.vertices_,
+                      sub_tile.c_radius_, child_prefix, rem_splits,
                       generate_total_leaves_vector);
-    } else {
-      st_it->index_ = child_prefix;
-
-      if (generate_total_leaves_vector) {
-        const auto lt_it = leaf_tiles.begin() + st_it->index_;
-        assert(lt_it != leaf_tiles.end() && *lt_it == nullptr);
-        *lt_it = &(*st_it);
-      }
-    }
   }
 }
 
@@ -221,23 +237,13 @@ void split_triangle(std::vector<Tile<Coord2D>> &sub_tiles,
     shared(sub_tiles, leaf_tiles)                                              \
     firstprivate(prefix, rem_splits, generate_total_leaves_vector)
   for (split_t partition = 0; partition < branches; ++partition) {
-    const auto st_it = sub_tiles.begin() + partition;
-    initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
-                          st_it->vertices_);
+    auto &sub_tile = sub_tiles[static_cast<std::size_t>(partition)];
     const tileidx_t child_prefix = prefix * branches + partition;
 
-    if (0 < rem_splits) {
-      split_triangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
+    if (prepare_sub_tile(sub_tile, leaf_tiles, child_prefix, rem_splits,
+                         generate_total_leaves_vector))
+      split_triangle(sub_tile.sub_tiles_, leaf_tiles, sub_tile.vertices_,
                      child_prefix, rem_splits, generate_total_leaves_vector);
-    } else {
-      st_it->index_ = child_prefix;
-
-      if (generate_total_leaves_vector) {
-        const auto lt_it = leaf_tiles.begin() + st_it->index_;
-        assert(lt_it != leaf_tiles.end() && *lt_it == nullptr);
-        *lt_it = &(*st_it);
-      }
-    }
   }
 }
 
@@ -273,23 +279,13 @@ void split_hexagon(std::vector<Tile<Coord2D>> &sub_tiles,
     shared(sub_tiles, leaf_tiles)                                              \
     firstprivate(prefix, rem_splits, generate_total_leaves_vector)
   for (split_t partition = 0; partition < branches; ++partition) {
-    const auto st_it = sub_tiles.begin() + partition;
-    initialize_helpers_2D(st_it->helper_vectors_, st_it->helper_scalars_,
-                          st_it->vertices_);
+    auto &sub_tile = sub_tiles[static_cast<std::size_t>(partition)];
     const tileidx_t child_prefix = prefix * branches + partition;
 
-    if (0 < rem_splits) {
-      split_triangle(st_it->sub_tiles_, leaf_tiles, st_it->vertices_,
+    if (prepare_sub_tile(sub_tile, leaf_tiles, child_prefix, rem_splits,
+                         generate_total_leaves_vector))
+      split_triangle(sub_tile.sub_tiles_, leaf_tiles, sub_tile.vertices_,
                      child_prefix, rem_splits, generate_total_leaves_vector);
-    } else {
-      st_it->index_ = child_prefix;
-
-      if (generate_total_leaves_vector) {
-        const auto lt_it = leaf_tiles.begin() + st_it->index_;
-        assert(lt_it != leaf_tiles.end() && *lt_it == nullptr);
-        *lt_it = &(*st_it);
-      }
-    }
   }
 }
 

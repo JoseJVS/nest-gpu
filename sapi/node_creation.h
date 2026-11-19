@@ -28,6 +28,7 @@
 #include <optional>
 #include <utility>
 
+#include "dispatch.h"
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "node_distribution.h"
@@ -192,34 +193,26 @@ distribute_node_counts_in_grid(
         node_counts_per_rank[rank] = tile_counts;
         tiled_node_counts_per_rank[rank].emplace_front(owned_tile, tile_counts);
       }
-    } else if (tile_set.has_value()) {
-      auto nc_it = node_counts_per_tile.cbegin();
-      if (mode == DISTRIBUTION_MODE::BALANCED) {
-        for (const auto &tile_index : tile_set.value())
-          aggregate_tiled_node_count_by_rank<true>(
-              node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
-              *nc_it++, grid_neighborhood, rng_manager);
-      } else {
-        for (const auto &tile_index : tile_set.value())
-          aggregate_tiled_node_count_by_rank<false>(
-              node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
-              *nc_it++, grid_neighborhood, rng_manager);
-      }
     } else {
-      auto nc_it = node_counts_per_tile.cbegin();
-      if (mode == DISTRIBUTION_MODE::BALANCED) {
-        for (tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_;
-             ++tile_index)
-          aggregate_tiled_node_count_by_rank<true>(
-              node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
-              *nc_it++, grid_neighborhood, rng_manager);
-      } else {
-        for (tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_;
-             ++tile_index)
-          aggregate_tiled_node_count_by_rank<false>(
-              node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
-              *nc_it++, grid_neighborhood, rng_manager);
-      }
+      // Tiles in ascending index order, so the balanced draws keep their order
+      dispatch_bools(
+          [&]<bool balanced>() {
+            auto nc_it = node_counts_per_tile.cbegin();
+            const auto aggregate = [&](const tileidx_t tile_index) {
+              aggregate_tiled_node_count_by_rank<balanced>(
+                  node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
+                  *nc_it++, grid_neighborhood, rng_manager);
+            };
+
+            if (tile_set.has_value())
+              for (const auto &tile_index : tile_set.value())
+                aggregate(tile_index);
+            else
+              for (tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_;
+                   ++tile_index)
+                aggregate(tile_index);
+          },
+          mode == DISTRIBUTION_MODE::BALANCED);
     }
   }
 

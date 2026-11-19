@@ -40,45 +40,26 @@ void initialize_tile_vertices(std::vector<CoordT> &vertices,
                               const std::vector<angle_t> &angular_offsets,
                               const TILE_SHAPE shape) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    if (1 < angular_offsets.size())
-      throw std::invalid_argument("Invalid offsets for tile 2D");
-    const auto lengths = side_lengths.size();
+    const angle_t angular_offset =
+        validate_tile_parameters_2D(shape, side_lengths, angular_offsets);
 
     switch (shape) {
-    case TILE_SHAPE::RECTANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid rectangle length vector");
-
-      initialize_vertices_2D(vertices, c_radius, side_lengths,
-                             angular_offsets.empty() ? 0 : angular_offsets[0],
+    case TILE_SHAPE::RECTANGLE:
+      initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
                              false // triangular vertices
       );
-
       break;
-    }
 
-    case TILE_SHAPE::TRIANGLE: {
-      if (lengths < 1 || 2 < lengths)
-        throw std::invalid_argument("Invalid triangle length vector");
-
-      initialize_vertices_2D(vertices, c_radius, side_lengths,
-                             angular_offsets.empty() ? 0 : angular_offsets[0],
+    case TILE_SHAPE::TRIANGLE:
+      initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
                              true // triangular vertices
       );
-
       break;
-    }
 
-    case TILE_SHAPE::HEXAGON: {
-      if (lengths != 1)
-        throw std::invalid_argument("Invalid hexagon length vector");
-
+    case TILE_SHAPE::HEXAGON:
       initialize_hexagon_vertices(vertices, c_radius, side_lengths[0],
-                                  angular_offsets.empty() ? 0
-                                                          : angular_offsets[0]);
-
+                                  angular_offset);
       break;
-    }
 
     default:
       throw std::invalid_argument("Invalid tile shape");
