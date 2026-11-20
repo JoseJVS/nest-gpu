@@ -114,6 +114,8 @@ private:
   GC spatial_storage_;
   GC param_name_gc_;
   BaseSpatialManager *spatial_manager_ = nullptr;
+
+  BaseSpatialManager &_manager() const;
 };
 } // namespace sapi
 

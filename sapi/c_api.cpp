@@ -147,39 +147,36 @@ void CAPI::generate_tile_grid(const NestedTileIdxArray &rank_tiles_ownership,
   spatial_manager_ = manager_ptr;
 }
 
+BaseSpatialManager &CAPI::_manager() const {
+  if (spatial_manager_ == nullptr)
+    throw std::runtime_error("Spatial grid not initialized yet");
+  return *spatial_manager_;
+}
+
 NodeCountVector CAPI::generate_nodes_in_grid(const largenodeidx_t num_nodes,
                                              const TileIdxArray &target_tiles,
                                              const uint8_t distribution_mode) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
+  auto &manager = _manager();
 
   std::optional<std::set<tileidx_t>> set;
   if (target_tiles.size_ > 0)
     set.emplace(array_to_set(target_tiles));
 
-  return spatial_manager_->distribute_nodes_in_grid(
+  return manager.distribute_nodes_in_grid(
       num_nodes, set, get_distribution_mode(distribution_mode));
 }
 
 std::size_t CAPI::generate_nodes_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank,
     const uint8_t distribution_mode) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  return spatial_manager_->generate_nodes_in_tiles(
+  return _manager().generate_nodes_in_tiles(
       node_sequences_per_rank, get_distribution_mode(distribution_mode));
 }
 
 std::pair<NodeCountVector, PositionViewStruct *>
 CAPI::insert_positions_in_grid(const PositionViewStruct &positions) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  auto [node_counts_per_rank, leftovers] =
-      spatial_manager_->insert_positions_in_grid(positions.dimensions_,
-                                                 positions.coord_count_,
-                                                 positions.coordinates_);
+  auto [node_counts_per_rank, leftovers] = _manager().insert_positions_in_grid(
+      positions.dimensions_, positions.coord_count_, positions.coordinates_);
 
   auto uptr = std::make_unique<std::vector<space_t>>(std::move(leftovers));
   const auto ptr = uptr.get();
@@ -192,10 +189,7 @@ CAPI::insert_positions_in_grid(const PositionViewStruct &positions) {
 
 std::size_t CAPI::insert_positions_in_tiles(
     const RankNodeSequenceMap &node_sequences_per_rank) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  return spatial_manager_->insert_positions_in_tiles(node_sequences_per_rank);
+  return _manager().insert_positions_in_tiles(node_sequences_per_rank);
 }
 
 std::pair<std::size_t, DistributedConnectionInfo *>
@@ -203,26 +197,21 @@ CAPI::compute_spatial_connections(const std::size_t source_index,
                                   const std::size_t target_index,
                                   const MPStruct &mask_parameters,
                                   const CPStruct &connection_parameters) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  return spatial_manager_->compute_spatial_connections(
+  return _manager().compute_spatial_connections(
       source_index, target_index, mpstruct_to_mask_params(mask_parameters),
       cpstruct_to_conn_params(connection_parameters));
 }
 
 NodesViewStruct *CAPI::view_node_positions(const OptionalIndex &index,
                                            const MPStruct &mask_parameters) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
+  auto &manager = _manager();
 
   std::optional<std::size_t> opt_idx;
   if (index.first_)
     opt_idx.emplace(index.second_);
 
-  auto uptr =
-      std::make_unique<IndexedNodeCoordinates>(spatial_manager_->get_nodes(
-          opt_idx, mpstruct_to_mask_params(mask_parameters)));
+  auto uptr = std::make_unique<IndexedNodeCoordinates>(
+      manager.get_nodes(opt_idx, mpstruct_to_mask_params(mask_parameters)));
   const auto ptr = uptr.get();
   view_gc_.collect(std::move(uptr));
 
@@ -231,20 +220,14 @@ NodesViewStruct *CAPI::view_node_positions(const OptionalIndex &index,
 
 RemoteConnectionViewPair *
 CAPI::view_spatial_connections(const std::size_t index) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
   return make_view_from_distributed_connection_info(
-      spatial_manager_->get_connection_map(index), gc_);
+      _manager().get_connection_map(index), gc_);
 }
 
 ConnectionCountsViewStruct *
 CAPI::view_connection_counts(const std::size_t index) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
   auto uptr = std::make_unique<ConnectionCounts>(
-      spatial_manager_->get_connection_counts(index));
+      _manager().get_connection_counts(index));
   const auto ptr = uptr.get();
   view_gc_.collect(std::move(uptr));
 
@@ -252,11 +235,7 @@ CAPI::view_connection_counts(const std::size_t index) {
 }
 
 GridViewStruct *CAPI::view_grid_vertices() {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  auto uptr =
-      std::make_unique<GridVertexMap>(spatial_manager_->get_grid_vertices());
+  auto uptr = std::make_unique<GridVertexMap>(_manager().get_grid_vertices());
   const auto ptr = uptr.get();
   view_gc_.collect(std::move(uptr));
 
@@ -265,24 +244,15 @@ GridViewStruct *CAPI::view_grid_vertices() {
 
 TiledNodeSequencePairArray *
 CAPI::get_distributed_node_sequences(const std::size_t index) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
   return dist_tns_map_to_tns_pair_array(
-      spatial_manager_->get_distributed_node_sequence(index), gc_);
+      _manager().get_distributed_node_sequence(index), gc_);
 }
 
 RecordedTimesArrayPair *CAPI::get_timer_data() {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  return recorded_times_to_array_pair(spatial_manager_->get_timer_data(), gc_);
+  return recorded_times_to_array_pair(_manager().get_timer_data(), gc_);
 }
 
 void CAPI::clear_spatial_connections(const std::size_t index) {
-  if (spatial_manager_ == nullptr)
-    throw std::runtime_error("Spatial grid not initialized yet");
-
-  spatial_manager_->clear_connection_map(index);
+  _manager().clear_connection_map(index);
 }
 } // namespace sapi
