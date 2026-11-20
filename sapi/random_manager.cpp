@@ -31,6 +31,8 @@ RandomManager::RandomManager()
 RandomManager::RandomManager(const vp_t local_rank, const vp_t num_processes)
     : local_rank_(static_cast<rng_seed_t>(local_rank)),
       num_processes_(static_cast<rng_seed_t>(num_processes)) {
+  // Seeds and the rank-paired seed table are indexed by the local rank
+  check_rank_in_range(local_rank, num_processes);
   initialize_rng_registry(rng_registry_);
   current_creator_ = rng_registry_.get_creator(DEFAULT_RNG_TYPE_).get();
 }

@@ -29,8 +29,10 @@
 #include "api_test_helpers.h"
 #include "cg_creators.h"
 #include "gf_creators.h"
+#include "grid_neighborhood.h"
 #include "mask_creators.h"
 #include "nf_creators.h"
+#include "random_manager.h"
 #include "rng_creators.h"
 #include "spatial_manager.h"
 
@@ -50,6 +52,34 @@ void calls_before_grid_test(ApiTest &t) {
   t.expect_throw<std::runtime_error>(
       "view connections before grid", [&] { t.capi.view_connection_counts(0); },
       "Spatial grid not initialized yet");
+}
+
+// The rank has to be one of the processes; CAPI can only check each value on
+// its own, so the classes that use both reject a rank out of range
+void rank_range_test(ApiTest &t) {
+  const auto num_processes = t.capi.get_num_processes();
+
+  t.expect_throw<std::invalid_argument>(
+      "random manager rank out of range",
+      [&] { RandomManager rm(num_processes, num_processes); }, "Invalid rank");
+  t.expect_throw<std::invalid_argument>(
+      "random manager negative rank", [&] { RandomManager rm(-1, 1); },
+      "Invalid rank");
+  t.expect_throw<std::invalid_argument>(
+      "random manager no processes", [&] { RandomManager rm(0, 0); },
+      "Invalid rank");
+  t.expect_throw<std::invalid_argument>(
+      "grid neighborhood rank out of range",
+      [&] { GridNeighborhood gn(num_processes, num_processes); },
+      "Invalid rank");
+
+  ApiTest out_of_range;
+  out_of_range.capi.set_rank(num_processes);
+  out_of_range.expect_throw<std::invalid_argument>(
+      "grid with rank out of range",
+      [&] { out_of_range.generate_valid_grid(); }, "Invalid rank");
+  t.failures += out_of_range.failures;
+  out_of_range.reset();
 }
 
 // A failed generate_tile_grid leaves no manager behind, so a later valid grid
@@ -202,6 +232,7 @@ int main(int argc, char **argv) {
   {
     ApiTest t;
     calls_before_grid_test(t);
+    rank_range_test(t);
     failed_grid_generation_test(t);
     unknown_rng_type_test(t);
     registry_messages_test(t);

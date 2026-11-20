@@ -34,11 +34,9 @@
 
 #include "node_containers.h"
 #include "random_manager.h"
+#include "vp_interface.h"
 
 namespace sapi {
-// Forward definition to link with vp_interface.h
-vp_t get_thread_num();
-vp_t get_max_omp_threads();
 
 // Leaf index from the partition taken at each split level, most significant
 // first; the same mixed-radix numbering the tile split assigns to leaves.

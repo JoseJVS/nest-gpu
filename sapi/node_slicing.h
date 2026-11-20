@@ -132,7 +132,7 @@ slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
     return tiled_coords;
   std::optional<DistTns_IT> opt_dist_tns_it;
   if (dist_tns != nullptr) {
-    assert(!dist_tns->empty());
+    // Also covers an empty population (no rank has nodes)
     auto local_tile_seq_map_it = dist_tns->find(grid_neighborhood.local_rank_);
     if (local_tile_seq_map_it == dist_tns->end())
       return tiled_coords;

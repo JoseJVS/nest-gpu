@@ -25,7 +25,10 @@
 
 #include <cassert>
 #include <forward_list>
+#include <limits>
 #include <numeric>
+#include <string>
+#include <utility>
 
 #include "cg_creators.h"
 #include "connection_rules.h"
@@ -415,9 +418,16 @@ SpatialManager<CoordT>::insert_positions_in_grid(
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
+  // No positions (an empty population) may come without a pointer
   if (dimensions != CoordT::D || coord_count % CoordT::D != 0 ||
-      coordinates == nullptr)
+      (coordinates == nullptr && coord_count != 0))
     throw std::invalid_argument("Invalid positions to insert");
+  // Node counts per rank, tile and leaf stay below the nodeidx_t maximum
+  if (!std::cmp_less(coord_count / CoordT::D,
+                     std::numeric_limits<nodeidx_t>::max()))
+    throw std::invalid_argument(
+        "Too many positions to insert, fewer than " +
+        std::to_string(std::numeric_limits<nodeidx_t>::max()) + " allowed");
 
   ScopedTimer nit(rank_timer_registry_, "node_insertion_time");
 
@@ -499,13 +509,15 @@ std::size_t SpatialManager<CoordT>::insert_positions_in_tiles(
 
   ScopedTimer ngt(rank_timer_registry_, "node_insertion_time");
 
+  // The sequences matched the counts, so a rank without a sequence has no
+  // inserted coordinates
   if (const auto local_tns_it = ref.find(grid_neighborhood_.local_rank_);
       local_tns_it != ref.end())
     insert_node_positions_in_tiles(temp_node_insertion_data_.front().second,
                                    grid_collection_, local_tns_it->second,
                                    tile_grid_);
-  else if (!temp_node_insertion_data_.front().second.empty())
-    throw std::runtime_error("Corrupted tiled coords map cache");
+  else
+    assert(temp_node_insertion_data_.front().second.empty());
 
   temp_node_insertion_data_.pop_front();
 

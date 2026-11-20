@@ -61,6 +61,7 @@ capi_error_handling_test.cpp
 input_validation_test.cpp
 tileless_rank_test.cpp
 invalid_kernel_test.cpp
+empty_population_test.cpp
 )
 
 set( sapi_tests )
@@ -123,6 +124,7 @@ set( multi_processing_tests
     input_validation_test
     tileless_rank_test
     invalid_kernel_test
+    empty_population_test
 )
 
 string( REPLACE ";" " " MPI_TESTS "${multi_processing_tests}" )

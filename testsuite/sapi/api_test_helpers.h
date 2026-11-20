@@ -34,6 +34,7 @@
 #include <cstdio>
 #include <exception>
 #include <limits>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -200,14 +201,14 @@ struct ApiTest {
         population, rule, prob_df, prob_param, counts, mask_radius, weight_df));
   }
 
-  // As connect, but returns the index of the connections
-  std::size_t compute_connections(const std::size_t population,
-                                  const std::string &rule,
-                                  const std::string &prob_df,
-                                  const space_t prob_param,
-                                  const count_t counts = 0,
-                                  const space_t mask_radius = 0.75,
-                                  const std::string &weight_df = "constant") {
+  // As connect, but returns the index of the connections; the target
+  // population defaults to the source population
+  std::size_t compute_connections(
+      const std::size_t population, const std::string &rule,
+      const std::string &prob_df, const space_t prob_param,
+      const count_t counts = 0, const space_t mask_radius = 0.75,
+      const std::string &weight_df = "constant",
+      const std::optional<std::size_t> target_population = std::nullopt) {
     MPStruct mps;
     copy_to_charray_from_string(mps.mask_blueprint_name_, "circular", gc);
     copy_to_array_from_collection(mps.mask_blueprint_params_,
@@ -229,7 +230,9 @@ struct ApiTest {
     copy_to_array_from_collection(cps.delay_df_params_,
                                   std::vector<space_t>{1.0}, gc);
 
-    return capi.compute_spatial_connections(population, population, mps, cps)
+    return capi
+        .compute_spatial_connections(
+            population, target_population.value_or(population), mps, cps)
         .first;
   }
 

@@ -185,6 +185,84 @@ void connection_parameters_test(ApiTest &t) {
   t.expect(0 < connections, "valid connections after rejections count");
 }
 
+// Node sequences from counts: one per rank with nodes, starting at 0
+RankNodeSequenceMap sequences_from(const NodeCountVector &counts) {
+  RankNodeSequenceMap sequences;
+  for (std::size_t rank = 0; rank < counts.size(); ++rank)
+    if (0 < counts[rank])
+      sequences.emplace(static_cast<vp_t>(rank), NodeSequence(0, counts[rank]));
+  return sequences;
+}
+
+// The node sequences handed back after a distribution or insertion have to
+// match its counts; a rejected call keeps the counts for a corrected retry
+void node_sequences_test(ApiTest &t) {
+  const auto num_processes = t.capi.get_num_processes();
+
+  t.reset();
+  t.generate_valid_grid();
+  const auto counts = t.distribute_nodes(100);
+  const auto valid = sequences_from(counts);
+
+  auto missing = valid;
+  missing.erase(missing.begin());
+  t.expect_throw<std::invalid_argument>(
+      "missing rank", [&] { t.capi.generate_nodes_in_tiles(missing, 2); },
+      "Missing node sequence for rank");
+
+  auto shorter = valid;
+  --shorter.begin()->second.second;
+  t.expect_throw<std::invalid_argument>(
+      "wrong length", [&] { t.capi.generate_nodes_in_tiles(shorter, 2); },
+      "Invalid node sequence for rank");
+
+  auto unknown = valid;
+  unknown.emplace(num_processes, NodeSequence(0, 1));
+  t.expect_throw<std::invalid_argument>(
+      "unknown rank", [&] { t.capi.generate_nodes_in_tiles(unknown, 2); },
+      "Node sequence given for unknown rank");
+
+  t.expect_no_throw("valid sequences after rejections",
+                    [&] { t.capi.generate_nodes_in_tiles(valid, 2); });
+
+  // A rank without nodes gets no sequence (needs a second rank)
+  if (1 < num_processes) {
+    const auto rank_zero_only = t.distribute_nodes(10, {0}, 1);
+    auto extra = sequences_from(rank_zero_only);
+    extra.emplace(1, NodeSequence(0, 1));
+    t.expect_throw<std::invalid_argument>(
+        "rank without nodes", [&] { t.capi.generate_nodes_in_tiles(extra, 2); },
+        "which has no nodes");
+    t.expect_no_throw("valid sequences after rank without nodes", [&] {
+      t.capi.generate_nodes_in_tiles(sequences_from(rank_zero_only), 2);
+    });
+  }
+
+  // Insertion: the same check, and the cached coordinates stay for a retry
+  const std::vector<space_t> positions{0.5, 0.5, 1.5, 1.5, 2.5, 2.5, 3.5, 3.5};
+  const PositionViewStruct view{2, positions.size(), positions.data()};
+  NodeCountVector inserted;
+  t.expect_no_throw("insert positions", [&] {
+    inserted = t.capi.insert_positions_in_grid(view).first;
+  });
+  t.expect_throw<std::invalid_argument>(
+      "insertion without sequences",
+      [&] { t.capi.insert_positions_in_tiles(RankNodeSequenceMap{}); },
+      "Missing node sequence for rank");
+  t.expect_no_throw("insertion with valid sequences", [&] {
+    t.capi.insert_positions_in_tiles(sequences_from(inserted));
+  });
+
+  // Checked before the positions are read
+  const PositionViewStruct too_many{
+      2,
+      2 * (static_cast<std::size_t>(std::numeric_limits<nodeidx_t>::max()) + 1),
+      positions.data()};
+  t.expect_throw<std::invalid_argument>(
+      "too many positions", [&] { t.capi.insert_positions_in_grid(too_many); },
+      "Too many positions to insert");
+}
+
 // The largest payload of a rank has to fit one MPI message (int count of
 // 64-bit words). Only the size computation is checked: reaching the runtime
 // rejection needs about 9e8 nodes on one rank.
@@ -208,6 +286,7 @@ int main(int argc, char **argv) {
     distribution_test(t);
     large_distribution_test(t);
     connection_parameters_test(t);
+    node_sequences_test(t);
     payload_limit_test(t);
     t.reset();
     result = t.result();

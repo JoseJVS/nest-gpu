@@ -29,11 +29,9 @@
 
 #include "sapi_forward_declarations.h"
 #include "tile_grid.h"
+#include "vp_interface.h"
 
 namespace sapi {
-// Forward definition to link with vp_interface
-vp_t get_mpi_rank();
-vp_t get_num_mpi_processes();
 
 struct GridNeighborhood {
   using TileSet = std::vector<std::set<tileidx_t>>::const_iterator;
@@ -61,14 +59,17 @@ struct GridNeighborhood {
   std::vector<std::pair<std::set<vp_t>, std::set<vp_t>>> rank_neighbors_map_;
 
   GridNeighborhood()
-      : local_rank_(get_mpi_rank()), num_processes_(get_num_mpi_processes()) {}
+      : GridNeighborhood(get_mpi_rank(), get_num_mpi_processes()) {}
 
   GridNeighborhood(const GridNeighborhood &) = delete;
   GridNeighborhood(GridNeighborhood &&) noexcept = default;
   ~GridNeighborhood() noexcept = default;
 
-  GridNeighborhood(const vp_t local_rank, const vp_t num_processes) noexcept
-      : local_rank_(local_rank), num_processes_(num_processes) {}
+  // The local rank selects this rank's ownership and neighbor entries
+  GridNeighborhood(const vp_t local_rank, const vp_t num_processes)
+      : local_rank_(local_rank), num_processes_(num_processes) {
+    check_rank_in_range(local_rank, num_processes);
+  }
 
   GridNeighborhood &operator=(const GridNeighborhood &) = delete;
   GridNeighborhood &operator=(GridNeighborhood &&) = delete;

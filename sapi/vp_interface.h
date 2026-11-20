@@ -24,6 +24,7 @@
 #define VP_INTERFACE_HPP
 
 #include <stdexcept>
+#include <string>
 
 #include "sapi_config.h"
 
@@ -36,6 +37,14 @@
 #endif
 
 namespace sapi {
+// Throws unless 0 <= rank < num_processes; for the classes that use both
+inline void check_rank_in_range(const vp_t rank, const vp_t num_processes) {
+  if (rank < 0 || num_processes <= rank)
+    throw std::invalid_argument("Invalid rank " + std::to_string(rank) +
+                                " for " + std::to_string(num_processes) +
+                                " processes");
+}
+
 inline void init_mpi(vp_t *const argc, char ***const argv) {
 #ifdef HAVE_MPI
   vp_t initialized;

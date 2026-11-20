@@ -460,8 +460,8 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     const GridNodeCollection<CoordT> &grid_node_col,
     const TAArray<MaskCollection<CoordT>> &mc_array,
     const bool force_prepare_payload = false) {
-  assert(!dist_tns_source.empty() && !dist_tns_target.empty() &&
-         tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
+  // Empty populations are valid: no rank takes either side
+  assert(tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
          mc_array.is_initialized());
 
   bool is_source = false;
