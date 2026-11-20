@@ -62,19 +62,16 @@ void compute_target_connections(RankConnectionInfo &rci,
   rci.consolidate_connection_map();
 }
 
+// Checks the arguments of compute_distributed_spatial_connections without
+// drawing random numbers. Uses only data every rank holds, so all ranks throw
+// the same std::invalid_argument.
 template <Coordinate CoordT>
-DistributedConnectionInfo compute_distributed_spatial_connections(
+void validate_spatial_connections(
     const DistributedTiledNodeSequenceMap &dist_tns_source,
     const DistributedTiledNodeSequenceMap &dist_tns_target,
     const TileGrid<CoordT> &tile_grid,
     const GridNeighborhood &grid_neighborhood,
-    const GridNodeCollection<CoordT> &grid_node_col,
-    const TAArray<MaskCollection<CoordT>> &mc_array,
-    const TAArray<ConnectionGenerator> &cg_array,
-    const RandomManager &rng_manager, const TimerManager &timer_manager,
-    const bool edge_wrap, const bool only_neighborhood) {
-  assert(timer_manager.is_initialized());
-
+    const TAArray<MaskCollection<CoordT>> &mc_array) {
   if (!mc_array.get_local_thread_item()->has_blueprint())
     throw std::invalid_argument("Spatial connections require mask blueprints");
 
@@ -107,6 +104,23 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
             " to exchange them in one connection payload");
     }
   }
+}
+
+template <Coordinate CoordT>
+DistributedConnectionInfo compute_distributed_spatial_connections(
+    const DistributedTiledNodeSequenceMap &dist_tns_source,
+    const DistributedTiledNodeSequenceMap &dist_tns_target,
+    const TileGrid<CoordT> &tile_grid,
+    const GridNeighborhood &grid_neighborhood,
+    const GridNodeCollection<CoordT> &grid_node_col,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
+    const TAArray<ConnectionGenerator> &cg_array,
+    const RandomManager &rng_manager, const TimerManager &timer_manager,
+    const bool edge_wrap, const bool only_neighborhood) {
+  assert(timer_manager.is_initialized());
+
+  validate_spatial_connections(dist_tns_source, dist_tns_target, tile_grid,
+                               grid_neighborhood, mc_array);
 
   const auto rank_timer_registry = timer_manager.get_rank_registry();
 

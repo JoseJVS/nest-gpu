@@ -393,11 +393,13 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
 
   ScopedTimer ndt(rank_timer_registry_, "node_distribution_time");
 
-  rng_used_ = true;
+  // The arguments are checked where they are used, before any random number
+  // is drawn, so the flag is set only once the call succeeded
   auto [node_counts_per_rank, tiled_node_counts_per_rank] =
       distribute_node_counts_in_grid(num_nodes, target_tiles, tile_grid_,
                                      grid_neighborhood_, random_manager_,
                                      distribution_mode);
+  rng_used_ = true;
 
   temp_node_generation_data_.emplace_front(
       std::move(tiled_node_counts_per_rank));
@@ -584,20 +586,27 @@ SpatialManager<CoordT>::compute_spatial_connections(
   if (!is_initialized())
     throw std::runtime_error("Spatial grid not initialized");
 
+  // Unknown population indexes fail before any creator is built
+  const auto &dist_tns_source =
+      cached_distributed_tiled_node_sequences_.at(source_index);
+  const auto &dist_tns_target =
+      cached_distributed_tiled_node_sequences_.at(target_index);
+
   _initialize_mask_parameters(mask_parameters);
   _initialize_connection_parameters(connection_parameters);
 
   ScopedTimer sct(rank_timer_registry_, "spatial_conn_time");
 
-  rng_used_ = true;
+  // The remaining arguments are checked where they are used, before any
+  // random number is drawn, so the flag is set only once the call succeeded
   const auto index = cached_connection_maps_.size();
   const auto connection_map = &cached_connection_maps_.emplace_back(
       compute_distributed_spatial_connections(
-          cached_distributed_tiled_node_sequences_.at(source_index),
-          cached_distributed_tiled_node_sequences_.at(target_index), tile_grid_,
-          grid_neighborhood_, grid_collection_, mc_array_, cg_array_,
-          random_manager_, timer_manager_, connection_parameters.edge_wrap_,
+          dist_tns_source, dist_tns_target, tile_grid_, grid_neighborhood_,
+          grid_collection_, mc_array_, cg_array_, random_manager_,
+          timer_manager_, connection_parameters.edge_wrap_,
           connection_parameters.only_neighborhood_));
+  rng_used_ = true;
 
   sct.stop();
 

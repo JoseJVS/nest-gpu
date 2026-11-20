@@ -89,22 +89,15 @@ void aggregate_tiled_node_count_by_rank(
   }
 }
 
-// Here both returned vectors are in size == num processes.
-// The first vector contains the total number of nodes
-// to be instantiated in each rank.
-// The second vector contains the total number of nodes
-// to be instantiated per tile owned by each rank.
+// Checks the arguments of distribute_node_counts_in_grid without drawing
+// random numbers. Uses only data every rank holds, so all ranks throw the same
+// std::invalid_argument.
 template <typename I, Coordinate CoordT>
   requires std::integral<std::remove_cvref_t<I>>
-std::pair<NodeCountVector, RankTileIdxNodeCountPairs>
-distribute_node_counts_in_grid(
+void validate_node_distribution(
     const I num_nodes, const std::optional<std::set<tileidx_t>> &tile_set,
     const TileGrid<CoordT> &tile_grid,
-    const GridNeighborhood &grid_neighborhood, const RandomManager &rng_manager,
-    const DISTRIBUTION_MODE mode) {
-  assert(tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
-         rng_manager.is_initialized());
-
+    const GridNeighborhood &grid_neighborhood, const DISTRIBUTION_MODE mode) {
   const auto large_distribution =
       std::numeric_limits<nodeidx_t>::max() < num_nodes;
 
@@ -156,6 +149,29 @@ distribute_node_counts_in_grid(
         "Distribution of a large number of nodes needs more tiles: at most " +
         std::to_string(std::numeric_limits<nodeidx_t>::max()) +
         " nodes per tile");
+}
+
+// Here both returned vectors are in size == num processes.
+// The first vector contains the total number of nodes
+// to be instantiated in each rank.
+// The second vector contains the total number of nodes
+// to be instantiated per tile owned by each rank.
+template <typename I, Coordinate CoordT>
+  requires std::integral<std::remove_cvref_t<I>>
+std::pair<NodeCountVector, RankTileIdxNodeCountPairs>
+distribute_node_counts_in_grid(
+    const I num_nodes, const std::optional<std::set<tileidx_t>> &tile_set,
+    const TileGrid<CoordT> &tile_grid,
+    const GridNeighborhood &grid_neighborhood, const RandomManager &rng_manager,
+    const DISTRIBUTION_MODE mode) {
+  assert(tile_grid.has_split_ && grid_neighborhood.has_owners_ &&
+         rng_manager.is_initialized());
+
+  validate_node_distribution(num_nodes, tile_set, tile_grid, grid_neighborhood,
+                             mode);
+
+  const auto large_distribution =
+      std::numeric_limits<nodeidx_t>::max() < num_nodes;
 
   NodeCountVector node_counts_per_rank(grid_neighborhood.num_processes_, 0);
   RankTileIdxNodeCountPairs tiled_node_counts_per_rank(

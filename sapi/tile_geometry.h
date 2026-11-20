@@ -44,8 +44,11 @@ void initialize_tile_vertices(std::vector<CoordT> &vertices,
                               const std::vector<angle_t> &angular_offsets,
                               const TILE_SHAPE shape) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    // Runs per tile inside grid generation tasks: the parameters were checked
+    // once by initialize_ctc (validate_tile_parameters_2D) before the region
+    assert(angular_offsets.size() < 2);
     const angle_t angular_offset =
-        validate_tile_parameters_2D(shape, side_lengths, angular_offsets);
+        angular_offsets.empty() ? angle_t(0) : angular_offsets[0];
 
     switch (shape) {
     case TILE_SHAPE::RECTANGLE:

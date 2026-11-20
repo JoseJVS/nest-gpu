@@ -164,16 +164,28 @@ void rng_settings_test(ApiTest &t) {
   t.expect(t.capi.get_num_threads() == 2, "threads kept after refusal");
   t.expect_no_throw("nodes again", [&] { t.generate_nodes(1000); });
 
-  // A call rejected before a grid exists draws nothing. (A call rejected by
-  // the manager's own validation still locks the settings: improvement plan,
-  // N16.)
+  // Rejected calls draw nothing, so the settings stay open: before a grid
+  // exists, and when the manager's own checks reject the arguments
   t.reset();
   t.expect_throw<std::runtime_error>(
       "distribute before grid", [&] { t.distribute_nodes(10); },
       "Spatial grid not initialized yet");
   t.expect_no_throw("grid", [&] { t.generate_valid_grid(); });
-  t.expect_no_throw("seed after rejected call",
+  t.expect_throw<std::invalid_argument>(
+      "negative number of nodes", [&] { t.distribute_nodes(-1); },
+      "Cannot distribute a negative number of nodes");
+  t.expect_throw<std::invalid_argument>(
+      "target tile out of range", [&] { t.distribute_nodes(10, {16}, 1); },
+      "Target tiles must be a non-empty set");
+  t.expect_throw<std::out_of_range>(
+      "connections without populations",
+      [&] { t.connect(0, "pairwise_bernoulli", "constant", 1); }, "");
+  t.expect_no_throw("seed after rejected calls",
                     [&] { t.capi.set_rng_seed(5); });
+  t.expect_no_throw("type after rejected calls",
+                    [&] { t.set_rng_type("pcg"); });
+  t.expect_no_throw("threads after rejected calls",
+                    [&] { t.capi.set_num_threads(2); });
 
   // Reset unlocks the settings
   t.expect_no_throw("nodes", [&] { t.generate_nodes(100); });
