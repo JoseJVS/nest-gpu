@@ -28,6 +28,7 @@
 #include <concepts>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -87,6 +88,27 @@ void aggregate_tiled_node_count_by_rank(
     tiled_node_counts_per_rank[owner_rank].emplace_back(
         std::make_pair(tile_index, count));
   }
+}
+
+// Aggregates the node counts of the tiles by owning rank; node_counts_per_tile
+// holds one count per tile index, in the order of tile_indexes (ascending, so
+// the balanced draws keep their order)
+template <bool balanced, std::ranges::input_range R>
+  requires std::convertible_to<std::ranges::range_value_t<R>, tileidx_t>
+void aggregate_tile_node_counts(
+    R &&tile_indexes, const NodeCountVector &node_counts_per_tile,
+    NodeCountVector &node_counts_per_rank,
+    RankTileIdxNodeCountPairs &tiled_node_counts_per_rank,
+    const GridNeighborhood &grid_neighborhood,
+    const RandomManager &rng_manager) {
+  auto nc_it = node_counts_per_tile.cbegin();
+  for (const tileidx_t tile_index : tile_indexes) {
+    assert(nc_it != node_counts_per_tile.cend());
+    aggregate_tiled_node_count_by_rank<balanced>(
+        node_counts_per_rank, tiled_node_counts_per_rank, tile_index, *nc_it++,
+        grid_neighborhood, rng_manager);
+  }
+  assert(nc_it == node_counts_per_tile.cend());
 }
 
 // Checks the arguments of distribute_node_counts_in_grid without drawing
@@ -239,23 +261,17 @@ distribute_node_counts_in_grid(
         tiled_node_counts_per_rank[rank].emplace_front(owned_tile, tile_counts);
       }
     } else {
-      // Tiles in ascending index order, so the balanced draws keep their order
       dispatch_bools(
           [&]<bool balanced>() {
-            auto nc_it = node_counts_per_tile.cbegin();
-            const auto aggregate = [&](const tileidx_t tile_index) {
-              aggregate_tiled_node_count_by_rank<balanced>(
-                  node_counts_per_rank, tiled_node_counts_per_rank, tile_index,
-                  *nc_it++, grid_neighborhood, rng_manager);
-            };
-
             if (tile_set.has_value())
-              for (const auto &tile_index : tile_set.value())
-                aggregate(tile_index);
+              aggregate_tile_node_counts<balanced>(
+                  *tile_set, node_counts_per_tile, node_counts_per_rank,
+                  tiled_node_counts_per_rank, grid_neighborhood, rng_manager);
             else
-              for (tileidx_t tile_index = 0; tile_index < tile_grid.num_tiles_;
-                   ++tile_index)
-                aggregate(tile_index);
+              aggregate_tile_node_counts<balanced>(
+                  std::views::iota(tileidx_t{0}, tile_grid.num_tiles_),
+                  node_counts_per_tile, node_counts_per_rank,
+                  tiled_node_counts_per_rank, grid_neighborhood, rng_manager);
           },
           mode == DISTRIBUTION_MODE::BALANCED);
     }
