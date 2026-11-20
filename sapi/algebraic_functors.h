@@ -98,6 +98,12 @@ struct DisplacementFunctor {
   space_t operator()(const Displacement<CoordT> &d) const;
 };
 
+// Whether the function reads the z component, which only 3D displacements have
+constexpr inline bool uses_z_component(const DisplacementFunctor &df) noexcept {
+  return df.func_ == DISPLACEMENT_FUNCTION::DISPLACEMENT_Z ||
+         df.func_ == DISPLACEMENT_FUNCTION::DISTANCE_Z;
+}
+
 inline DisplacementFunctor
 construct_displacement_functor(const DISPLACEMENT_FUNCTION function,
                                const space_t var = 0.) {

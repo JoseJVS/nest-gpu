@@ -576,13 +576,10 @@ void SpatialManager<CoordT>::_initialize_connection_parameters(
 
   // Displacements on a 2D grid have no z component
   if constexpr (CoordT::D < 3) {
-    const auto uses_z = [](const NumericFunctor &functor) {
-      return functor.df_.func_ == DISPLACEMENT_FUNCTION::DISPLACEMENT_Z ||
-             functor.df_.func_ == DISPLACEMENT_FUNCTION::DISTANCE_Z;
-    };
     const auto &functors = cg.numeric_functors_;
-    if (uses_z(functors.weight_functor_) || uses_z(functors.delay_functor_) ||
-        uses_z(functors.probability_functor_))
+    if (uses_z_component(functors.weight_functor_.df_) ||
+        uses_z_component(functors.delay_functor_.df_) ||
+        uses_z_component(functors.probability_functor_.df_))
       throw std::invalid_argument(
           "displacement_z and distance_z need a 3D grid");
   }
