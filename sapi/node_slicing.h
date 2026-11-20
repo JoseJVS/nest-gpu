@@ -24,7 +24,6 @@
 #define NODE_SLICING_H
 
 #include <cassert>
-#include <optional>
 #include <utility>
 
 #include "grid_neighborhood.h"
@@ -34,15 +33,6 @@
 namespace sapi {
 template <Coordinate CoordT>
 using FilteringCoordQueue = std::deque<IndexedCoordView<CoordT>>;
-
-typedef DistributedTiledNodeSequenceMap::const_iterator DistTns_IT;
-typedef TileIdxNodeSequenceMap::const_iterator Tns_IT;
-typedef std::vector<std::pair<tileidx_t, std::optional<Tns_IT>>>
-    TiledNodeSequences;
-
-TiledNodeSequences get_optional_tiled_node_sequences(
-    const std::optional<DistTns_IT> &opt_dist_tns_it,
-    const GridNeighborhood &grid_neighborhood);
 
 template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *> inline get_optional_masked_sub_tiles(
@@ -58,16 +48,18 @@ std::deque<const Tile<CoordT> *> inline get_optional_masked_sub_tiles(
   return leaf_sub_tiles;
 }
 
-template <Coordinate CoordT, bool ignore_mask>
+// Without filtering every node of the leaf is checked and
+// filtering_sequence is ignored
+template <Coordinate CoordT, bool ignore_mask, bool filtered>
 void check_insert_node_coord_pairs(
     FilteringCoordQueue<CoordT> &node_coord_pairs,
     const IndexedCoordCollection<CoordT> &indexed_coord_col,
-    const std::optional<Tns_IT> opt_tns_it, const Mask<CoordT> &mask) {
+    [[maybe_unused]] const NodeSequence &filtering_sequence,
+    const Mask<CoordT> &mask) {
   static_assert(std::is_trivially_copyable_v<IndexedCoordView<CoordT>>);
   assert(node_coord_pairs.empty() && !indexed_coord_col.empty());
 
-  if (opt_tns_it.has_value()) {
-    const auto &filtering_sequence = opt_tns_it.value()->second;
+  if constexpr (filtered) {
     for (const auto &coord_vec : indexed_coord_col) {
       assert(!coord_vec.empty());
 
@@ -116,6 +108,46 @@ void check_insert_node_coord_pairs(
   }
 }
 
+// Appends one queue to tiled_coords per non-empty leaf of the tile that
+// overlaps the source mask, and fills each queue in its own task
+template <Coordinate CoordT, bool filtered>
+void slice_tile(std::deque<FilteringCoordQueue<CoordT>> &tiled_coords,
+                const tileidx_t tile_index,
+                const NodeSequence filtering_sequence,
+                const TileGrid<CoordT> &tile_grid,
+                const GridNodeCollection<CoordT> &grid_node_col,
+                const TAArray<MaskCollection<CoordT>> &mc_array) {
+  const auto tile_nc_it = grid_node_col.cbegin() + tile_index;
+  const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
+  assert(tile_nc_it != grid_node_col.cend() &&
+         tile_pos_it != tile_grid.positions_.cend());
+
+  for (const auto &leaf_ptr : get_optional_masked_sub_tiles(
+           tile_pos_it->tile_, mc_array.get_local_thread_item())) {
+    const auto coord_map_it = tile_nc_it->cbegin() + leaf_ptr->index_;
+    assert(coord_map_it != tile_nc_it->cend());
+
+    if (coord_map_it->empty())
+      continue;
+
+    const auto leaf_coords = &tiled_coords.emplace_back();
+
+#pragma omp task default(none) shared(mc_array)                                \
+    firstprivate(leaf_coords, filtering_sequence, coord_map_it)
+    {
+      const auto mask_collection = mc_array.get_local_thread_item();
+      if (mask_collection->has_source_mask())
+        check_insert_node_coord_pairs<CoordT, false, filtered>(
+            *leaf_coords, *coord_map_it, filtering_sequence,
+            mask_collection->source_mask_);
+      else
+        check_insert_node_coord_pairs<CoordT, true, filtered>(
+            *leaf_coords, *coord_map_it, filtering_sequence,
+            mask_collection->source_mask_);
+    }
+  }
+}
+
 template <Coordinate CoordT>
 std::deque<FilteringCoordQueue<CoordT>>
 slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
@@ -130,62 +162,31 @@ slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
   // A rank without tiles has no nodes to slice
   if (grid_node_col.empty())
     return tiled_coords;
-  std::optional<DistTns_IT> opt_dist_tns_it;
+  // Without a filter every locally owned tile is sliced in full
+  const TileIdxNodeSequenceMap *local_tns = nullptr;
   if (dist_tns != nullptr) {
     // Also covers an empty population (no rank has nodes)
     auto local_tile_seq_map_it = dist_tns->find(grid_neighborhood.local_rank_);
     if (local_tile_seq_map_it == dist_tns->end())
       return tiled_coords;
 
-    opt_dist_tns_it.emplace(local_tile_seq_map_it);
+    local_tns = &local_tile_seq_map_it->second;
   }
 
 #pragma omp parallel default(none)                                             \
     shared(tile_grid, grid_neighborhood, grid_node_col, mc_array,              \
-               tiled_coords) firstprivate(opt_dist_tns_it)
+               tiled_coords, local_tns)
 #pragma omp master
 #pragma omp taskgroup
   {
-    const auto mask_collection = mc_array.get_local_thread_item();
-    for (const auto &[tile_index, opt_tns_it] :
-         get_optional_tiled_node_sequences(opt_dist_tns_it,
-                                           grid_neighborhood)) {
-
-      const auto tile_nc_it = grid_node_col.cbegin() + tile_index;
-      const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
-      assert(tile_nc_it != grid_node_col.cend() &&
-             tile_pos_it != tile_grid.positions_.cend());
-
-      const auto overlapping_leafs =
-          get_optional_masked_sub_tiles(tile_pos_it->tile_, mask_collection);
-
-      if (overlapping_leafs.empty())
-        continue;
-
-      for (const auto &leaf_ptr : overlapping_leafs) {
-        const auto coord_map_it = tile_nc_it->cbegin() + leaf_ptr->index_;
-        assert(coord_map_it != tile_nc_it->cend());
-
-        if (coord_map_it->empty())
-          continue;
-
-        const auto leaf_coords = &tiled_coords.emplace_back();
-
-#pragma omp task default(none) shared(mc_array)                                \
-    firstprivate(leaf_coords, opt_tns_it, coord_map_it)
-        {
-          const auto mask_collection = mc_array.get_local_thread_item();
-          if (mask_collection->has_source_mask())
-            check_insert_node_coord_pairs<CoordT, false>(
-                *leaf_coords, *coord_map_it, opt_tns_it,
-                mask_collection->source_mask_);
-          else
-            check_insert_node_coord_pairs<CoordT, true>(
-                *leaf_coords, *coord_map_it, opt_tns_it,
-                mask_collection->source_mask_);
-        }
-      }
-    }
+    if (local_tns != nullptr)
+      for (const auto &[tile_index, sequence] : *local_tns)
+        slice_tile<CoordT, true>(tiled_coords, tile_index, sequence, tile_grid,
+                                 grid_node_col, mc_array);
+    else
+      for (const auto tile_index : *grid_neighborhood.locally_owned_tiles_)
+        slice_tile<CoordT, false>(tiled_coords, tile_index, NodeSequence{},
+                                  tile_grid, grid_node_col, mc_array);
   }
 
   return tiled_coords;

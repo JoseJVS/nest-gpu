@@ -84,7 +84,6 @@ payload_preparation.h
 coordinates.h
 gf_collection.h
 rng_creators.h
-node_slicing.cpp
 api_containers.h
 mask_node_processing.h
 vp_interface.h
