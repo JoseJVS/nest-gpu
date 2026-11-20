@@ -254,7 +254,7 @@ void check_insert_node_coord_pairs(
 template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void aggregate_tile_set_info(
-    TileSetInfo<CoordT> &tsi, FilteredTileNodeCollection<CoordT> &icp,
+    TileSetInfo<CoordT> &tsi, FilteredTileNodeCollection<CoordT> &fnc,
     const std::vector<std::pair<tileidx_t, TilePairInfo<CoordT>>> &tpi_vec,
     const LeafNodeCollection<CoordT> &leaf_node_col,
     const TAArray<MaskCollection<CoordT>> &mc_array,
@@ -325,7 +325,7 @@ void aggregate_tile_set_info(
 #pragma omp critical(sapi_filtered_coords)
   {
     const auto emplace_res =
-        icp.emplace(source_tile_idx, std::move(checked_leaves)).second;
+        fnc.emplace(source_tile_idx, std::move(checked_leaves)).second;
     assert(emplace_res);
   }
 }
@@ -450,6 +450,31 @@ void distributed_overlap(
   }
 }
 
+// One side of the distributed overlap: the local rank's tiles of tns_source
+// against the tiles of dist_tns_target on every rank (inverted: the two
+// populations are passed swapped, so the local tiles are the target side)
+template <Coordinate CoordT, bool edge_wrap, bool only_neighborhood,
+          bool inverted_source_target>
+void side_overlap(std::unordered_map<vp_t, RankPairInfo<CoordT>> &rpi_map,
+                  const TileIdxNodeSequenceMap &tns_source,
+                  const DistributedTiledNodeSequenceMap &dist_tns_target,
+                  const TileGrid<CoordT> &tile_grid,
+                  const GridNeighborhood &grid_neighborhood,
+                  const GridNodeCollection<CoordT> &grid_node_col,
+                  const TAArray<MaskCollection<CoordT>> &mc_array,
+                  const bool filter_source, const bool filter_target,
+                  const bool force_prepare_payload) {
+  dispatch_bools(
+      [&]<bool filter_source_v, bool filter_target_v>() {
+        distributed_overlap<CoordT, edge_wrap, only_neighborhood,
+                            inverted_source_target, filter_source_v,
+                            filter_target_v>(
+            rpi_map, tns_source, dist_tns_target, tile_grid, grid_neighborhood,
+            grid_node_col, mc_array, force_prepare_payload);
+      },
+      filter_source, filter_target);
+}
+
 template <Coordinate CoordT, bool edge_wrap, bool only_neighborhood>
 std::pair<bool, bool> compute_distributed_tile_overlap(
     DistributedPairInfo<CoordT> &dpi,
@@ -482,15 +507,10 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     shared(dpi, dist_tns_target, tile_grid, grid_neighborhood, grid_node_col,  \
                mc_array) firstprivate(filter_source, filter_target,            \
                                           source_side, force_prepare_payload)
-      dispatch_bools(
-          [&]<bool filter_source_v, bool filter_target_v>() {
-            distributed_overlap<CoordT, edge_wrap, only_neighborhood, false,
-                                filter_source_v, filter_target_v>(
-                dpi.source_side_info_, source_side->second, dist_tns_target,
-                tile_grid, grid_neighborhood, grid_node_col, mc_array,
-                force_prepare_payload);
-          },
-          filter_source, filter_target);
+      side_overlap<CoordT, edge_wrap, only_neighborhood, false>(
+          dpi.source_side_info_, source_side->second, dist_tns_target,
+          tile_grid, grid_neighborhood, grid_node_col, mc_array, filter_source,
+          filter_target, force_prepare_payload);
     }
 
     if (target_side != dist_tns_target.end()) {
@@ -498,15 +518,10 @@ std::pair<bool, bool> compute_distributed_tile_overlap(
     shared(dpi, dist_tns_source, tile_grid, grid_neighborhood, grid_node_col,  \
                mc_array) firstprivate(filter_source, filter_target,            \
                                           target_side, force_prepare_payload)
-      dispatch_bools(
-          [&]<bool filter_source_v, bool filter_target_v>() {
-            distributed_overlap<CoordT, edge_wrap, only_neighborhood, true,
-                                filter_source_v, filter_target_v>(
-                dpi.target_side_info_, target_side->second, dist_tns_source,
-                tile_grid, grid_neighborhood, grid_node_col, mc_array,
-                force_prepare_payload);
-          },
-          filter_source, filter_target);
+      side_overlap<CoordT, edge_wrap, only_neighborhood, true>(
+          dpi.target_side_info_, target_side->second, dist_tns_source,
+          tile_grid, grid_neighborhood, grid_node_col, mc_array, filter_source,
+          filter_target, force_prepare_payload);
     }
   }
 

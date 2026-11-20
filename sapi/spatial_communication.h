@@ -313,6 +313,32 @@ void dispatch_connection_procedures(
 }
 #endif
 
+#ifdef HAVE_MPI
+// One side of the exchange loop: receives the payloads that arrived (with the
+// mirrored tag: source side payloads are sent with tag 0 and target side
+// payloads with tag 1) and dispatches the connection computations of the
+// ranks done. Returns whether it dispatched.
+template <Coordinate CoordT, bool inverted_source_target>
+bool probe_and_dispatch(
+    QueuedRequests &request_queue, MPI_Status &status,
+    std::unordered_map<vp_t, RankConnectionInfo> &connection_info_map,
+    std::unordered_map<vp_t, RankPairInfo<CoordT>> &rank_info_map,
+    const TAArray<MaskCollection<CoordT>> &mc_array,
+    const TAArray<ConnectionGenerator> &cg_array,
+    const RandomManager &rng_manager, const TimerManager &timer_manager) {
+  probe_payload_recv(request_queue, status, rank_info_map,
+                     inverted_source_target ? 0 : 1);
+
+  if (request_queue.done_ranks_.empty())
+    return false;
+
+  dispatch_connection_procedures<CoordT, inverted_source_target>(
+      request_queue, connection_info_map, rank_info_map, mc_array, cg_array,
+      rng_manager, timer_manager);
+  return true;
+}
+#endif
+
 template <Coordinate CoordT>
 void communicate_connect_distributed_pair_data(
     DistributedConnectionInfo &distributed_connection_map,
@@ -362,49 +388,29 @@ void communicate_connect_distributed_pair_data(
 
   ScopedTimer last_dispatch_timer(rank_timer_registry,
                                   "last_compute_connection_dispatch_timer");
-  // Always stopped explicitly: num_requests > 0, so at least one dispatch runs
+  // Stopped by the first dispatch (later stops do nothing): num_requests > 0,
+  // so at least one dispatch runs
   ScopedTimer first_dispatch_timer(rank_timer_registry,
                                    "first_compute_connection_dispatch_timer");
 
   MPI_Status status;
-  bool first_dispatch = true;
   while (!(source_side_queue.done_ranks_.empty() &&
            source_side_queue.pending_ranks_.empty()) ||
          !(target_side_queue.done_ranks_.empty() &&
            target_side_queue.pending_ranks_.empty())) {
-    probe_payload_recv(source_side_queue, status,
-                       distributed_pair_data.source_side_info_,
-                       1 // mirrored tag for receiving
-    );
+    if (probe_and_dispatch<CoordT, false>(
+            source_side_queue, status,
+            distributed_connection_map.outgoing_connections_,
+            distributed_pair_data.source_side_info_, mc_array, cg_array,
+            rng_manager, timer_manager))
+      first_dispatch_timer.stop();
 
-    if (!source_side_queue.done_ranks_.empty()) {
-      dispatch_connection_procedures<CoordT, false>(
-          source_side_queue, distributed_connection_map.outgoing_connections_,
-          distributed_pair_data.source_side_info_, mc_array, cg_array,
-          rng_manager, timer_manager);
-
-      if (first_dispatch) {
-        first_dispatch_timer.stop();
-        first_dispatch = false;
-      }
-    }
-
-    probe_payload_recv(target_side_queue, status,
-                       distributed_pair_data.target_side_info_,
-                       0 // mirrored tag for receiving
-    );
-
-    if (!target_side_queue.done_ranks_.empty()) {
-      dispatch_connection_procedures<CoordT, true>(
-          target_side_queue, distributed_connection_map.incoming_connections_,
-          distributed_pair_data.target_side_info_, mc_array, cg_array,
-          rng_manager, timer_manager);
-
-      if (first_dispatch) {
-        first_dispatch_timer.stop();
-        first_dispatch = false;
-      }
-    }
+    if (probe_and_dispatch<CoordT, true>(
+            target_side_queue, status,
+            distributed_connection_map.incoming_connections_,
+            distributed_pair_data.target_side_info_, mc_array, cg_array,
+            rng_manager, timer_manager))
+      first_dispatch_timer.stop();
   }
 
   last_dispatch_timer.stop();
