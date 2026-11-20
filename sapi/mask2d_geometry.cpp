@@ -72,7 +72,7 @@ void initialize_parallelogram_mask_helpers(
   mask.helper_vectors_[2] = axial_vector0 + axial_vector1;
 
   mask.helper_scalars_.resize(
-      1, vector_cross(mask.helper_vectors_[1], mask.helper_vectors_[2]).sum());
+      1, cross_2D(mask.helper_vectors_[1], mask.helper_vectors_[2]));
 
   if (almost_zero(mask.helper_scalars_[0]))
     throw std::invalid_argument("Invalid parallelogram mask vectors");
@@ -90,8 +90,7 @@ void initialize_triangular_mask_helpers(
   if (almost_zero(mask.c_radius_.radius2_))
     throw std::invalid_argument("Invalid triangular mask vectors");
 
-  mask.helper_scalars_.resize(1,
-                              vector_cross(axial_vector0, axial_vector1).sum());
+  mask.helper_scalars_.resize(1, cross_2D(axial_vector0, axial_vector1));
 
   if (almost_zero(mask.helper_scalars_[0]))
     throw std::invalid_argument("Invalid triangular mask vectors");

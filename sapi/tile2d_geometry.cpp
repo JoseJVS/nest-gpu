@@ -102,8 +102,7 @@ void initialize_helpers_2D(std::vector<Coord2D> &helper_vectors,
   helper_vectors[0] = vertices[0] - vertices[1];
   helper_vectors[1] = vertices[2] - vertices[1];
 
-  helper_scalars.resize(
-      1, vector_cross(helper_vectors[0], helper_vectors[1]).sum());
+  helper_scalars.resize(1, cross_2D(helper_vectors[0], helper_vectors[1]));
 
   assert(!almost_zero(helper_scalars[0]));
 }
@@ -122,8 +121,7 @@ void initialize_hexagon_helpers(std::vector<Coord2D> &helper_vectors,
     helper_vectors.emplace_back(vertices[(vix + 4) % 6] - vertices[vix]);
   }
 
-  helper_scalars.resize(
-      1, vector_cross(helper_vectors[0], helper_vectors[1]).sum());
+  helper_scalars.resize(1, cross_2D(helper_vectors[0], helper_vectors[1]));
 
   assert(!almost_zero(helper_scalars[0]));
 }
@@ -492,10 +490,6 @@ space_t min_vertex_edge_distance2_2D(const std::vector<Coord2D> &from,
 // (strict orientation signs: touching contacts are not crossings)
 bool edges_cross_2D(const std::vector<Coord2D> &a, const Coord2D &shift,
                     const std::vector<Coord2D> &b) {
-  const auto orientation = [](const Coord2D &p, const Coord2D &q,
-                              const Coord2D &r) {
-    return vector_cross(q - p, r - p).sum();
-  };
   const vertidx_t a_count = static_cast<vertidx_t>(a.size());
   const vertidx_t b_count = static_cast<vertidx_t>(b.size());
   for (vertidx_t i = 0; i < a_count; ++i) {

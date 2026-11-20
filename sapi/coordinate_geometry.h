@@ -55,6 +55,17 @@ inline Coord3D vector_cross(const Coord3D &coordA, const Coord3D &coordB) {
           .sum());
 }
 
+// Scalar 2D cross product (z component of the 3D cross product)
+inline space_t cross_2D(const Coord2D &coordA, const Coord2D &coordB) {
+  return vector_cross(coordA, coordB).sum();
+}
+
+// Twice the signed area of the triangle p, q, r: positive if counterclockwise
+inline space_t orientation(const Coord2D &p, const Coord2D &q,
+                           const Coord2D &r) {
+  return cross_2D(q - p, r - p);
+}
+
 template <Coordinate CoordT> inline space_t vector_norm(const CoordT &coord) {
   return std::sqrt(vector_norm2(coord));
 }
@@ -134,7 +145,7 @@ inline Coord2D rotate_displacement(const Coord2D &displacement,
   // With X = x * cos @ + y * sin @
   // and  Y = -x * sin @ + y * cos @
   return construct_coord_2D((angular_coord * displacement).sum(),
-                            vector_cross(angular_coord, displacement).sum());
+                            cross_2D(angular_coord, displacement));
 }
 
 template <Coordinate CoordT, bool triangular_comparison>
