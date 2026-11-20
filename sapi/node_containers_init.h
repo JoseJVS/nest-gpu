@@ -63,18 +63,19 @@ void split_tiles_in_grid(TileGrid<CoordT> &tile_grid,
   enum class SplitRole : uint8_t { NONE, NEIGHBOR, OWNED };
   std::vector<SplitRole> split_roles(tile_grid.positions_.size(),
                                      SplitRole::NONE);
-  const auto role_of = [&split_roles](const tileidx_t tile_index) -> auto & {
-    assert(0 <= tile_index);
-    return split_roles.at(static_cast<std::size_t>(tile_index));
-  };
-  for (const auto &owned_tile : locally_owned_tiles)
-    role_of(owned_tile) = SplitRole::OWNED;
+  for (const auto &owned_tile : locally_owned_tiles) {
+    assert(0 <= owned_tile);
+    split_roles.at(static_cast<std::size_t>(owned_tile)) = SplitRole::OWNED;
+  }
   for (const auto &owned_tile : locally_owned_tiles)
     for (const auto &neighbor_index :
          tile_grid.positions_.at(static_cast<std::size_t>(owned_tile))
-             .wrapped_tile_neighborhood_)
-      if (role_of(neighbor_index) == SplitRole::NONE)
-        role_of(neighbor_index) = SplitRole::NEIGHBOR;
+             .wrapped_tile_neighborhood_) {
+      assert(0 <= neighbor_index);
+      auto &role = split_roles.at(static_cast<std::size_t>(neighbor_index));
+      if (role == SplitRole::NONE)
+        role = SplitRole::NEIGHBOR;
+    }
 
 #pragma omp parallel default(none) shared(tile_grid, split_roles)              \
     firstprivate(num_splits)

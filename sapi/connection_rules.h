@@ -335,10 +335,9 @@ void compute_fixed_connections(
 
       // Only positive candidates reach this point, more than requested
       assert(inserted == connection_counts);
-      std::ranges::transform(priority_map, selected_connections.begin(),
-                             [&](const auto &entry) {
-                               return possible_connections[entry.second];
-                             });
+      auto selected_it = selected_connections.begin();
+      for (const auto &entry : priority_map)
+        *selected_it++ = possible_connections[entry.second];
     }
   } else {
     assert(connection_probabilities.empty());
