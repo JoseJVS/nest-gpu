@@ -127,16 +127,13 @@ void validate_node_distribution(
                                 "tile indexes of the grid");
 
   // Nodes can only be placed in tiles that some rank owns
-  const auto has_owner = [&grid_neighborhood](const tileidx_t tile_index) {
-    return !grid_neighborhood
-                .tile_ranks_ownership_map_[static_cast<std::size_t>(tile_index)]
-                .empty();
-  };
   if (tile_set.has_value()
-          ? !std::ranges::all_of(*tile_set, has_owner)
-          : !std::ranges::all_of(
-                grid_neighborhood.tile_ranks_ownership_map_,
-                [](const auto &owners) { return !owners.empty(); }))
+          ? !std::ranges::all_of(*tile_set,
+                                 [&grid_neighborhood](const tileidx_t tile) {
+                                   return grid_neighborhood.tile_has_owner(
+                                       tile);
+                                 })
+          : !grid_neighborhood.all_tiles_owned())
     throw std::invalid_argument(
         "Nodes can only be distributed over tiles owned by some rank");
 

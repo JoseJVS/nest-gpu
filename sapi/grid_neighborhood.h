@@ -23,6 +23,7 @@
 #ifndef GRID_NEIGHBORHOOD_H
 #define GRID_NEIGHBORHOOD_H
 
+#include <algorithm>
 #include <cassert>
 #include <set>
 #include <utility>
@@ -83,6 +84,10 @@ struct GridNeighborhood {
 
   bool in_neighborhood(const vp_t rank, const bool edge_wrap) const;
 
+  // Whether some rank owns the tile (a valid tile index) or every tile
+  bool tile_has_owner(const tileidx_t tile_index) const;
+  bool all_tiles_owned() const;
+
   std::string to_string() const;
 };
 
@@ -100,6 +105,20 @@ inline bool GridNeighborhood::in_neighborhood(const vp_t rank,
     return local_rank_neighbors_->second.contains(rank);
   else
     return local_rank_neighbors_->first.contains(rank);
+}
+
+inline bool GridNeighborhood::tile_has_owner(const tileidx_t tile_index) const {
+  assert(has_owners_ && 0 <= tile_index &&
+         std::cmp_less(tile_index, tile_ranks_ownership_map_.size()));
+  return !tile_ranks_ownership_map_[static_cast<std::size_t>(tile_index)]
+              .empty();
+}
+
+inline bool GridNeighborhood::all_tiles_owned() const {
+  assert(has_owners_);
+  return std::ranges::none_of(
+      tile_ranks_ownership_map_,
+      [](const auto &owners) { return owners.empty(); });
 }
 
 template <Coordinate CoordT>

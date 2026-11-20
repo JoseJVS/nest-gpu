@@ -81,22 +81,14 @@ void validate_spatial_connections(
   if (0 < tile_grid.num_tiles_) {
     const int64_t leaves_per_tile = compute_leaves_count(
         tile_grid.splits_, tile_grid.positions_[0].tile_.shape_);
-    const auto local_nodes = [](const DistributedTiledNodeSequenceMap &dist_tns,
-                                const vp_t rank) {
-      int64_t nodes = 0;
-      if (const auto rank_it = dist_tns.find(rank); rank_it != dist_tns.end())
-        for (const auto &tile_sequence : rank_it->second)
-          nodes += tile_sequence.second.second;
-      return nodes;
-    };
     for (vp_t rank = 0; rank < grid_neighborhood.num_processes_; ++rank) {
       const int64_t tiles = static_cast<int64_t>(
           grid_neighborhood
               .rank_tiles_ownership_map_[static_cast<std::size_t>(rank)]
               .size());
       if (!payload_sizes(tiles, tiles * leaves_per_tile,
-                         std::max(local_nodes(dist_tns_source, rank),
-                                  local_nodes(dist_tns_target, rank)),
+                         std::max(count_rank_nodes(dist_tns_source, rank),
+                                  count_rank_nodes(dist_tns_target, rank)),
                          CoordT::D)
                .fits_message())
         throw std::invalid_argument(

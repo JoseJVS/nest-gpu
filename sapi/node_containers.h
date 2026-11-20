@@ -51,6 +51,18 @@ typedef std::unordered_map<vp_t, NodeSequence> RankNodeSequenceMap;
 typedef std::unordered_map<vp_t, TileIdxNodeSequenceMap>
     DistributedTiledNodeSequenceMap;
 
+// Number of nodes the rank holds over all its tiles (0 for a rank without
+// nodes)
+inline largenodeidx_t
+count_rank_nodes(const DistributedTiledNodeSequenceMap &dist_tns,
+                 const vp_t rank) {
+  largenodeidx_t nodes = 0;
+  if (const auto rank_it = dist_tns.find(rank); rank_it != dist_tns.end())
+    for (const auto &tile_sequence : rank_it->second)
+      nodes += tile_sequence.second.second;
+  return nodes;
+}
+
 // Vector containing node counts.
 // Given a number of processes or number of tiles,
 // the vector holds the number of nodes in each rank or tile index,

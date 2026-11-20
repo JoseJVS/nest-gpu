@@ -49,8 +49,7 @@ bool recursive_bounds_test(const CoordT &coord,
   if (bounding_box.inner_boxes_.empty()) {
     assert(0 <= bounding_box.tile_index_ &&
            bounding_box.tile_index_ < tile_grid.num_tiles_);
-    if (!grid_neighborhood.tile_ranks_ownership_map_[bounding_box.tile_index_]
-             .empty() &&
+    if (grid_neighborhood.tile_has_owner(bounding_box.tile_index_) &&
         tile_grid.positions_[bounding_box.tile_index_].tile_.coord_in_tile(
             coord)) {
       tile_coord_map[bounding_box.tile_index_].emplace_back(coord);
