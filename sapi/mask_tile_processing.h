@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "dispatch.h"
 #include "enum_store.h"
@@ -56,6 +57,45 @@ inline bool no_overlap(const Tile<CoordT> &tile,
   }
 }
 
+// The sub-tiles of driver and pool are leaves: collect the overlapping leaf
+// pairs first and insert them under one critical section, instead of taking
+// the process-wide lock once per pair
+template <Coordinate CoordT, bool inverted_source_target>
+void insert_overlapping_leaf_pairs(
+    std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
+        &leaf_pairs,
+    const Tile<CoordT> &driver, const Tile<CoordT> &pool,
+    const MaskCollection<CoordT> *const mask_collection,
+    const shift_t image_index, const uint64_t d_st_ok, const uint64_t p_st_ok) {
+  std::vector<std::pair<tileidx_t, tileidx_t>> overlapping_pairs;
+  for (std::size_t d_st = 0; d_st < driver.sub_tiles_.size(); ++d_st) {
+    if (!(d_st_ok >> d_st & 1))
+      continue;
+
+    const auto &d_leaf = driver.sub_tiles_[d_st];
+    for (std::size_t p_st = 0; p_st < pool.sub_tiles_.size(); ++p_st) {
+      const auto &p_leaf = pool.sub_tiles_[p_st];
+      if (!(p_st_ok >> p_st & 1) ||
+          !mask_collection->blueprint_overlap(d_leaf, p_leaf))
+        continue;
+
+      assert(d_leaf.sub_tiles_.empty() && p_leaf.sub_tiles_.empty() &&
+             0 <= d_leaf.index_ && 0 <= p_leaf.index_);
+      if constexpr (inverted_source_target)
+        overlapping_pairs.emplace_back(p_leaf.index_, d_leaf.index_);
+      else
+        overlapping_pairs.emplace_back(d_leaf.index_, p_leaf.index_);
+    }
+  }
+
+  if (overlapping_pairs.empty())
+    return;
+
+#pragma omp critical(sapi_leaf_pairs)
+  for (const auto &[local_leaf, remote_leaf] : overlapping_pairs)
+    leaf_pairs[local_leaf][remote_leaf] |= 1 << image_index;
+}
+
 template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void insert_leaf_tiles_within_range(
@@ -66,6 +106,9 @@ void insert_leaf_tiles_within_range(
     const bool is_shifted, const split_t splits) {
   assert(driver.sub_tiles_.size() == pool.sub_tiles_.size());
 
+  // Only entered when the first call already gets leaves, i.e. on a grid with
+  // 0 splits; when splits > 0 the recursion stops one level above the leaves
+  // in insert_overlapping_leaf_pairs
   if (driver.sub_tiles_.empty()) {
     assert(splits == 0 && 0 <= pool.index_ && 0 <= driver.index_);
 
@@ -107,8 +150,15 @@ void insert_leaf_tiles_within_range(
     if (0 == d_st_ok || 0 == p_st_ok)
       return;
 
-#pragma omp taskloop collapse(2) num_tasks(strict : 4) nogroup mergeable       \
-final(rem_splits < 2) default(none) shared(leaf_pairs, mc_array)               \
+    if (rem_splits == 0) {
+      insert_overlapping_leaf_pairs<CoordT, inverted_source_target>(
+          leaf_pairs, driver, pool, mask_collection, image_index, d_st_ok,
+          p_st_ok);
+      return;
+    }
+
+#pragma omp taskloop collapse(2) num_tasks(strict : 4)                         \
+    nogroup mergeable default(none) shared(leaf_pairs, mc_array)               \
     firstprivate(d_st_count, d_sub_tiles, p_st_count, p_sub_tiles,             \
                      image_index, is_shifted, rem_splits, d_st_ok, p_st_ok)
     for (std::size_t d_st = 0; d_st < d_st_count; ++d_st) {
