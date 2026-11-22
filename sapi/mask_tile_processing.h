@@ -324,7 +324,7 @@ void aggregate_tile_set_info(
 
 #pragma omp critical(sapi_filtered_coords)
   {
-    const auto emplace_res =
+    [[maybe_unused]] const auto emplace_res =
         fnc.emplace(source_tile_idx, std::move(checked_leaves)).second;
     assert(emplace_res);
   }

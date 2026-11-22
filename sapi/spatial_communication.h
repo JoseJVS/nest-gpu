@@ -154,8 +154,10 @@ DistributedConnectionInfo compute_distributed_spatial_connections(
           dpi.source_side_info_.find(grid_neighborhood.local_rank_);
       const auto tsi_it =
           dpi.target_side_info_.find(grid_neighborhood.local_rank_);
-      const bool source_side = ssi_it != dpi.source_side_info_.end();
-      const bool target_side = tsi_it != dpi.target_side_info_.end();
+      [[maybe_unused]] const bool source_side =
+          ssi_it != dpi.source_side_info_.end();
+      [[maybe_unused]] const bool target_side =
+          tsi_it != dpi.target_side_info_.end();
       assert(source_side == target_side &&
              source_side == available_targets.second);
 
@@ -342,11 +344,12 @@ bool probe_and_dispatch(
 
 template <Coordinate CoordT>
 void communicate_connect_distributed_pair_data(
-    DistributedConnectionInfo &distributed_connection_map,
-    DistributedPairInfo<CoordT> &distributed_pair_data,
-    const TAArray<MaskCollection<CoordT>> &mc_array,
-    const TAArray<ConnectionGenerator> &cg_array,
-    const RandomManager &rng_manager, const TimerManager &timer_manager) {
+    [[maybe_unused]] DistributedConnectionInfo &distributed_connection_map,
+    [[maybe_unused]] DistributedPairInfo<CoordT> &distributed_pair_data,
+    [[maybe_unused]] const TAArray<MaskCollection<CoordT>> &mc_array,
+    [[maybe_unused]] const TAArray<ConnectionGenerator> &cg_array,
+    [[maybe_unused]] const RandomManager &rng_manager,
+    [[maybe_unused]] const TimerManager &timer_manager) {
 #ifdef HAVE_MPI
   const auto num_requests = distributed_pair_data.source_side_info_.size() +
                             distributed_pair_data.target_side_info_.size();

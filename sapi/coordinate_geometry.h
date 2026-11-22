@@ -96,7 +96,7 @@ space_t projection_coeff(const CoordT &vectorBA, const CoordT &vectorBC) {
   const space_t dot_BA_BC = vector_dot(vectorBA, vectorBC);
   const space_t n2BC = vector_norm2(vectorBC);
 
-  const bool n2_BC_az = almost_zero(n2BC);
+  [[maybe_unused]] const bool n2_BC_az = almost_zero(n2BC);
   const bool dot_BA_BC_az = almost_zero(dot_BA_BC);
   const bool dot_BA_BC_aeq_n2BC = almost_equal(dot_BA_BC, n2BC);
   assert(!n2_BC_az || (dot_BA_BC_az && n2_BC_az));

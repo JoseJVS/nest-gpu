@@ -102,7 +102,8 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
   const auto info_writing_end =
       comm_info.data_payload_.begin() + total_header_size;
   auto content_writing_pos = info_writing_end;
-  const auto content_writing_end = comm_info.data_payload_.end();
+  [[maybe_unused]] const auto content_writing_end =
+      comm_info.data_payload_.end();
 
   // Write fixed header metadata
   int32_t header_pos = 0;
@@ -169,8 +170,9 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
 
   const auto recv_header_length = header_read(info_reading_pos, header_pos++);
   const auto recv_content_length = header_read(info_reading_pos, header_pos++);
-  const auto recv_payload_length = recv_header_length + recv_content_length;
-  const auto max_32bit_header = recv_header_length * 2;
+  [[maybe_unused]] const auto recv_payload_length =
+      recv_header_length + recv_content_length;
+  [[maybe_unused]] const auto max_32bit_header = recv_header_length * 2;
 
   assert(4 <= recv_header_length && // Minimum 1 tile 1 subtile 1 node -> 8
                                     // header items -> 4 compacted items
@@ -181,7 +183,8 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
   const auto info_reading_end =
       comm_info.data_payload_.cbegin() + recv_header_length;
   auto content_reading_pos = info_reading_end;
-  const auto content_reading_end = comm_info.data_payload_.cend();
+  [[maybe_unused]] const auto content_reading_end =
+      comm_info.data_payload_.cend();
 
   // Read total number of tiles
   auto recv_num_tiles = header_read(info_reading_pos, header_pos++);

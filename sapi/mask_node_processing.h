@@ -53,7 +53,7 @@ void add_task(TaskMap<CoordT> &aggregation_map, TaskQueue<CoordT> &task_queue,
     assert(task_it->second->pivot_view_ == pivot_view);
   }
 
-  const auto combination_emplace =
+  [[maybe_unused]] const auto combination_emplace =
       task_it->second->possible_combinations_.emplace(
           combination_key,
           construct_possible_connections<CoordT>(

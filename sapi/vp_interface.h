@@ -45,7 +45,8 @@ inline void check_rank_in_range(const vp_t rank, const vp_t num_processes) {
                                 " processes");
 }
 
-inline void init_mpi(vp_t *const argc, char ***const argv) {
+inline void init_mpi([[maybe_unused]] vp_t *const argc,
+                     [[maybe_unused]] char ***const argv) {
 #ifdef HAVE_MPI
   vp_t initialized;
   MPI_Initialized(&initialized);

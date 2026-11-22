@@ -86,7 +86,7 @@ DistributedTiledNodeSequenceMap consolidate_node_sequences_per_tile_per_rank(
       if (node_count < 1)
         continue;
 
-      const bool emplace_res =
+      [[maybe_unused]] const bool emplace_res =
           tile_idx_node_sequence_map
               .emplace(tile_index, NodeSequence(first_node_idx, node_count))
               .second;
