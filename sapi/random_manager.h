@@ -24,6 +24,7 @@
 #define RANDOM_MANAGER_H
 
 #include <cassert>
+#include <cstddef>
 #include <limits>
 
 #include "creator_registry.h"
@@ -80,6 +81,8 @@ protected:
 
   rng_seed_t base_seed_ = DEFAULT_BASE_SEED_;
   mutable std::vector<rng_seed_t> rank_paired_seeds_;
+
+  rng_seed_t &rank_paired_seed(const std::size_t rank) const;
 };
 
 inline bool RandomManager::is_initialized() const {
@@ -107,12 +110,20 @@ inline AnyRNG *RandomManager::get_tid_specific_rng(const vp_t tid) const {
   return tid_specific_rng_vec_.get_thread_item(tid);
 }
 
+// Ranks come from the grid neighborhood, so they are always below
+// num_processes_ (the size of rank_paired_seeds_)
+inline rng_seed_t &
+RandomManager::rank_paired_seed(const std::size_t rank) const {
+  assert(rank < rank_paired_seeds_.size());
+  return rank_paired_seeds_[rank];
+}
+
 inline AnyRNG *
 RandomManager::reseed_rank_paired_rng(const rng_seed_t tile_index,
                                       const rng_seed_t leaf_index) const {
   auto rng = tid_rank_paired_rng_vec_.get_thread_item(get_thread_num());
   rng->seed({base_seed_, THREAD_SEEDER_, PARITY_SEEDER_,
-             rank_paired_seeds_.at(local_rank_), tile_index, leaf_index});
+             rank_paired_seed(local_rank_), tile_index, leaf_index});
   return rng;
 }
 
@@ -122,13 +133,13 @@ inline AnyRNG *RandomManager::reseed_rank_paired_rng(
   auto rng = tid_rank_paired_rng_vec_.get_thread_item(tid);
   if (inverted_source_target)
     rng->seed({base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, rank, local_rank_,
-               rank_paired_seeds_.at(rank),
+               rank_paired_seed(rank),
                static_cast<rng_seed_t>(combined_seed >> 32),
                static_cast<rng_seed_t>(combined_seed &
                                        std::numeric_limits<uint32_t>::max())});
   else
     rng->seed({base_seed_, THREAD_SEEDER_, PARITY_SEEDER_, local_rank_, rank,
-               rank_paired_seeds_.at(rank),
+               rank_paired_seed(rank),
                static_cast<rng_seed_t>(combined_seed >> 32),
                static_cast<rng_seed_t>(combined_seed &
                                        std::numeric_limits<uint32_t>::max())});
@@ -137,7 +148,8 @@ inline AnyRNG *RandomManager::reseed_rank_paired_rng(
 }
 
 inline void RandomManager::update_rank_paired_seed(const vp_t rank) const {
-  ++rank_paired_seeds_.at(rank);
+  assert(0 <= rank);
+  ++rank_paired_seed(static_cast<std::size_t>(rank));
 }
 
 inline void RandomManager::set_rng_seed(const rng_seed_t seed) {

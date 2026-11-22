@@ -24,6 +24,7 @@
 #define THREAD_ALIGNED_ARRAY_H
 
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -89,8 +90,10 @@ inline void TAArray<T>::clone(const T &item) {
   prepare();
   assert(!cloned_ && prepared_);
 
+  // prepare() sized item_vec_ to the maximum thread count
 #pragma omp parallel default(none) shared(item_vec_, item)
-  item_vec_.at(get_thread_num()) = std::make_unique<T>(item);
+  item_vec_[static_cast<std::size_t>(get_thread_num())] =
+      std::make_unique<T>(item);
 
   cloned_ = true;
 }
@@ -98,13 +101,15 @@ inline void TAArray<T>::clone(const T &item) {
 template <typename T>
   requires std::is_copy_constructible_v<T>
 inline T *TAArray<T>::get_thread_item(const vp_t tid) const {
-  return item_vec_.at(tid).get();
+  // The thread count stays fixed once items are cloned
+  assert(0 <= tid && std::cmp_less(tid, item_vec_.size()));
+  return item_vec_[static_cast<std::size_t>(tid)].get();
 }
 
 template <typename T>
   requires std::is_copy_constructible_v<T>
 inline const T *TAArray<T>::get_local_thread_item() const {
-  return item_vec_.at(get_thread_num()).get();
+  return get_thread_item(get_thread_num());
 }
 } // namespace sapi
 
