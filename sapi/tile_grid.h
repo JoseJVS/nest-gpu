@@ -23,12 +23,13 @@
 #ifndef TILE_GRID_H
 #define TILE_GRID_H
 
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "grid_containers.h"
 #include "sapi_forward_declarations.h"
@@ -41,8 +42,10 @@ template <Coordinate CoordT> struct TilePosition {
   mutable std::vector<Tile<CoordT>> tile_images_;
   mutable std::vector<OmpLock<CoordT>> image_locks_;
   std::vector<CoordT> image_displacements_;
-  std::unordered_set<tileidx_t> direct_tile_neighborhood_;
-  std::unordered_set<tileidx_t> wrapped_tile_neighborhood_;
+  // Sorted and free of duplicates (see sort_neighborhood), so lookups use a
+  // binary search and equal neighborhoods compare equal
+  std::vector<tileidx_t> direct_tile_neighborhood_;
+  std::vector<tileidx_t> wrapped_tile_neighborhood_;
 
   TilePosition() noexcept = default;
   TilePosition(const TilePosition &) = delete;
@@ -52,7 +55,7 @@ template <Coordinate CoordT> struct TilePosition {
   TilePosition &operator=(const TilePosition &) = delete;
   TilePosition &operator=(TilePosition &&) = delete;
 
-  const std::unordered_set<tileidx_t> &get_tile_neighborhood(const bool) const;
+  const std::vector<tileidx_t> &get_tile_neighborhood(const bool) const;
 
   bool in_neighborhood(const tileidx_t, const bool) const;
 
@@ -62,7 +65,7 @@ template <Coordinate CoordT> struct TilePosition {
 };
 
 template <Coordinate CoordT>
-inline const std::unordered_set<tileidx_t> &
+inline const std::vector<tileidx_t> &
 TilePosition<CoordT>::get_tile_neighborhood(const bool edge_wrap) const {
   return edge_wrap ? wrapped_tile_neighborhood_ : direct_tile_neighborhood_;
 }
@@ -70,10 +73,7 @@ TilePosition<CoordT>::get_tile_neighborhood(const bool edge_wrap) const {
 template <Coordinate CoordT>
 inline bool TilePosition<CoordT>::in_neighborhood(const tileidx_t index,
                                                   const bool edge_wrap) const {
-  if (edge_wrap)
-    return wrapped_tile_neighborhood_.contains(index);
-  else
-    return direct_tile_neighborhood_.contains(index);
+  return std::ranges::binary_search(get_tile_neighborhood(edge_wrap), index);
 }
 
 template <Coordinate CoordT>

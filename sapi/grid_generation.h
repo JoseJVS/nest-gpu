@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cassert>
 #include <optional>
+#include <vector>
 
 #include "gf_collection.h"
 #include "sapi_forward_declarations.h"
@@ -157,14 +158,18 @@ void insert_neighbor(TilePosition<CoordT> &tile_pos,
     is_wrapped |= ews.second;
   }
 
-  if (is_wrapped) {
-    tile_pos.wrapped_tile_neighborhood_.insert(
-        gf_collection->compute_index(neighbor_position));
-  } else {
-    const auto index = gf_collection->compute_index(neighbor_position);
-    tile_pos.direct_tile_neighborhood_.insert(index);
-    tile_pos.wrapped_tile_neighborhood_.insert(index);
-  }
+  const auto index = gf_collection->compute_index(neighbor_position);
+  if (!is_wrapped)
+    tile_pos.direct_tile_neighborhood_.push_back(index);
+  tile_pos.wrapped_tile_neighborhood_.push_back(index);
+}
+
+// Small grids can reach one tile through several shifts, so duplicates are
+// removed here once all neighbors are inserted
+inline void sort_neighborhood(std::vector<tileidx_t> &neighborhood) {
+  std::ranges::sort(neighborhood);
+  const auto duplicates = std::ranges::unique(neighborhood);
+  neighborhood.erase(duplicates.begin(), duplicates.end());
 }
 
 template <Coordinate CoordT>
@@ -191,6 +196,9 @@ void generate_tile_position(std::vector<TilePosition<CoordT>> &positions,
     for (const auto &shift :
          *parity_it++ ? dim_shifts.first : dim_shifts.second)
       insert_neighbor(tile_pos, shift, gf_collection);
+
+  sort_neighborhood(tile_pos.direct_tile_neighborhood_);
+  sort_neighborhood(tile_pos.wrapped_tile_neighborhood_);
 }
 
 template <Coordinate CoordT>

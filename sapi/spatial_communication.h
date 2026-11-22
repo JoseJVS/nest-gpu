@@ -24,6 +24,7 @@
 #define SPATIAL_COMMUNICATION_H
 
 #include <cassert>
+#include <unordered_set>
 
 #include "dispatch.h"
 #include "mask_node_processing.h"

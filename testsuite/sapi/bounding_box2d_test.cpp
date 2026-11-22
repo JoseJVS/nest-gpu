@@ -1,3 +1,5 @@
+#include <unordered_set>
+
 #include "coordinate_geometry.h"
 #include "creator_registry.h"
 #include "thread_aligned_array.h"
