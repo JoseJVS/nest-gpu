@@ -39,8 +39,8 @@
 #include "node_containers.h"
 #include "node_distribution.h"
 #include "sapi_forward_declarations.h"
+#include "task_helpers.h"
 #include "tile.h"
-#include "vp_interface.h"
 
 namespace sapi {
 // One leaf's share of a tile's node sequence

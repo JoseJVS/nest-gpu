@@ -56,6 +56,7 @@ cg_creators.h
 spatial_communication.h
 connection_generator.h
 dispatch.h
+task_helpers.h
 thread_aligned_array.h
 tile2d_geometry.cpp
 type_erasure_helpers.h

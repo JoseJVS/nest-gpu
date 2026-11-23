@@ -34,7 +34,7 @@
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "sapi_forward_declarations.h"
-#include "vp_interface.h"
+#include "task_helpers.h"
 
 namespace sapi {
 template <Coordinate CoordT>

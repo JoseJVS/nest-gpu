@@ -23,14 +23,8 @@
 #ifndef VP_INTERFACE_HPP
 #define VP_INTERFACE_HPP
 
-#include <algorithm>
-#include <cassert>
-#include <cstddef>
-#include <limits>
 #include <stdexcept>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "sapi_config.h"
 
@@ -134,60 +128,6 @@ inline vp_t get_thread_num() {
 #else
   return 0;
 #endif
-}
-
-// Weight a chunk of jobs reaches before the next chunk starts, so that
-// total_weight splits into about num_chunks chunks
-inline nodeidx_t chunk_target(const nodeidx_t total_weight,
-                              const nodeidx_t num_chunks) {
-  assert(0 <= total_weight && 0 < num_chunks);
-  return std::max<nodeidx_t>(1, total_weight / num_chunks +
-                                    (total_weight % num_chunks != 0));
-}
-
-// Groups the jobs [0, weights.size()) into consecutive ranges of similar
-// total weight: each range but the last reaches ceil(total / num_chunks), so
-// there are about num_chunks ranges (one more if trailing jobs weigh 0), and
-// a job heavier than that ends a range on its own. Returns the range bounds,
-// from 0 to weights.size(). Jobs and weights are local to the rank, so they
-// fit in nodeidx_t.
-inline std::vector<nodeidx_t>
-chunk_bounds(const std::vector<nodeidx_t> &weights,
-             const nodeidx_t num_chunks) {
-  assert(std::cmp_less(weights.size(), std::numeric_limits<nodeidx_t>::max()));
-  const auto num_jobs = static_cast<nodeidx_t>(weights.size());
-
-  nodeidx_t total_weight = 0;
-  for (const auto weight : weights) {
-    assert(0 <= weight &&
-           weight <= std::numeric_limits<nodeidx_t>::max() - total_weight);
-    total_weight += weight;
-  }
-  const auto target = chunk_target(total_weight, num_chunks);
-
-  std::vector<nodeidx_t> bounds{0};
-  nodeidx_t chunk_weight = 0;
-  nodeidx_t job_end = 0;
-  for (const auto weight : weights) {
-    chunk_weight += weight;
-    ++job_end;
-    if (target <= chunk_weight && job_end < num_jobs) {
-      bounds.push_back(job_end);
-      chunk_weight = 0;
-    }
-  }
-  bounds.push_back(num_jobs);
-
-  return bounds;
-}
-
-// Number of chunk tasks for the current thread team
-inline nodeidx_t get_num_chunks() {
-  const auto num_threads = get_max_omp_threads();
-  assert(0 < num_threads &&
-         num_threads <=
-             std::numeric_limits<nodeidx_t>::max() / CHUNKS_PER_THREAD);
-  return CHUNKS_PER_THREAD * num_threads;
 }
 
 template <typename T> struct OmpLock {

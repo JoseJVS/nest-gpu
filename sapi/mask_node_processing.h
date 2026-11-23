@@ -25,14 +25,13 @@
 
 #include <algorithm>
 #include <cassert>
-#include <functional>
-#include <queue>
 #include <vector>
 
 #include "connection_generator.h"
 #include "mask_containers.h"
 #include "random_manager.h"
 #include "sapi_forward_declarations.h"
+#include "task_helpers.h"
 #include "vp_interface.h"
 
 namespace sapi {
@@ -182,42 +181,6 @@ inline std::size_t task_workload(const ConnectionTask<CoordT> &task) {
          static_cast<std::size_t>(task.total_possible_combinations_);
 }
 
-// Assigns the task queue entries to num_bins bins of similar total workload
-// (longest processing time first: the heaviest remaining entry goes to the
-// lightest bin). Each entry keeps its queue index, so it still reseeds from
-// its own key and writes its own output slot: the output does not depend on
-// the assignment.
-template <Coordinate CoordT>
-std::vector<std::vector<std::size_t>>
-balance_connection_tasks(const TaskQueue<CoordT> &task_queue,
-                         const std::size_t num_bins) {
-  assert(0 < num_bins && num_bins <= task_queue.size());
-
-  // (workload, queue index), heaviest first
-  std::vector<std::pair<std::size_t, std::size_t>> weighted_tasks;
-  weighted_tasks.reserve(task_queue.size());
-  for (std::size_t task_index = 0; task_index < task_queue.size(); ++task_index)
-    weighted_tasks.emplace_back(task_workload(task_queue[task_index].second),
-                                task_index);
-  std::ranges::sort(weighted_tasks, std::greater{});
-
-  // (total workload, bin index), lightest bin on top
-  using BinLoad = std::pair<std::size_t, std::size_t>;
-  std::priority_queue<BinLoad, std::vector<BinLoad>, std::greater<>> bin_loads;
-  for (std::size_t bin = 0; bin < num_bins; ++bin)
-    bin_loads.emplace(0, bin);
-
-  std::vector<std::vector<std::size_t>> task_bins(num_bins);
-  for (const auto &[workload, task_index] : weighted_tasks) {
-    const auto [load, bin] = bin_loads.top();
-    bin_loads.pop();
-    task_bins[bin].push_back(task_index);
-    bin_loads.emplace(load + workload, bin);
-  }
-
-  return task_bins;
-}
-
 template <Coordinate CoordT, bool inverted_source_target>
 void compute_displacement_checks_across_tile_pairs(
     RankConnectionInfo &rci, RankPairInfo<CoordT> &rpi,
@@ -258,8 +221,15 @@ void compute_displacement_checks_across_tile_pairs(
     assert(0 < num_threads);
     rci.procedural_connections_.resize(task_queue.size());
 
-    const auto task_bins = balance_connection_tasks(
-        task_queue,
+    // Balance the entries over the threads by workload; each entry keeps its
+    // queue index, so it still reseeds from its own key and writes its own
+    // output slot: the output does not depend on the assignment
+    std::vector<std::size_t> workloads;
+    workloads.reserve(task_queue.size());
+    for (const auto &id_task_pair : task_queue)
+      workloads.push_back(task_workload(id_task_pair.second));
+    const auto task_bins = balance_into_bins(
+        workloads,
         std::min(static_cast<std::size_t>(num_threads), task_queue.size()));
     const std::size_t num_bins = task_bins.size();
 
