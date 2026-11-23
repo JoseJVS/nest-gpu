@@ -24,15 +24,28 @@
 #define NODE_SLICING_H
 
 #include <cassert>
+#include <cstddef>
+#include <deque>
+#include <limits>
+#include <span>
 #include <utility>
+#include <vector>
 
 #include "grid_neighborhood.h"
 #include "node_containers.h"
 #include "sapi_forward_declarations.h"
+#include "vp_interface.h"
 
 namespace sapi {
 template <Coordinate CoordT>
 using FilteringCoordQueue = std::deque<IndexedCoordView<CoordT>>;
+
+// One non-empty leaf to slice into its own output queue
+template <Coordinate CoordT> struct LeafSliceJob {
+  FilteringCoordQueue<CoordT> *leaf_coords_;
+  const IndexedCoordCollection<CoordT> *coords_;
+  NodeSequence filtering_sequence_;
+};
 
 template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *> inline get_optional_masked_sub_tiles(
@@ -108,15 +121,16 @@ void check_insert_node_coord_pairs(
   }
 }
 
-// Appends one queue to tiled_coords per non-empty leaf of the tile that
-// overlaps the source mask, and fills each queue in its own task
-template <Coordinate CoordT, bool filtered>
-void slice_tile(std::deque<FilteringCoordQueue<CoordT>> &tiled_coords,
-                const tileidx_t tile_index,
-                const NodeSequence filtering_sequence,
-                const TileGrid<CoordT> &tile_grid,
-                const GridNodeCollection<CoordT> &grid_node_col,
-                const TAArray<MaskCollection<CoordT>> &mc_array) {
+// Appends one queue to tiled_coords and one job per non-empty leaf of the
+// tile that overlaps the source mask; job_weights gets the leaf's node count
+template <Coordinate CoordT>
+inline void collect_slice_jobs(
+    std::deque<FilteringCoordQueue<CoordT>> &tiled_coords,
+    std::vector<LeafSliceJob<CoordT>> &jobs,
+    std::vector<nodeidx_t> &job_weights, const tileidx_t tile_index,
+    const NodeSequence filtering_sequence, const TileGrid<CoordT> &tile_grid,
+    const GridNodeCollection<CoordT> &grid_node_col,
+    const TAArray<MaskCollection<CoordT>> &mc_array) {
   const auto tile_nc_it = grid_node_col.cbegin() + tile_index;
   const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
   assert(tile_nc_it != grid_node_col.cend() &&
@@ -130,21 +144,57 @@ void slice_tile(std::deque<FilteringCoordQueue<CoordT>> &tiled_coords,
     if (coord_map_it->empty())
       continue;
 
-    const auto leaf_coords = &tiled_coords.emplace_back();
-
-#pragma omp task default(none) shared(mc_array)                                \
-    firstprivate(leaf_coords, filtering_sequence, coord_map_it)
-    {
-      const auto mask_collection = mc_array.get_local_thread_item();
-      if (mask_collection->has_source_mask())
-        check_insert_node_coord_pairs<CoordT, false, filtered>(
-            *leaf_coords, *coord_map_it, filtering_sequence,
-            mask_collection->source_mask_);
-      else
-        check_insert_node_coord_pairs<CoordT, true, filtered>(
-            *leaf_coords, *coord_map_it, filtering_sequence,
-            mask_collection->source_mask_);
+    nodeidx_t leaf_node_count = 0;
+    for (const auto &coord_vec : *coord_map_it) {
+      assert(std::cmp_less_equal(coord_vec.size(),
+                                 std::numeric_limits<nodeidx_t>::max() -
+                                     leaf_node_count));
+      leaf_node_count += static_cast<nodeidx_t>(coord_vec.size());
     }
+
+    jobs.emplace_back(&tiled_coords.emplace_back(), &*coord_map_it,
+                      filtering_sequence);
+    job_weights.push_back(leaf_node_count);
+  }
+}
+
+// Slices the leaves of the given jobs, each into its own queue
+template <Coordinate CoordT, bool filtered>
+inline void slice_leaf_jobs(const std::span<const LeafSliceJob<CoordT>> jobs,
+                            const TAArray<MaskCollection<CoordT>> &mc_array) {
+  const auto mask_collection = mc_array.get_local_thread_item();
+  for (const auto &job : jobs) {
+    if (mask_collection->has_source_mask())
+      check_insert_node_coord_pairs<CoordT, false, filtered>(
+          *job.leaf_coords_, *job.coords_, job.filtering_sequence_,
+          mask_collection->source_mask_);
+    else
+      check_insert_node_coord_pairs<CoordT, true, filtered>(
+          *job.leaf_coords_, *job.coords_, job.filtering_sequence_,
+          mask_collection->source_mask_);
+  }
+}
+
+// Groups the slice jobs into chunk tasks of similar node count, since one
+// task per leaf costs more than the slicing itself when leaves hold few nodes
+template <Coordinate CoordT, bool filtered>
+inline void
+slice_jobs_in_chunks(const std::vector<LeafSliceJob<CoordT>> &jobs,
+                     const std::vector<nodeidx_t> &job_weights,
+                     const TAArray<MaskCollection<CoordT>> &mc_array) {
+  if (jobs.empty())
+    return;
+
+  const auto bounds = chunk_bounds(job_weights, get_num_chunks());
+
+#pragma omp taskgroup
+  for (std::size_t chunk = 0; chunk + 1 < bounds.size(); ++chunk) {
+    assert(0 <= bounds[chunk] && bounds[chunk] <= bounds[chunk + 1]);
+    const std::span<const LeafSliceJob<CoordT>> chunk_jobs(
+        jobs.data() + bounds[chunk],
+        static_cast<std::size_t>(bounds[chunk + 1] - bounds[chunk]));
+#pragma omp task default(none) shared(mc_array) firstprivate(chunk_jobs)
+    slice_leaf_jobs<CoordT, filtered>(chunk_jobs, mc_array);
   }
 }
 
@@ -177,16 +227,21 @@ slice_tiled_node_maps(const DistributedTiledNodeSequenceMap *const dist_tns,
     shared(tile_grid, grid_neighborhood, grid_node_col, mc_array,              \
                tiled_coords, local_tns)
 #pragma omp master
-#pragma omp taskgroup
   {
-    if (local_tns != nullptr)
+    std::vector<LeafSliceJob<CoordT>> jobs;
+    std::vector<nodeidx_t> job_weights;
+
+    if (local_tns != nullptr) {
       for (const auto &[tile_index, sequence] : *local_tns)
-        slice_tile<CoordT, true>(tiled_coords, tile_index, sequence, tile_grid,
-                                 grid_node_col, mc_array);
-    else
+        collect_slice_jobs(tiled_coords, jobs, job_weights, tile_index,
+                           sequence, tile_grid, grid_node_col, mc_array);
+      slice_jobs_in_chunks<CoordT, true>(jobs, job_weights, mc_array);
+    } else {
       for (const auto tile_index : *grid_neighborhood.locally_owned_tiles_)
-        slice_tile<CoordT, false>(tiled_coords, tile_index, NodeSequence{},
-                                  tile_grid, grid_node_col, mc_array);
+        collect_slice_jobs(tiled_coords, jobs, job_weights, tile_index,
+                           NodeSequence{}, tile_grid, grid_node_col, mc_array);
+      slice_jobs_in_chunks<CoordT, false>(jobs, job_weights, mc_array);
+    }
   }
 
   return tiled_coords;

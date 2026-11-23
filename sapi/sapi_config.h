@@ -51,9 +51,16 @@ typedef uint64_t
     combined_idx_t; // Type for storing bitwise combination of two 32bit indexes
 
 // Numerics constants
-constexpr static const uint8_t BATCHING_THRESHOLD = 100;
 constexpr static const uint8_t TOLERANCE = 2;
 constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
+
+// Task constants
+// Tasks per thread when many small jobs are grouped into chunk tasks: enough
+// for the runtime to balance chunks of unequal duration, few enough that the
+// task overhead stays small
+constexpr static const uint8_t CHUNKS_PER_THREAD = 4;
+// Node distribution batching across tasks threshold
+constexpr static const uint8_t BATCHING_THRESHOLD = 100;
 
 // RNG constants
 constexpr static const char *const DEFAULT_RNG_TYPE_ = "pcg";

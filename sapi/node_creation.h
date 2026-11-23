@@ -29,8 +29,10 @@
 #include <limits>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "dispatch.h"
 #include "grid_neighborhood.h"
@@ -38,8 +40,18 @@
 #include "node_distribution.h"
 #include "sapi_forward_declarations.h"
 #include "tile.h"
+#include "vp_interface.h"
 
 namespace sapi {
+// One leaf's share of a tile's node sequence
+template <Coordinate CoordT> struct LeafCreationJob {
+  IndexedCoordCollection<CoordT> *leaf_nodes_;
+  const Tile<CoordT> *leaf_;
+  nodeidx_t first_index_;
+  nodeidx_t node_count_;
+  tileidx_t tile_index_;
+};
+
 template <typename I>
   requires std::integral<std::remove_cvref_t<I>>
 constexpr DISTRIBUTION_MODE get_distribution_mode(I &&mode) {
@@ -281,6 +293,37 @@ distribute_node_counts_in_grid(
                         std::move(tiled_node_counts_per_rank));
 }
 
+// Generates the nodes of the given jobs. Every leaf reseeds the thread's RNG
+// from its tile and leaf, so the output does not depend on how the jobs are
+// grouped into tasks.
+template <Coordinate CoordT>
+inline void
+generate_leaf_jobs(const std::span<const LeafCreationJob<CoordT>> jobs,
+                   const RandomManager &rng_manager) {
+  for (const auto &job : jobs) {
+    assert(0 <= job.tile_index_ && 0 <= job.leaf_->index_);
+    job.leaf_nodes_->emplace_back(job.leaf_->generate_coords_in_tile(
+        job.first_index_, job.node_count_,
+        *rng_manager.reseed_rank_paired_rng(
+            static_cast<rng_seed_t>(job.tile_index_),
+            static_cast<rng_seed_t>(job.leaf_->index_))));
+  }
+}
+
+// Generates the jobs from first_job to the end of jobs in its own task
+template <Coordinate CoordT>
+inline void
+spawn_leaf_job_chunk(const std::vector<LeafCreationJob<CoordT>> &jobs,
+                     const nodeidx_t first_job,
+                     const RandomManager &rng_manager) {
+  assert(0 <= first_job && std::cmp_less(first_job, jobs.size()));
+  const std::span<const LeafCreationJob<CoordT>> chunk(
+      jobs.data() + first_job,
+      jobs.size() - static_cast<std::size_t>(first_job));
+#pragma omp task default(none) shared(rng_manager) firstprivate(chunk)
+  generate_leaf_jobs(chunk, rng_manager);
+}
+
 template <Coordinate CoordT, bool use_branches, bool balanced>
 void distribute_node_counts_in_tiles(
     GridNodeCollection<CoordT> &grid_node_col,
@@ -301,58 +344,90 @@ void distribute_node_counts_in_tiles(
     shared(node_seq_per_tile, grid_node_col, tile_grid, rng_manager,           \
                possible_branches)
 #pragma omp master
-#pragma omp taskgroup
   {
+    // One job per non-empty leaf, grouped into chunk tasks of similar node
+    // count, since one task per leaf costs more than the generation itself
+    // when leaves hold few nodes. Each chunk is spawned as soon as it is
+    // complete, so generation overlaps with the node count distribution of
+    // the following tiles. jobs is reserved for every leaf: it never
+    // reallocates while running chunks read their jobs.
+    nodeidx_t total_nodes = 0;
+    nodeidx_t total_leaves = 0;
     for (const auto &[tile_index, node_sequence] : node_seq_per_tile) {
-      assert(0 <= node_sequence.first && 0 < node_sequence.second);
+      const auto tile_leaves = (grid_node_col.cbegin() + tile_index)->size();
+      assert(node_sequence.second <=
+                 std::numeric_limits<nodeidx_t>::max() - total_nodes &&
+             std::cmp_less_equal(tile_leaves,
+                                 std::numeric_limits<nodeidx_t>::max() -
+                                     total_leaves));
+      total_nodes += node_sequence.second;
+      total_leaves += static_cast<nodeidx_t>(tile_leaves);
+    }
+    const auto target = chunk_target(total_nodes, get_num_chunks());
 
-      const auto tile_nc_it = grid_node_col.begin() + tile_index;
-      const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
-      assert(tile_nc_it != grid_node_col.end() && !tile_nc_it->empty() &&
-             tile_pos_it != tile_grid.positions_.cend() &&
-             tile_nc_it->size() == tile_pos_it->tile_.leaf_tiles_.size());
-      assert(!use_branches ||
-             possible_branches ==
-                 tile_pos_it->tile_.get_possible_sub_tile_branches(
-                     tile_grid.splits_));
+    std::vector<LeafCreationJob<CoordT>> jobs;
+    jobs.reserve(static_cast<std::size_t>(total_leaves));
+    nodeidx_t chunk_first = 0;
+    nodeidx_t chunk_nodes = 0;
 
-      NodeCountVector node_count_per_sub_tile;
+#pragma omp taskgroup
+    {
+      for (const auto &[tile_index, node_sequence] : node_seq_per_tile) {
+        assert(0 <= node_sequence.first && 0 < node_sequence.second);
 
-      if constexpr (use_branches) {
-        node_count_per_sub_tile =
-            uniform_distribute_node_counts<nodeidx_t, std::vector<split_t>,
-                                           false>(
-                node_sequence.second,
-                static_cast<tileidx_t>(tile_nc_it->size()), possible_branches,
-                rng_manager);
-      } else {
-        node_count_per_sub_tile =
-            uniform_distribute_node_counts<nodeidx_t, balanced, false>(
-                node_sequence.second,
-                static_cast<tileidx_t>(tile_nc_it->size()), rng_manager);
-      }
+        const auto tile_nc_it = grid_node_col.begin() + tile_index;
+        const auto tile_pos_it = tile_grid.positions_.cbegin() + tile_index;
+        assert(tile_nc_it != grid_node_col.end() && !tile_nc_it->empty() &&
+               tile_pos_it != tile_grid.positions_.cend() &&
+               tile_nc_it->size() == tile_pos_it->tile_.leaf_tiles_.size());
+        assert(!use_branches ||
+               possible_branches ==
+                   tile_pos_it->tile_.get_possible_sub_tile_branches(
+                       tile_grid.splits_));
 
-      assert(node_count_per_sub_tile.size() == tile_nc_it->size());
+        NodeCountVector node_count_per_sub_tile;
 
-      auto st_nc_it = tile_nc_it->begin();
-      nodeidx_t st_node_index = node_sequence.first;
-      auto leaf_it = tile_pos_it->tile_.leaf_tiles_.cbegin();
-      for (const auto &node_count : node_count_per_sub_tile) {
-        if (0 < node_count) {
-#pragma omp task default(none) shared(rng_manager)                             \
-    firstprivate(st_nc_it, leaf_it, st_node_index, node_count, tile_index)
-          st_nc_it->emplace_back((*leaf_it)->generate_coords_in_tile(
-              st_node_index, node_count,
-              *rng_manager.reseed_rank_paired_rng(tile_index,
-                                                  (*leaf_it)->index_)));
-
-          st_node_index += node_count;
+        if constexpr (use_branches) {
+          node_count_per_sub_tile =
+              uniform_distribute_node_counts<nodeidx_t, std::vector<split_t>,
+                                             false>(
+                  node_sequence.second,
+                  static_cast<tileidx_t>(tile_nc_it->size()), possible_branches,
+                  rng_manager);
+        } else {
+          node_count_per_sub_tile =
+              uniform_distribute_node_counts<nodeidx_t, balanced, false>(
+                  node_sequence.second,
+                  static_cast<tileidx_t>(tile_nc_it->size()), rng_manager);
         }
 
-        ++leaf_it;
-        ++st_nc_it;
+        assert(node_count_per_sub_tile.size() == tile_nc_it->size());
+
+        auto st_nc_it = tile_nc_it->begin();
+        nodeidx_t st_node_index = node_sequence.first;
+        auto leaf_it = tile_pos_it->tile_.leaf_tiles_.cbegin();
+        for (const auto &node_count : node_count_per_sub_tile) {
+          if (0 < node_count) {
+            jobs.emplace_back(&*st_nc_it, *leaf_it, st_node_index, node_count,
+                              tile_index);
+            st_node_index += node_count;
+
+            chunk_nodes += node_count;
+            if (target <= chunk_nodes) {
+              spawn_leaf_job_chunk(jobs, chunk_first, rng_manager);
+              chunk_first = static_cast<nodeidx_t>(jobs.size());
+              chunk_nodes = 0;
+            }
+          }
+
+          ++leaf_it;
+          ++st_nc_it;
+        }
+        assert((st_node_index - node_sequence.first) == node_sequence.second);
       }
-      assert((st_node_index - node_sequence.first) == node_sequence.second);
+
+      if (std::cmp_less(chunk_first, jobs.size()))
+        spawn_leaf_job_chunk(jobs, chunk_first, rng_manager);
     }
   }
 }
