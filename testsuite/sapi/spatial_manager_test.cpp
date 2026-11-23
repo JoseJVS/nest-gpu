@@ -32,8 +32,8 @@ std::size_t insert_nodes(SpatialManager<Coord2D> &spam,
                          std::vector<nodeidx_t> &total_nodes_per_rank,
                          const tileidx_t num_procs,
                          const std::vector<space_t> &anycoord_vec) {
-  const auto [node_counts_per_rank, leftovers] = spam.insert_positions_in_grid(
-      2, anycoord_vec.size(), anycoord_vec.data());
+  const auto [node_counts_per_rank, leftovers] =
+      spam.insert_positions_in_grid(2, anycoord_vec);
 
   assert(!leftovers.empty());
 

@@ -20,8 +20,10 @@
  *
  */
 
-#include "c_api.h"
+#include <span>
+
 #include "api_converters.h"
+#include "c_api.h"
 #include "spatial_manager.h"
 
 namespace sapi {
@@ -175,8 +177,15 @@ std::size_t CAPI::generate_nodes_in_tiles(
 
 std::pair<NodeCountVector, PositionViewStruct *>
 CAPI::insert_positions_in_grid(const PositionViewStruct &positions) {
-  auto [node_counts_per_rank, leftovers] = _manager().insert_positions_in_grid(
-      positions.dimensions_, positions.coord_count_, positions.coordinates_);
+  auto &manager = _manager();
+
+  // No positions (an empty population) may come without a pointer
+  if (positions.coordinates_ == nullptr && positions.coord_count_ != 0)
+    throw std::invalid_argument("Invalid positions to insert");
+
+  auto [node_counts_per_rank, leftovers] = manager.insert_positions_in_grid(
+      positions.dimensions_,
+      std::span<const space_t>(positions.coordinates_, positions.coord_count_));
 
   auto uptr = std::make_unique<std::vector<space_t>>(std::move(leftovers));
   const auto ptr = uptr.get();

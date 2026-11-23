@@ -27,6 +27,7 @@
 #include <forward_list>
 #include <limits>
 #include <numeric>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -98,8 +99,7 @@ public:
 
   virtual std::pair<NodeCountVector, std::vector<space_t>>
   insert_positions_in_grid(const dim_t dimensions,
-                           const std::size_t coord_count,
-                           const space_t *const coordinates) = 0;
+                           const std::span<const space_t> coordinates) = 0;
 
   virtual std::size_t
   generate_nodes_in_tiles(const RankNodeSequenceMap &node_sequences_per_rank,
@@ -197,8 +197,7 @@ public:
 
   std::pair<NodeCountVector, std::vector<space_t>>
   insert_positions_in_grid(const dim_t dimensions,
-                           const std::size_t coord_count,
-                           const space_t *const coordinates) override;
+                           const std::span<const space_t> coordinates) override;
 
   std::size_t
   generate_nodes_in_tiles(const RankNodeSequenceMap &node_sequences_per_rank,
@@ -420,16 +419,13 @@ NodeCountVector SpatialManager<CoordT>::distribute_nodes_in_grid(
 template <Coordinate CoordT>
 std::pair<NodeCountVector, std::vector<space_t>>
 SpatialManager<CoordT>::insert_positions_in_grid(
-    const dim_t dimensions, const std::size_t coord_count,
-    const space_t *const coordinates) {
+    const dim_t dimensions, const std::span<const space_t> coordinates) {
   _throw_if_not_initialized();
 
-  // No positions (an empty population) may come without a pointer
-  if (dimensions != CoordT::D || coord_count % CoordT::D != 0 ||
-      (coordinates == nullptr && coord_count != 0))
+  if (dimensions != CoordT::D || coordinates.size() % CoordT::D != 0)
     throw std::invalid_argument("Invalid positions to insert");
   // Node counts per rank, tile and leaf stay below the nodeidx_t maximum
-  if (!std::cmp_less(coord_count / CoordT::D,
+  if (!std::cmp_less(coordinates.size() / CoordT::D,
                      std::numeric_limits<nodeidx_t>::max()))
     throw std::invalid_argument(
         "Too many positions to insert, fewer than " +
@@ -438,8 +434,8 @@ SpatialManager<CoordT>::insert_positions_in_grid(
   ScopedTimer nit(rank_timer_registry_, "node_insertion_time");
 
   std::deque<CoordT> coords;
-  auto read_it = coordinates;
-  for (std::size_t index = 0; index < coord_count; index += CoordT::D)
+  auto read_it = coordinates.begin();
+  for (std::size_t index = 0; index < coordinates.size(); index += CoordT::D)
     coords.emplace_back(CoordT::copy_from_vec(read_it));
 
   rng_used_ = true;
