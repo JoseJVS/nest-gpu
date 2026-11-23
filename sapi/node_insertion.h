@@ -24,6 +24,7 @@
 #define NODE_INSERTION_H
 
 #include <cassert>
+#include <cstddef>
 #include <tuple>
 #include <utility>
 
@@ -50,8 +51,8 @@ bool recursive_bounds_test(const CoordT &coord,
     assert(0 <= bounding_box.tile_index_ &&
            bounding_box.tile_index_ < tile_grid.num_tiles_);
     if (grid_neighborhood.tile_has_owner(bounding_box.tile_index_) &&
-        tile_grid.positions_[bounding_box.tile_index_].tile_.coord_in_tile(
-            coord)) {
+        tile_grid.positions_[static_cast<std::size_t>(bounding_box.tile_index_)]
+            .tile_.coord_in_tile(coord)) {
       tile_coord_map[bounding_box.tile_index_].emplace_back(coord);
       inserted = true;
     }
@@ -124,8 +125,10 @@ void aggregate_tiled_node_count_by_rank(
       const auto count = *nc_it++;
       if (count == 0)
         continue;
-      node_counts_per_rank[owner_rank] += count;
-      tiled_node_counts_per_rank[owner_rank].emplace_back(tile_index, count);
+      assert(0 <= owner_rank);
+      const auto rank_idx = static_cast<std::size_t>(owner_rank);
+      node_counts_per_rank[rank_idx] += count;
+      tiled_node_counts_per_rank[rank_idx].emplace_back(tile_index, count);
 
       if (owner_rank != grid_neighborhood.local_rank_)
         coord_skip += count;
@@ -155,9 +158,11 @@ insert_node_positions_in_grid(std::deque<CoordT> &coords,
          rng_manager.is_initialized());
 
   std::deque<CoordT> leftovers;
-  NodeCountVector node_counts_per_rank(grid_neighborhood.num_processes_, 0);
-  RankTileIdxNodeCountPairs tiled_node_counts_per_rank(
-      grid_neighborhood.num_processes_);
+  assert(0 < grid_neighborhood.num_processes_);
+  const auto num_ranks =
+      static_cast<std::size_t>(grid_neighborhood.num_processes_);
+  NodeCountVector node_counts_per_rank(num_ranks, 0);
+  RankTileIdxNodeCountPairs tiled_node_counts_per_rank(num_ranks);
   TiledCoordMap<CoordT> local_tiled_coords;
 
   if (coords.empty())
@@ -288,9 +293,10 @@ void insert_node_positions_in_tiles(
 
 #pragma omp task default(none) shared(tile_grid)                               \
     firstprivate(tcm_it, tnc_it, tile_index, node_sequence)
-    insert_node_positions_in_leafs(tcm_it->second, *tnc_it,
-                                   tile_grid.positions_[tile_index],
-                                   node_sequence);
+    insert_node_positions_in_leafs(
+        tcm_it->second, *tnc_it,
+        tile_grid.positions_[static_cast<std::size_t>(tile_index)],
+        node_sequence);
   }
 
   tiled_coord_map.clear();

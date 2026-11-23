@@ -31,16 +31,19 @@ namespace sapi {
 tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape) {
   switch (shape) {
   case TILE_SHAPE::RECTANGLE:
-    return std::pow(uint8_t(TILE_SPLITS::RECTANGLE_SPLITS), splits);
+    return static_cast<tileidx_t>(
+        std::pow(uint8_t(TILE_SPLITS::RECTANGLE_SPLITS), splits));
 
   case TILE_SHAPE::TRIANGLE:
-    return std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits);
+    return static_cast<tileidx_t>(
+        std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits));
 
   case TILE_SHAPE::HEXAGON:
-    return splits > 0
-               ? uint8_t(TILE_SPLITS::HEXAGON_SPLITS) *
-                     std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits - 1)
-               : 1;
+    return static_cast<tileidx_t>(
+        splits > 0
+            ? uint8_t(TILE_SPLITS::HEXAGON_SPLITS) *
+                  std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits - 1)
+            : 1);
 
   default:
     assert(false && "Invalid tile shape");

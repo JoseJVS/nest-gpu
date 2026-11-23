@@ -48,7 +48,9 @@ inline void StopWatch::stop() {
   duration_ += std::chrono::steady_clock::now() - start_;
 }
 
-inline double StopWatch::time() const { return duration_.count() / 1e9; }
+inline double StopWatch::time() const {
+  return static_cast<double>(duration_.count()) / 1e9;
+}
 
 struct TimerRegister {
   std::unordered_map<std::string, StopWatch> registered_timers_;

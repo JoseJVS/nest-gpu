@@ -25,7 +25,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "sapi_forward_declarations.h"
@@ -129,20 +132,32 @@ void GridNeighborhood::set_tile_ownership(
 
   if (!std::cmp_equal(rank_tiles_ownership_map.size(), num_processes_))
     throw std::invalid_argument("Ownership has to be defined for all ranks");
+  // Checked before any state changes, so a rejected ownership leaves the
+  // neighborhood as it was; every rank holds the same ownership and throws
+  for (const auto &tile_set : rank_tiles_ownership_map)
+    for (const auto &tile_idx : tile_set)
+      if (tile_idx < 0 || tile_grid.num_tiles_ <= tile_idx)
+        throw std::invalid_argument("Invalid tile index " +
+                                    std::to_string(tile_idx) +
+                                    " in tile ownership");
 
   vp_t curr_rank = 0;
   vp_t injective_ranks = 0;
-  tile_ranks_ownership_map_.resize(tile_grid.num_tiles_);
+  assert(0 <= tile_grid.num_tiles_);
+  tile_ranks_ownership_map_.resize(
+      static_cast<std::size_t>(tile_grid.num_tiles_));
   for (const auto &tile_set : rank_tiles_ownership_map) {
     injective_ranks += tile_set.size() == 1;
     for (const auto &tile_idx : tile_set)
-      tile_ranks_ownership_map_.at(tile_idx).insert(curr_rank);
+      tile_ranks_ownership_map_[static_cast<std::size_t>(tile_idx)].insert(
+          curr_rank);
     ++curr_rank;
   }
 
   tileidx_t injective_tiles = 0;
   auto tile_pos_it = tile_grid.positions_.cbegin();
-  rank_neighbors_map_.resize(num_processes_);
+  assert(0 <= num_processes_);
+  rank_neighbors_map_.resize(static_cast<std::size_t>(num_processes_));
   for (const auto &source_rank_set : tile_ranks_ownership_map_) {
     assert(!tile_pos_it->direct_tile_neighborhood_.empty() &&
            !tile_pos_it->wrapped_tile_neighborhood_.empty());
@@ -152,11 +167,13 @@ void GridNeighborhood::set_tile_ownership(
       const auto neighborhood_it = rank_neighbors_map_.begin() + source_rank;
       for (const auto &neighbor_index : tile_pos_it->direct_tile_neighborhood_)
         for (const auto &target_rank :
-             tile_ranks_ownership_map_[neighbor_index])
+             tile_ranks_ownership_map_[static_cast<std::size_t>(
+                 neighbor_index)])
           neighborhood_it->first.insert(target_rank);
       for (const auto &neighbor_index : tile_pos_it->wrapped_tile_neighborhood_)
         for (const auto &target_rank :
-             tile_ranks_ownership_map_[neighbor_index])
+             tile_ranks_ownership_map_[static_cast<std::size_t>(
+                 neighbor_index)])
           neighborhood_it->second.insert(target_rank);
     }
 

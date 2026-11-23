@@ -162,7 +162,7 @@ inline void Tile<CoordT>::split(const split_t splits,
     if (generate_total_leaves_vector) {
       const auto num_leaves = compute_leaves_count(splits);
       assert(0 < num_leaves);
-      leaf_tiles_.resize(num_leaves, nullptr);
+      leaf_tiles_.resize(static_cast<std::size_t>(num_leaves), nullptr);
     }
 
     sapi::split_tile(sub_tiles_, leaf_tiles_, vertices_, c_radius_, splits,

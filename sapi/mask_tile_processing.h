@@ -121,7 +121,7 @@ void insert_leaf_tiles_within_range(
     const auto d_sub_tiles = driver.sub_tiles_.data();
     const auto p_st_count = pool.sub_tiles_.size();
     const auto p_sub_tiles = pool.sub_tiles_.data();
-    const auto rem_splits = splits - 1;
+    const auto rem_splits = static_cast<split_t>(splits - 1);
 
     // Sub-tiles passing their mask, one bit per position in sub_tiles_, so
     // each sub-tile is tested once instead of once per pair. The driver is
@@ -198,8 +198,10 @@ void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
         static_cast<shift_t>(pool_tile_pos.tile_images_.size());
 
     for (shift_t image_index = 0; image_index < total_images; ++image_index) {
-      auto pool_image = &pool_tile_pos.tile_images_[image_index];
-      auto image_lock = &pool_tile_pos.image_locks_[image_index];
+      auto pool_image =
+          &pool_tile_pos.tile_images_[static_cast<std::size_t>(image_index)];
+      auto image_lock =
+          &pool_tile_pos.image_locks_[static_cast<std::size_t>(image_index)];
 
       const bool is_shifted = pool_image->shape_ != TILE_SHAPE::NULL_TS;
 
@@ -270,7 +272,8 @@ void check_insert_node_coord_pairs(
     // map there is no apriori of which subsequence is stored in each leaf
     // however during mask tile processing at most one subsequence should match
     ++sequences_found;
-    node_coord_pairs.reserve(jointure.second);
+    assert(0 < jointure.second);
+    node_coord_pairs.reserve(static_cast<std::size_t>(jointure.second));
 
     const auto skip = jointure.first - first_index;
     assert(0 <= skip &&
@@ -352,7 +355,7 @@ void aggregate_tile_set_info(
     if (check_it->second.empty())
       check_it = checked_leaves.erase(check_it);
     else
-      total_nodes += (*check_it++).second.size();
+      total_nodes += static_cast<nodeidx_t>((*check_it++).second.size());
   }
 
   if (checked_leaves.empty())
@@ -362,7 +365,7 @@ void aggregate_tile_set_info(
 #pragma omp atomic
   ++tsi.valid_tiles_;
 #pragma omp atomic
-  tsi.valid_leaves_ += checked_leaves.size();
+  tsi.valid_leaves_ += static_cast<tileidx_t>(checked_leaves.size());
 #pragma omp atomic
   tsi.total_node_count_ += total_nodes;
 

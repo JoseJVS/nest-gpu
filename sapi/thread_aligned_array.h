@@ -78,7 +78,8 @@ inline void TAArray<T>::prepare() {
   if (!prepared_ || cloned_ ||
       !std::cmp_equal(item_vec_.size(), get_max_omp_threads())) {
     item_vec_.clear();
-    item_vec_.resize(get_max_omp_threads());
+    assert(0 < get_max_omp_threads());
+    item_vec_.resize(static_cast<std::size_t>(get_max_omp_threads()));
     prepared_ = true;
     cloned_ = false;
   }

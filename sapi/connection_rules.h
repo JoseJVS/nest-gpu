@@ -134,16 +134,20 @@ count_t compute_minimal_displacement(
 
     const auto weight = functors.weight_functor_(min_displacement.second);
     const auto delay = functors.delay_functor_(min_displacement.second);
+    assert(0 <= pool_node.first);
+    const auto pool_index = static_cast<conn_index_t>(pool_node.first);
     for (count_t i = 0; i < multiplicity; ++i)
       connections.emplace_back(
-          construct_connection_info(pool_node.first, weight, delay));
+          construct_connection_info(pool_index, weight, delay));
 
     return conn_limit - multiplicity;
   } else {
     if ((bool)draw_connections<DistributionT, allow_multiplicity>(
             rng, dist, probability)) {
+      assert(0 <= pool_node.first);
       connections.emplace_back(construct_connection_info(
-          pool_node.first, functors.weight_functor_(min_displacement.second),
+          static_cast<conn_index_t>(pool_node.first),
+          functors.weight_functor_(min_displacement.second),
           functors.delay_functor_(min_displacement.second)));
 
       return conn_limit - 1;
@@ -199,7 +203,8 @@ std::size_t generate_probabilistic_connections(
 
     assert(0 <= individual_conn_counts);
 
-    tracked_conn_counts += individual_max_conns - individual_conn_counts;
+    tracked_conn_counts +=
+        static_cast<std::size_t>(individual_max_conns - individual_conn_counts);
     ++block_it;
   }
 
@@ -230,12 +235,16 @@ void compute_minimal_displacement(
     return;
 
   if constexpr (inverted_pivot) {
+    assert(0 <= driver_node.first);
     possible_connections.emplace_back(construct_connection_info(
-        driver_node.first, functors.weight_functor_(min_displacement.second),
+        static_cast<conn_index_t>(driver_node.first),
+        functors.weight_functor_(min_displacement.second),
         functors.delay_functor_(min_displacement.second)));
   } else {
+    assert(0 <= pool_node.first);
     possible_connections.emplace_back(construct_connection_info(
-        pool_node.first, functors.weight_functor_(min_displacement.second),
+        static_cast<conn_index_t>(pool_node.first),
+        functors.weight_functor_(min_displacement.second),
         functors.delay_functor_(min_displacement.second)));
   }
 
@@ -269,7 +278,8 @@ void compute_fixed_connections(
   if (available_counts < connection_counts) {
     if constexpr (allow_multiplicity) {
       if (available_counts == 1) {
-        selected_connections.resize(connection_counts, possible_connections[0]);
+        selected_connections.resize(static_cast<std::size_t>(connection_counts),
+                                    possible_connections[0]);
         return;
       }
     } else {
@@ -279,7 +289,8 @@ void compute_fixed_connections(
   }
 
   assert(allow_multiplicity || connection_counts < available_counts);
-  selected_connections.resize(connection_counts);
+  assert(0 <= connection_counts);
+  selected_connections.resize(static_cast<std::size_t>(connection_counts));
 
   if constexpr (has_kernel) {
     assert(std::cmp_equal(connection_probabilities.size(), available_counts));
@@ -289,7 +300,8 @@ void compute_fixed_connections(
                                                connection_probabilities.end());
 
       for (count_t index = 0; index < connection_counts; ++index)
-        selected_connections[index] = possible_connections[dist(rng)];
+        selected_connections[static_cast<std::size_t>(index)] =
+            possible_connections[static_cast<std::size_t>(dist(rng))];
     } else {
       // A-ExpJ algorithm from https://doi.org/10.1016/j.ipl.2005.11.003
 
@@ -300,7 +312,8 @@ void compute_fixed_connections(
       count_t inserted = 0;
       std::multimap<conn_param_t, count_t> priority_map;
       while (inserted < connection_counts && index < available_counts) {
-        const auto weight = connection_probabilities[index];
+        const auto weight =
+            connection_probabilities[static_cast<std::size_t>(index)];
         if (std::isless(0, weight)) {
           priority_map.emplace(std::pow(weight_dist(rng), 1.f / weight), index);
           ++inserted;
@@ -314,7 +327,8 @@ void compute_fixed_connections(
         conn_param_t jump =
             std::log(weight_dist(rng)) / std::log(min_key->first);
         for (; index < available_counts; ++index) {
-          const auto weight = connection_probabilities[index];
+          const auto weight =
+              connection_probabilities[static_cast<std::size_t>(index)];
           if (std::isless(0, weight)) {
             jump -= weight;
             if (std::islessequal(jump, 0)) {
@@ -337,7 +351,8 @@ void compute_fixed_connections(
       assert(inserted == connection_counts);
       auto selected_it = selected_connections.begin();
       for (const auto &entry : priority_map)
-        *selected_it++ = possible_connections[entry.second];
+        *selected_it++ =
+            possible_connections[static_cast<std::size_t>(entry.second)];
     }
   } else {
     assert(connection_probabilities.empty());
@@ -346,7 +361,8 @@ void compute_fixed_connections(
       std::uniform_int_distribution<count_t> dist(0, available_counts - 1);
 
       for (count_t index = 0; index < connection_counts; ++index)
-        selected_connections[index] = possible_connections[dist(rng)];
+        selected_connections[static_cast<std::size_t>(index)] =
+            possible_connections[static_cast<std::size_t>(dist(rng))];
     } else {
       std::sample(possible_connections.begin(), possible_connections.end(),
                   selected_connections.begin(), connection_counts, rng);

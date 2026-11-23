@@ -58,8 +58,9 @@ conn_param_t NumericFunctor::operator()(const Displacement<CoordT> &dc) const {
   for (const auto &uf : ufs_)
     val = uf(val);
 
-  return std::fmin(std::fmax(val, std::numeric_limits<conn_param_t>::lowest()),
-                   std::numeric_limits<conn_param_t>::max());
+  return static_cast<conn_param_t>(
+      std::fmin(std::fmax(val, std::numeric_limits<conn_param_t>::lowest()),
+                std::numeric_limits<conn_param_t>::max()));
 }
 
 struct NFCollection {

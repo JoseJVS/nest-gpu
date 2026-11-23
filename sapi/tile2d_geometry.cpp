@@ -117,8 +117,10 @@ void initialize_hexagon_helpers(std::vector<Coord2D> &helper_vectors,
   // used for parallelogram projection comparison
   helper_vectors.reserve(6);
   for (vertidx_t vix = 0; vix < 3; ++vix) {
-    helper_vectors.emplace_back(vertices[vix + 1] - vertices[vix]);
-    helper_vectors.emplace_back(vertices[(vix + 4) % 6] - vertices[vix]);
+    helper_vectors.emplace_back(vertices[static_cast<std::size_t>(vix + 1)] -
+                                vertices[vix]);
+    helper_vectors.emplace_back(
+        vertices[static_cast<std::size_t>((vix + 4) % 6)] - vertices[vix]);
   }
 
   helper_scalars.resize(1, cross_2D(helper_vectors[0], helper_vectors[1]));
@@ -172,7 +174,8 @@ void split_rectangle(std::vector<Tile<Coord2D>> &sub_tiles,
 
   Coord2D midpoints[4];
   for (vertidx_t vix = 0; vix < 4; ++vix)
-    midpoints[vix] = midpoint(vertices[vix], vertices[(vix + 1) % 4]);
+    midpoints[vix] = midpoint(
+        vertices[vix], vertices[static_cast<std::size_t>((vix + 1) % 4)]);
 
   for (split_t partition = 0; partition < branches; ++partition) {
     sub_tiles.emplace_back(Tile<Coord2D>(
@@ -260,7 +263,7 @@ void split_hexagon(std::vector<Tile<Coord2D>> &sub_tiles,
   assert(!almost_zero(radius2));
 
   for (split_t partition = 0; partition < branches; ++partition) {
-    const split_t next_partition = (partition + 1) % 6;
+    const split_t next_partition = static_cast<split_t>((partition + 1) % 6);
 
     sub_tiles.emplace_back(Tile<Coord2D>(
         TILE_SHAPE::TRIANGLE,
@@ -344,7 +347,7 @@ generate_coords_in_rectangle(const nodeidx_t first_index,
                              const std::vector<Coord2D> &helper_vectors) {
   assert(0 <= first_index && 0 < coord_count);
   std::vector<std::pair<nodeidx_t, Coord2D>> vec;
-  vec.reserve(coord_count);
+  vec.reserve(static_cast<std::size_t>(coord_count));
 
   space_t m0, m1;
   std::uniform_real_distribution<space_t> dist(0., 1.);
@@ -368,7 +371,7 @@ generate_coords_in_triangle(const nodeidx_t first_index,
                             const std::vector<Coord2D> &vertices) {
   assert(0 <= first_index && 0 < coord_count);
   std::vector<std::pair<nodeidx_t, Coord2D>> vec;
-  vec.reserve(coord_count);
+  vec.reserve(static_cast<std::size_t>(coord_count));
 
   space_t m0, m1, m2;
   std::uniform_real_distribution<space_t> dist(0., 1.);
@@ -396,7 +399,7 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
                            const CircumscribedRadius<Coord2D> &c_radius) {
   assert(0 <= first_index && 0 < coord_count);
   std::vector<std::pair<nodeidx_t, Coord2D>> vec;
-  vec.reserve(coord_count);
+  vec.reserve(static_cast<std::size_t>(coord_count));
 
   vertidx_t hex_idx;
   space_t m0, m1, m2;
@@ -415,9 +418,10 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
         first_index + idx,
         construct_coord_2D(
             c_radius.origin_.x_ * m0 + vertices[hex_idx].x_ * m1 +
-                vertices[(hex_idx + 1) % 6].x_ * m2,
+                vertices[static_cast<std::size_t>((hex_idx + 1) % 6)].x_ * m2,
             c_radius.origin_.y_ * m0 + vertices[hex_idx].y_ * m1 +
-                vertices[(hex_idx + 1) % 6].y_ * m2)));
+                vertices[static_cast<std::size_t>((hex_idx + 1) % 6)].y_ *
+                    m2)));
   }
 
   return vec;

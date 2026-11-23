@@ -21,6 +21,7 @@
  */
 
 #include <cassert>
+#include <cstddef>
 
 #include "grid_neighborhood.h"
 
@@ -38,7 +39,8 @@ std::string GridNeighborhood::to_string() const {
   res += "\nRank tiles ownership:\n";
   for (vp_t rix = 0; rix < num_processes_; ++rix) {
     res += "{ " + std::to_string(rix) + " : (";
-    for (const auto &tix : rank_tiles_ownership_map_[rix])
+    for (const auto &tix :
+         rank_tiles_ownership_map_[static_cast<std::size_t>(rix)])
       res += " " + std::to_string(tix) + ",";
     res += ") }, ";
   }
@@ -46,7 +48,8 @@ std::string GridNeighborhood::to_string() const {
   res += "\nRank neighborhood:\n";
   for (vp_t rix = 0; rix < num_processes_; ++rix) {
     res += "{ " + std::to_string(rix) + " : (";
-    for (const auto &nix : rank_neighbors_map_[rix].second)
+    for (const auto &nix :
+         rank_neighbors_map_[static_cast<std::size_t>(rix)].second)
       res += " " + std::to_string(nix) + ",";
     res += ") }, ";
   }

@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -159,7 +160,7 @@ void TileGrid<CoordT>::prepare(const GridPosition<CoordT> &dimensions) {
 
   splits_ = 0;
   has_split_ = false;
-  positions_.resize(num_tiles_);
+  positions_.resize(static_cast<std::size_t>(num_tiles_));
 }
 
 template <Coordinate CoordT> std::string TileGrid<CoordT>::to_string() const {

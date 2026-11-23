@@ -20,6 +20,8 @@
  *
  */
 
+#include <cstddef>
+
 #include "timer_manager.h"
 #include "vp_interface.h"
 
@@ -68,7 +70,7 @@ RecordedTimes TimerManager::get_times() const {
       auto &vec = times.thread_times_[name];
       if (vec.empty())
         vec.resize(thread_times.size(), 0.);
-      vec[tid] = time;
+      vec[static_cast<std::size_t>(tid)] = time;
     }
     ++tid;
   }

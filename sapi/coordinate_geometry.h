@@ -221,7 +221,7 @@ sort_triangular_vertices(const std::vector<CoordT> &coord_in) {
   space_t indexed_lengths[3];
   bool almost_equal_lengths[3] = {false};
   for (vertidx_t vix = 0; vix < 3; ++vix) {
-    vix_next = (vix + 1) % 3;
+    vix_next = static_cast<vertidx_t>((vix + 1) % 3);
     indexed_vectors[vix] = coord_in[vix_next] - coord_in[vix];
     indexed_lengths[vix] = vector_norm2(indexed_vectors[vix]);
     assert(!almost_zero(indexed_lengths[vix]));
@@ -239,10 +239,11 @@ sort_triangular_vertices(const std::vector<CoordT> &coord_in) {
   }
   almost_equal_lengths[2] = almost_equal(prev_length, indexed_lengths[0]);
   equal_lengths += almost_equal_lengths[2];
-  C_vix = (B_vix + 1) % 3;
+  C_vix = static_cast<vertidx_t>((B_vix + 1) % 3);
 
   // Due to commutative comparison equal lengths == 2 implies equal lengths == 3
-  equal_lengths += equal_lengths == 2;
+  const bool all_lengths_equal = equal_lengths == 2;
+  equal_lengths += all_lengths_equal;
 
   // A triangle either starts as a right triangle from a square
   // i.e. isosceles right triangle or an equilateral triangle.
@@ -262,9 +263,9 @@ sort_triangular_vertices(const std::vector<CoordT> &coord_in) {
         break;
 
     // AB edge is base of isosceles
-    A_vix = (B_vix + 2) % 3;
+    A_vix = static_cast<vertidx_t>((B_vix + 2) % 3);
     // CB edge is one of the two equal sides
-    C_vix = (B_vix + 1) % 3;
+    C_vix = static_cast<vertidx_t>((B_vix + 1) % 3);
   }
 
   return std::make_tuple(

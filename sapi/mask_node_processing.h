@@ -72,9 +72,13 @@ void generate_connection_tasks(TaskQueue<CoordT> &task_queue,
                                const RankPairInfo<CoordT> &rpi) {
   TaskMap<CoordT> aggregation_map;
   if constexpr (aggregate_by_local) {
-    aggregation_map.reserve(rpi.tile_pairs_set_.valid_leaves_);
+    assert(0 <= rpi.tile_pairs_set_.valid_leaves_);
+    aggregation_map.reserve(
+        static_cast<std::size_t>(rpi.tile_pairs_set_.valid_leaves_));
   } else {
-    aggregation_map.reserve(rpi.receiver_info_.total_received_num_leaves_);
+    assert(0 <= rpi.receiver_info_.total_received_num_leaves_);
+    aggregation_map.reserve(static_cast<std::size_t>(
+        rpi.receiver_info_.total_received_num_leaves_));
   }
 
   for (const auto &[local_tile_index, remote_tile_pairings] :
@@ -188,7 +192,8 @@ void compute_displacement_checks_across_tile_pairs(
     const TAArray<ConnectionGenerator> &cg_array,
     const RandomManager &rng_manager, const vp_t target_rank) {
   assert(rci.procedural_connections_.empty() && mc_array.is_initialized() &&
-         cg_array.is_initialized() && rng_manager.is_initialized());
+         cg_array.is_initialized() && rng_manager.is_initialized() &&
+         0 <= target_rank);
 
   // In the unlikely case that tiles passed mask filter
   // but no nodes in the tile passed the mask filter
@@ -246,7 +251,8 @@ void compute_displacement_checks_across_tile_pairs(
         auto &id_task_pair = task_queue[task_index];
         bin_conns += cg.generate_connections(
             *rng_manager.reseed_rank_paired_rng(
-                tid, target_rank, inverted_source_target, id_task_pair.first),
+                tid, static_cast<rng_seed_t>(target_rank),
+                inverted_source_target, id_task_pair.first),
             rci.procedural_connections_[task_index], id_task_pair.second,
             blueprint,
             rng_manager.local_rank_ != static_cast<rng_seed_t>(target_rank));

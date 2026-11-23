@@ -266,7 +266,8 @@ void probe_payload_recv(
       const auto rank_map_it = rank_info_map.find(*ranks_it);
       assert(rank_map_it != rank_info_map.end() &&
              rank_map_it->second.receiver_info_.data_payload_.empty());
-      rank_map_it->second.receiver_info_.data_payload_.resize(flag);
+      rank_map_it->second.receiver_info_.data_payload_.resize(
+          static_cast<size_t>(flag));
 
       MPI_Recv(rank_map_it->second.receiver_info_.data_payload_.data(), flag,
                MPI_UINT64_T, *ranks_it, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -385,8 +386,8 @@ void communicate_connect_distributed_pair_data(
   ScopedTimer trigger_send_timer(rank_timer_registry, "trigger_send_timer");
 
   vp_t flag;
-  MPI_Testall(send_requests.size(), send_requests.data(), &flag,
-              MPI_STATUSES_IGNORE);
+  MPI_Testall(static_cast<int>(send_requests.size()), send_requests.data(),
+              &flag, MPI_STATUSES_IGNORE);
 
   trigger_send_timer.stop();
 
@@ -421,7 +422,8 @@ void communicate_connect_distributed_pair_data(
 
   ScopedTimer wait_send_timer(rank_timer_registry, "wait_send_timer");
 
-  MPI_Waitall(send_requests.size(), send_requests.data(), MPI_STATUSES_IGNORE);
+  MPI_Waitall(static_cast<int>(send_requests.size()), send_requests.data(),
+              MPI_STATUSES_IGNORE);
 
   // At this point it is safe to clear sender payloads
   for (const auto &rpi_map_ptr : {&distributed_pair_data.source_side_info_,

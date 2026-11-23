@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cassert>
 #include <concepts>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <ranges>
@@ -96,8 +97,10 @@ void aggregate_tiled_node_count_by_rank(
     const auto count = *nc_it++;
     if (count == 0)
       continue;
-    node_counts_per_rank[owner_rank] += count;
-    tiled_node_counts_per_rank[owner_rank].emplace_back(
+    assert(0 <= owner_rank);
+    const auto rank_idx = static_cast<std::size_t>(owner_rank);
+    node_counts_per_rank[rank_idx] += count;
+    tiled_node_counts_per_rank[rank_idx].emplace_back(
         std::make_pair(tile_index, count));
   }
 }
@@ -204,9 +207,11 @@ distribute_node_counts_in_grid(
   const auto large_distribution =
       std::numeric_limits<nodeidx_t>::max() < num_nodes;
 
-  NodeCountVector node_counts_per_rank(grid_neighborhood.num_processes_, 0);
-  RankTileIdxNodeCountPairs tiled_node_counts_per_rank(
-      grid_neighborhood.num_processes_);
+  assert(0 < grid_neighborhood.num_processes_);
+  const auto num_ranks =
+      static_cast<std::size_t>(grid_neighborhood.num_processes_);
+  NodeCountVector node_counts_per_rank(num_ranks, 0);
+  RankTileIdxNodeCountPairs tiled_node_counts_per_rank(num_ranks);
 
   if (num_nodes == 0)
     return std::make_pair(std::move(node_counts_per_rank),
@@ -223,18 +228,20 @@ distribute_node_counts_in_grid(
 
     switch (mode) {
     case DISTRIBUTION_MODE::FREE: {
+      assert(!large_distribution);
       node_counts_per_tile =
           uniform_distribute_node_counts<nodeidx_t, GridPosition<CoordT>, true>(
-              num_nodes, tile_grid.num_tiles_, tile_grid.dimensions_,
-              rng_manager);
+              static_cast<nodeidx_t>(num_nodes), tile_grid.num_tiles_,
+              tile_grid.dimensions_, rng_manager);
 
       break;
     }
 
     case DISTRIBUTION_MODE::SQUEEZED: {
+      assert(!large_distribution);
       node_counts_per_tile =
           uniform_distribute_node_counts<nodeidx_t, false, true>(
-              num_nodes,
+              static_cast<nodeidx_t>(num_nodes),
               tile_set.has_value() ? static_cast<tileidx_t>(tile_set->size())
                                    : tile_grid.num_tiles_,
               rng_manager);
@@ -250,7 +257,7 @@ distribute_node_counts_in_grid(
       else
         node_counts_per_tile =
             uniform_distribute_node_counts<nodeidx_t, true, true>(
-                num_nodes,
+                static_cast<nodeidx_t>(num_nodes),
                 tile_set.has_value() ? static_cast<tileidx_t>(tile_set->size())
                                      : tile_grid.num_tiles_,
                 rng_manager);
@@ -266,11 +273,15 @@ distribute_node_counts_in_grid(
 
     if (grid_neighborhood.rank_tile_bijection_ && !tile_set.has_value()) {
       for (vp_t rank = 0; rank < grid_neighborhood.num_processes_; ++rank) {
+        const auto rank_idx = static_cast<std::size_t>(rank);
         const auto owned_tile =
-            *grid_neighborhood.rank_tiles_ownership_map_[rank].cbegin();
-        const auto tile_counts = node_counts_per_tile[owned_tile];
-        node_counts_per_rank[rank] = tile_counts;
-        tiled_node_counts_per_rank[rank].emplace_front(owned_tile, tile_counts);
+            *grid_neighborhood.rank_tiles_ownership_map_[rank_idx].cbegin();
+        assert(0 <= owned_tile);
+        const auto tile_counts =
+            node_counts_per_tile[static_cast<std::size_t>(owned_tile)];
+        node_counts_per_rank[rank_idx] = tile_counts;
+        tiled_node_counts_per_rank[rank_idx].emplace_front(owned_tile,
+                                                           tile_counts);
       }
     } else {
       dispatch_bools(
@@ -468,7 +479,8 @@ void distribute_node_counts_in_tiles(
   }
   }
 
-  rng_manager.update_rank_paired_seed(rng_manager.local_rank_);
+  rng_manager.update_rank_paired_seed(
+      static_cast<vp_t>(rng_manager.local_rank_));
 }
 } // namespace sapi
 

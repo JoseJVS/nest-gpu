@@ -24,8 +24,10 @@
 #define NODE_CONTAINERS_INIT_H
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "node_containers.h"
@@ -100,11 +102,18 @@ void initialize_local_grid_node_collection(
   if (locally_owned_tiles.empty())
     return;
 
-  const auto num_leaves = tile_grid.positions_.at(*locally_owned_tiles.cbegin())
-                              .tile_.leaf_tiles_.size();
+  // Owned tile indices were checked when the ownership was set
+  assert(0 <= *locally_owned_tiles.cbegin() &&
+         std::cmp_less(*locally_owned_tiles.cbegin(),
+                       tile_grid.positions_.size()));
+  const auto num_leaves =
+      tile_grid
+          .positions_[static_cast<std::size_t>(*locally_owned_tiles.cbegin())]
+          .tile_.leaf_tiles_.size();
   assert(0 < num_leaves);
 
-  grid_collection.resize(tile_grid.num_tiles_);
+  assert(0 <= tile_grid.num_tiles_);
+  grid_collection.resize(static_cast<std::size_t>(tile_grid.num_tiles_));
   const auto gc_it = grid_collection.begin();
   for (const auto &tile_pos : locally_owned_tiles)
     (gc_it + tile_pos)->resize(num_leaves);

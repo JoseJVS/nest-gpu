@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -117,7 +118,8 @@ void generate_grid_images(TilePosition<CoordT> &tile_position,
     auto shift_index_it = position_next_pair.first.cbegin();
     auto grid_dim_it = gf_collection->grid_dimensions_.cbegin();
     for (const auto &shifts : shifts_array)
-      *shift_pos_it++ += shifts[*shift_index_it++] * (*grid_dim_it++);
+      *shift_pos_it++ += shifts[static_cast<std::size_t>(*shift_index_it++)] *
+                         (*grid_dim_it++);
 
     if (shifted_position != tile_position.position_) {
       GridPositionParity<CoordT> shifted_position_parity;
@@ -179,8 +181,10 @@ void generate_tile_position(std::vector<TilePosition<CoordT>> &positions,
   GridPositionParity<CoordT> position_parity;
   std::ranges::transform(grid_position, position_parity.begin(), evenTix);
 
+  const auto tile_index = gf_collection->compute_index(grid_position);
+  assert(0 <= tile_index);
   TilePosition<CoordT> &tile_pos =
-      positions[gf_collection->compute_index(grid_position)];
+      positions[static_cast<std::size_t>(tile_index)];
   tile_pos.position_ = grid_position;
   tile_pos.tile_ = gf_collection->create_tile(
       gf_collection->shift_origin(grid_position, position_parity),
@@ -264,8 +268,9 @@ partition_dimensions(const GridPosition<CoordT> &lower_bound,
     auto ds_it = diagonal_split.cbegin();
     auto sp_it = position_next_pair.first.cbegin();
     for (const auto &split_dimension : split_combinations) {
-      *anc_it++ += split_dimension[*ds_it++];
-      *tar_it++ += split_dimension[*sp_it++];
+      assert(0 <= *ds_it && 0 <= *sp_it);
+      *anc_it++ += split_dimension[static_cast<std::size_t>(*ds_it++)];
+      *tar_it++ += split_dimension[static_cast<std::size_t>(*sp_it++)];
     }
 
     ++dim_par;
@@ -304,8 +309,11 @@ generate_bounding_box_tree(const TileGrid<CoordT> &tile_grid,
     for (const auto &bounds : partitioned_bounds) {
       const auto grid_index =
           position_to_index(bounds.first, tile_grid.dimensions_);
+      assert(0 <= grid_index);
       *vbb_it++ = BoundingBox<CoordT>(
-          minmax_vertices(tile_grid.positions_[grid_index].tile_.vertices_),
+          minmax_vertices(
+              tile_grid.positions_[static_cast<std::size_t>(grid_index)]
+                  .tile_.vertices_),
           grid_index);
     }
   }

@@ -45,9 +45,10 @@ inline void header_write(std::vector<uint64_t>::iterator &payload_it,
 inline int32_t header_read(std::vector<uint64_t>::const_iterator &payload_it,
                            const int32_t index) {
   if (evenTix(index)) {
-    return *payload_it >> 32;
+    return static_cast<int32_t>(*payload_it >> 32);
   } else {
-    return (*payload_it++) & std::numeric_limits<uint32_t>::max();
+    return static_cast<int32_t>((*payload_it++) &
+                                std::numeric_limits<uint32_t>::max());
   }
 }
 
@@ -95,7 +96,8 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
   assert((2 < total_payload_size) != comm_info.filtered_coords_.empty());
 
   // Prepare payload buffer
-  comm_info.data_payload_.resize(total_payload_size);
+  assert(0 <= total_payload_size);
+  comm_info.data_payload_.resize(static_cast<size_t>(total_payload_size));
 
   // Prepare writing iterators
   auto info_writing_pos = comm_info.data_payload_.begin();
@@ -107,15 +109,19 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
 
   // Write fixed header metadata
   int32_t header_pos = 0;
-  header_write(info_writing_pos, total_header_size, header_pos++);
-  header_write(info_writing_pos, total_content_size, header_pos++);
-  header_write(info_writing_pos, tile_set_info.valid_tiles_, header_pos++);
+  header_write(info_writing_pos, static_cast<uint64_t>(total_header_size),
+               header_pos++);
+  header_write(info_writing_pos, static_cast<uint64_t>(total_content_size),
+               header_pos++);
+  header_write(info_writing_pos,
+               static_cast<uint64_t>(tile_set_info.valid_tiles_), header_pos++);
 
   for (const auto &[tile_index, leaf_ncm] : comm_info.filtered_coords_) {
     assert(!leaf_ncm.empty());
 
     // Write tile index and total number of sub tiles in tile
-    header_write(info_writing_pos, tile_index, header_pos++);
+    header_write(info_writing_pos, static_cast<uint64_t>(tile_index),
+                 header_pos++);
     header_write(info_writing_pos, leaf_ncm.size(), header_pos++);
 
     for (const auto &[leaf_index, node_coord_pairs] : leaf_ncm) {
@@ -123,7 +129,8 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
 
       // Write sub tile index and total number of nodes in sub tile
       const auto num_nodes = node_coord_pairs.size();
-      header_write(info_writing_pos, leaf_index, header_pos++);
+      header_write(info_writing_pos, static_cast<uint64_t>(leaf_index),
+                   header_pos++);
       header_write(info_writing_pos, num_nodes, header_pos++);
 
       assert(std::cmp_less_equal(num_nodes, _32bit_header_size - header_pos) &&
@@ -133,7 +140,8 @@ void prepare_data_payload(CommunicationInfo<CoordT> &comm_info,
 
       for (const auto &nc_ptr : node_coord_pairs) {
         // Write node index and coord
-        header_write(info_writing_pos, nc_ptr->first, header_pos++);
+        header_write(info_writing_pos, static_cast<uint64_t>(nc_ptr->first),
+                     header_pos++);
         nc_ptr->second.bit_copy_to_vec(content_writing_pos);
       }
     }
@@ -190,7 +198,7 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
   auto recv_num_tiles = header_read(info_reading_pos, header_pos++);
   assert(0 < recv_num_tiles);
 
-  comm_info.filtered_coords_.reserve(recv_num_tiles);
+  comm_info.filtered_coords_.reserve(static_cast<size_t>(recv_num_tiles));
 
   for (; recv_num_tiles > 0; --recv_num_tiles) {
     // Read tile index
@@ -202,7 +210,7 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
     auto recv_num_leaves = header_read(info_reading_pos, header_pos++);
     assert(0 < recv_num_leaves);
 
-    tile_map.reserve(recv_num_leaves);
+    tile_map.reserve(static_cast<size_t>(recv_num_leaves));
     comm_info.total_received_num_leaves_ += recv_num_leaves;
 
     for (; recv_num_leaves > 0; --recv_num_leaves) {
@@ -217,7 +225,7 @@ void reconstruct_received_info(CommunicationInfo<CoordT> &comm_info,
              CoordT::D * recv_num_nodes <=
                  std::distance(content_reading_pos, content_reading_end));
 
-      leaf_vec.reserve(recv_num_nodes);
+      leaf_vec.reserve(static_cast<size_t>(recv_num_nodes));
       auto ncp_it = remote_cache.emplace_front(recv_num_nodes).begin();
 
       for (; recv_num_nodes > 0; --recv_num_nodes) {
