@@ -72,7 +72,7 @@ void test_leaf_tiles_within_range() {
     const auto range_start = std::chrono::high_resolution_clock::now();
 #pragma omp taskgroup
     insert_leaf_tiles_within_range<Coord2D, false, false, false>(
-        par_pairs.aggregated_leaf_pairs_, t0, t1, mc_array, 0, false, 13);
+        par_pairs, t0, t1, mc_array, 0, false, 13);
     const auto range_end = std::chrono::high_resolution_clock::now();
     const auto range_time = range_end - range_start;
     printf("Time range check parallel: %f\n", range_time.count() / 1e9);
@@ -80,7 +80,7 @@ void test_leaf_tiles_within_range() {
 
   const auto range_start = std::chrono::high_resolution_clock::now();
   insert_leaf_tiles_within_range<Coord2D, false, false, false>(
-      seq_pairs.aggregated_leaf_pairs_, t0, t1, mc_array, 0, false, 13);
+      seq_pairs, t0, t1, mc_array, 0, false, 13);
   const auto range_end = std::chrono::high_resolution_clock::now();
   const auto range_time = range_end - range_start;
   printf("Time range check sequential: %f\n", range_time.count() / 1e9);

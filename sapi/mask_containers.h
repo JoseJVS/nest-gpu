@@ -28,6 +28,7 @@
 #include "comparisons.h"
 #include "node_containers.h"
 #include "sapi_forward_declarations.h"
+#include "vp_interface.h"
 
 namespace sapi {
 struct LeafPairInfo {
@@ -51,6 +52,10 @@ template <Coordinate CoordT> struct TilePairInfo {
   //      -> compressed used pairings
   std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
       aggregated_leaf_pairs_;
+
+  // Guards aggregated_leaf_pairs_ while tasks insert leaf pairs; a moved-to
+  // lock is a fresh, unlocked lock
+  OmpLock<CoordT> leaf_pairs_lock_;
 
   TilePairInfo() noexcept = default;
   TilePairInfo(const TilePairInfo &) = delete;

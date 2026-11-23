@@ -58,13 +58,12 @@ inline bool no_overlap(const Tile<CoordT> &tile,
 }
 
 // The sub-tiles of driver and pool are leaves: collect the overlapping leaf
-// pairs first and insert them under one critical section, instead of taking
-// the process-wide lock once per pair
+// pairs first and insert them under one acquisition of the tile pair's lock,
+// instead of locking once per pair
 template <Coordinate CoordT, bool inverted_source_target>
 void insert_overlapping_leaf_pairs(
-    std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
-        &leaf_pairs,
-    const Tile<CoordT> &driver, const Tile<CoordT> &pool,
+    TilePairInfo<CoordT> &tpi, const Tile<CoordT> &driver,
+    const Tile<CoordT> &pool,
     const MaskCollection<CoordT> *const mask_collection,
     const shift_t image_index, const uint64_t d_st_ok, const uint64_t p_st_ok) {
   std::vector<std::pair<tileidx_t, tileidx_t>> overlapping_pairs;
@@ -91,19 +90,17 @@ void insert_overlapping_leaf_pairs(
   if (overlapping_pairs.empty())
     return;
 
-#pragma omp critical(sapi_leaf_pairs)
+  OmpLockGuard<CoordT> g(tpi.leaf_pairs_lock_);
   for (const auto &[local_leaf, remote_leaf] : overlapping_pairs)
-    leaf_pairs[local_leaf][remote_leaf] |= 1 << image_index;
+    tpi.aggregated_leaf_pairs_[local_leaf][remote_leaf] |= 1 << image_index;
 }
 
 template <Coordinate CoordT, bool inverted_source_target, bool filter_source,
           bool filter_target>
 void insert_leaf_tiles_within_range(
-    std::unordered_map<tileidx_t, std::unordered_map<tileidx_t, count_t>>
-        &leaf_pairs,
-    const Tile<CoordT> &driver, const Tile<CoordT> &pool,
-    const TAArray<MaskCollection<CoordT>> &mc_array, const shift_t image_index,
-    const bool is_shifted, const split_t splits) {
+    TilePairInfo<CoordT> &tpi, const Tile<CoordT> &driver,
+    const Tile<CoordT> &pool, const TAArray<MaskCollection<CoordT>> &mc_array,
+    const shift_t image_index, const bool is_shifted, const split_t splits) {
   assert(driver.sub_tiles_.size() == pool.sub_tiles_.size());
 
   // Only entered when the first call already gets leaves, i.e. on a grid with
@@ -112,13 +109,12 @@ void insert_leaf_tiles_within_range(
   if (driver.sub_tiles_.empty()) {
     assert(splits == 0 && 0 <= pool.index_ && 0 <= driver.index_);
 
-    if constexpr (inverted_source_target) {
-#pragma omp critical(sapi_leaf_pairs)
-      leaf_pairs[pool.index_][driver.index_] |= 1 << image_index;
-    } else {
-#pragma omp critical(sapi_leaf_pairs)
-      leaf_pairs[driver.index_][pool.index_] |= 1 << image_index;
-    }
+    const auto local_leaf =
+        inverted_source_target ? pool.index_ : driver.index_;
+    const auto remote_leaf =
+        inverted_source_target ? driver.index_ : pool.index_;
+    OmpLockGuard<CoordT> g(tpi.leaf_pairs_lock_);
+    tpi.aggregated_leaf_pairs_[local_leaf][remote_leaf] |= 1 << image_index;
   } else {
     assert(0 < splits);
     const auto d_st_count = driver.sub_tiles_.size();
@@ -152,13 +148,12 @@ void insert_leaf_tiles_within_range(
 
     if (rem_splits == 0) {
       insert_overlapping_leaf_pairs<CoordT, inverted_source_target>(
-          leaf_pairs, driver, pool, mask_collection, image_index, d_st_ok,
-          p_st_ok);
+          tpi, driver, pool, mask_collection, image_index, d_st_ok, p_st_ok);
       return;
     }
 
 #pragma omp taskloop collapse(2) num_tasks(strict : 4)                         \
-    nogroup mergeable default(none) shared(leaf_pairs, mc_array)               \
+    nogroup mergeable default(none) shared(tpi, mc_array)                      \
     firstprivate(d_st_count, d_sub_tiles, p_st_count, p_sub_tiles,             \
                      image_index, is_shifted, rem_splits, d_st_ok, p_st_ok)
     for (std::size_t d_st = 0; d_st < d_st_count; ++d_st) {
@@ -168,8 +163,8 @@ void insert_leaf_tiles_within_range(
                 d_sub_tiles[d_st], p_sub_tiles[p_st])) {
           insert_leaf_tiles_within_range<CoordT, inverted_source_target,
                                          filter_source, filter_target>(
-              leaf_pairs, d_sub_tiles[d_st], p_sub_tiles[p_st], mc_array,
-              image_index, is_shifted, rem_splits);
+              tpi, d_sub_tiles[d_st], p_sub_tiles[p_st], mc_array, image_index,
+              is_shifted, rem_splits);
         }
       }
     }
@@ -225,8 +220,8 @@ void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
     firstprivate(pool_image, image_index, is_shifted, splits)
         insert_leaf_tiles_within_range<CoordT, inverted_source_target,
                                        filter_source, filter_target>(
-            tpi.aggregated_leaf_pairs_, driver_tile_pos.tile_, *pool_image,
-            mc_array, image_index, is_shifted, splits);
+            tpi, driver_tile_pos.tile_, *pool_image, mc_array, image_index,
+            is_shifted, splits);
       }
     }
   } else {
@@ -242,8 +237,7 @@ void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
 
     insert_leaf_tiles_within_range<CoordT, inverted_source_target,
                                    filter_source, filter_target>(
-        tpi.aggregated_leaf_pairs_, driver_tile_pos.tile_, pool_tile_pos.tile_,
-        mc_array,
+        tpi, driver_tile_pos.tile_, pool_tile_pos.tile_, mc_array,
         0, // the first image in the image vector is never shifted
         false, splits);
   }
