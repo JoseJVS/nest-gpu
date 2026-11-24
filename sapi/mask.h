@@ -33,14 +33,12 @@
 
 namespace sapi {
 template <Coordinate CoordT> struct Mask {
-  // Frame of anchor_ and bounding_disc_. Source/target masks are built with an
-  // origin and placed absolutely (true): the one-argument methods use them.
-  // Blueprints have no origin (false): anchor_ and bounding_disc_ are offsets
-  // from the driver node, used by the two-argument methods.
-  bool is_absolute_ = false;
   MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;
-  // Point every shape is defined from, lying in the mask: origin + offset for
-  // source/target masks, the offset for a blueprint
+  // Point every shape is defined from, lying in the mask. Source/target masks
+  // are built with an origin and placed absolutely (origin + offset); the
+  // one-argument methods use them. Blueprints have no origin: anchor_ and
+  // bounding_disc_ are offsets from the driver node (the offset), used by the
+  // two-argument methods.
   CoordT anchor_;
   // Disc containing the whole shape, in the frame of anchor_: centred on the
   // anchor for centred shapes (circle, ellipse, parallelogram), on the shape
@@ -88,12 +86,9 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
   if (!mask_offset.empty())
     offset = CoordT::copy_from_vec(mask_offset.begin());
 
-  if (mask_origin.empty()) {
-    m.anchor_ = offset;
-  } else {
-    m.is_absolute_ = true;
-    m.anchor_ = CoordT::copy_from_vec(mask_origin.begin()) + offset;
-  }
+  m.anchor_ = mask_origin.empty()
+                  ? offset
+                  : CoordT::copy_from_vec(mask_origin.begin()) + offset;
 
   // The shape initializers set the bounding disc in the frame of anchor_
   initialize_mask_helpers(m, mask_params);
@@ -103,14 +98,12 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
 
 template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &coord) const {
-  assert(is_absolute_);
   return sapi::coord_in_mask(coord, *this);
 }
 
 template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
                                                    const CoordT &b) const {
-  assert(!is_absolute_);
   return sapi::coord_in_mask(a, b, *this);
 }
 
@@ -122,7 +115,6 @@ inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
-  assert(is_absolute_);
   return sapi::mask_meets_tile(*this, tile);
 }
 
@@ -132,7 +124,6 @@ template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
-  assert(!is_absolute_);
   // The anchor lies in the mask
   if (tile.coord_in_tile(coord + anchor_))
     return true;
@@ -143,7 +134,6 @@ Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
 template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
-  assert(!is_absolute_);
   // The circumscribed circles of A + disc centre and B too far apart for the
   // bounding disc
   if (!a.c_radius_
@@ -158,7 +148,6 @@ inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
 
 template <Coordinate CoordT>
 OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
-  assert(is_absolute_);
 
   if (!bounding_disc_.overlapping_radi(tile.c_radius_).first)
     return OVERLAP_LEVEL::NONE;
@@ -200,7 +189,6 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
 template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *>
 Mask<CoordT>::get_overlapping_leaf_sub_tiles(const Tile<CoordT> &tile) const {
-  assert(is_absolute_);
 
   std::deque<const Tile<CoordT> *> leaf_sub_tiles;
   std::deque<const Tile<CoordT> *> temps{&tile};
