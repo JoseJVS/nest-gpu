@@ -56,6 +56,7 @@ concept Coordinate =
       { c.is_null() } -> std::convertible_to<bool>;
       { c.negative() } -> std::same_as<C>;
       { c.sum() } -> std::same_as<space_t>;
+      { c.component(dim_t{}) } -> std::same_as<space_t>;
       { c.product() } -> std::same_as<space_t>;
       { c.to_string() } -> std::same_as<std::string>;
       { c.copy_to_vec(write_space_it) } -> std::same_as<void>;

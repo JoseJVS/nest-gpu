@@ -24,6 +24,8 @@
 #define NUMERIC_FUNCTORS_H
 
 #include <cassert>
+#include <initializer_list>
+#include <stdexcept>
 #include <vector>
 
 #include "algebraic_functors.h"
@@ -68,6 +70,19 @@ struct NFCollection {
   NumericFunctor delay_functor_;
   NumericFunctor probability_functor_;
 };
+
+// Throws when a weight, delay or probability functor reads an axis that
+// displacements of CoordT do not have (e.g. z on a 2D grid). Called before
+// any connection region, with parameters every rank holds.
+template <Coordinate CoordT>
+void validate_displacement_dimensions(const NFCollection &functors) {
+  for (const auto *functor :
+       {&functors.weight_functor_, &functors.delay_functor_,
+        &functors.probability_functor_})
+    if (CoordT::D < required_dimensions(functor->df_))
+      throw std::invalid_argument(
+          "displacement_z and distance_z need a 3D grid");
+}
 } // namespace sapi
 
 #endif

@@ -24,6 +24,7 @@
 #define COORDINATES_H
 
 #include <bit>
+#include <cassert>
 #include <concepts>
 #include <iterator>
 #include <string>
@@ -62,6 +63,20 @@ struct Coord2D {
   constexpr static const dim_t D = 2;
   space_t x_ = 0.;
   space_t y_ = 0.;
+
+  // Component along axis 0 (x) or 1 (y), for dimension-agnostic code that
+  // loops over D or picks an axis; inlines to the member access
+  constexpr space_t component(const dim_t axis) const {
+    switch (axis) {
+    case 0:
+      return x_;
+    case 1:
+      return y_;
+    default:
+      assert(false && "Axis out of range for a 2D coordinate");
+      return 0.;
+    }
+  }
 
   Coord2D operator+(const Coord2D &coord) const;
 
@@ -202,6 +217,22 @@ struct Coord3D {
   space_t x_ = 0.;
   space_t y_ = 0.;
   space_t z_ = 0.;
+
+  // Component along axis 0 (x), 1 (y) or 2 (z), for dimension-agnostic code
+  // that loops over D or picks an axis; inlines to the member access
+  constexpr space_t component(const dim_t axis) const {
+    switch (axis) {
+    case 0:
+      return x_;
+    case 1:
+      return y_;
+    case 2:
+      return z_;
+    default:
+      assert(false && "Axis out of range for a 3D coordinate");
+      return 0.;
+    }
+  }
 
   Coord3D operator+(const Coord3D &coord) const;
 

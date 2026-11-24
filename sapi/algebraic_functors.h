@@ -30,10 +30,6 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-// Forward definition to link with coordinates.h
-struct Coord2D;
-struct Coord3D;
-
 struct UnaryFunctor {
   UNARY_FUNCTION func_ = UNARY_FUNCTION::NULL_UF;
   space_t var_[2] = {0.};
@@ -98,10 +94,26 @@ struct DisplacementFunctor {
   space_t operator()(const Displacement<CoordT> &d) const;
 };
 
-// Whether the function reads the z component, which only 3D displacements have
-constexpr inline bool uses_z_component(const DisplacementFunctor &df) noexcept {
-  return df.func_ == DISPLACEMENT_FUNCTION::DISPLACEMENT_Z ||
-         df.func_ == DISPLACEMENT_FUNCTION::DISTANCE_Z;
+// Number of dimensions a displacement needs for the function: the axis it
+// reads plus one (x 1, y 2, z 3), 0 for functions that read no axis
+constexpr inline dim_t
+required_dimensions(const DisplacementFunctor &df) noexcept {
+  switch (df.func_) {
+  case DISPLACEMENT_FUNCTION::DISPLACEMENT_X:
+  case DISPLACEMENT_FUNCTION::DISTANCE_X:
+    return 1;
+
+  case DISPLACEMENT_FUNCTION::DISPLACEMENT_Y:
+  case DISPLACEMENT_FUNCTION::DISTANCE_Y:
+    return 2;
+
+  case DISPLACEMENT_FUNCTION::DISPLACEMENT_Z:
+  case DISPLACEMENT_FUNCTION::DISTANCE_Z:
+    return 3;
+
+  default:
+    return 0;
+  }
 }
 
 inline DisplacementFunctor
@@ -120,33 +132,25 @@ DisplacementFunctor::operator()(const Displacement<CoordT> &d) const {
   case DISPLACEMENT_FUNCTION::DISTANCE:
     return d.get_distance();
 
+  // Axis functions only reach here when the displacement has the axis
+  // (validate_displacement_dimensions); component asserts otherwise
   case DISPLACEMENT_FUNCTION::DISPLACEMENT_X:
-    return d.displacement_.x_;
+    return d.displacement_.component(0);
 
   case DISPLACEMENT_FUNCTION::DISPLACEMENT_Y:
-    return d.displacement_.y_;
+    return d.displacement_.component(1);
 
-  case DISPLACEMENT_FUNCTION::DISPLACEMENT_Z: {
-    if constexpr (std::is_same_v<CoordT, Coord3D>)
-      return d.displacement_.z_;
-    else
-      assert(false && "Invalid displacement function name");
-    return 0;
-  }
+  case DISPLACEMENT_FUNCTION::DISPLACEMENT_Z:
+    return d.displacement_.component(2);
 
   case DISPLACEMENT_FUNCTION::DISTANCE_X:
-    return std::fabs(d.displacement_.x_);
+    return std::fabs(d.displacement_.component(0));
 
   case DISPLACEMENT_FUNCTION::DISTANCE_Y:
-    return std::fabs(d.displacement_.y_);
+    return std::fabs(d.displacement_.component(1));
 
-  case DISPLACEMENT_FUNCTION::DISTANCE_Z: {
-    if constexpr (std::is_same_v<CoordT, Coord3D>)
-      return std::fabs(d.displacement_.z_);
-    else
-      assert(false && "Invalid displacement function name");
-    return 0;
-  }
+  case DISPLACEMENT_FUNCTION::DISTANCE_Z:
+    return std::fabs(d.displacement_.component(2));
 
   default:
     assert(false && "Invalid displacement function name");

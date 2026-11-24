@@ -571,15 +571,7 @@ void SpatialManager<CoordT>::_initialize_connection_parameters(
       connection_parameters.prob_ufs_names_,
       connection_parameters.prob_ufs_params_, uf_registry_);
 
-  // Displacements on a 2D grid have no z component
-  if constexpr (CoordT::D < 3) {
-    const auto &functors = cg.numeric_functors_;
-    if (uses_z_component(functors.weight_functor_.df_) ||
-        uses_z_component(functors.delay_functor_.df_) ||
-        uses_z_component(functors.probability_functor_.df_))
-      throw std::invalid_argument(
-          "displacement_z and distance_z need a 3D grid");
-  }
+  validate_displacement_dimensions<CoordT>(cg.numeric_functors_);
 
   if (!cg.check_parameters())
     throw std::invalid_argument("Invalid connection parameters");
@@ -664,12 +656,10 @@ SpatialManager<CoordT>::get_nodes(const std::optional<std::size_t> &index,
     for (const auto &leaf_nodes : slice) {
       for (const auto &coord_view : leaf_nodes) {
         res.indexes_[index] = coord_view->first;
-        res.coordinates_[index] = coord_view->second.x_;
-        res.coordinates_[index + total_size] = coord_view->second.y_;
-
-        if constexpr (std::is_same_v<CoordT, Coord3D>) {
-          res.coordinates_[index + 2 * total_size] = coord_view->second.z_;
-        }
+        // Component-major layout: all x, then all y (then all z)
+        for (dim_t axis = 0; axis < CoordT::D; ++axis)
+          res.coordinates_[index + axis * total_size] =
+              coord_view->second.component(axis);
         ++index;
       }
     }

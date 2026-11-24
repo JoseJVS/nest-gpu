@@ -102,16 +102,13 @@ BoundingBox<CoordT>::operator=(BoundingBox &&bb) noexcept {
 
 template <Coordinate CoordT>
 inline bool BoundingBox<CoordT>::coord_in_box(const CoordT &coord) const {
-  bool res = interval_test(minmax_bounds_.first.x_, coord.x_,
-                           minmax_bounds_.second.x_) &&
-             interval_test(minmax_bounds_.first.y_, coord.y_,
-                           minmax_bounds_.second.y_);
+  for (dim_t axis = 0; axis < CoordT::D; ++axis)
+    if (!interval_test(minmax_bounds_.first.component(axis),
+                       coord.component(axis),
+                       minmax_bounds_.second.component(axis)))
+      return false;
 
-  if constexpr (std::is_same_v<CoordT, Coord3D>)
-    res &= interval_test(minmax_bounds_.first.z_, coord.z_,
-                         minmax_bounds_.second.z_);
-
-  return res;
+  return true;
 }
 
 template <Coordinate CoordT>
