@@ -20,8 +20,10 @@
  *
  */
 
+#include <algorithm>
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <random>
 
 #include "coordinate_geometry.h"
@@ -471,6 +473,27 @@ Coord2D project_point_to_triangle_perimeter(
     return c_radius.origin_;
 
   return project_point_to_polygon_perimeter(coord, vertices);
+}
+
+// Stages after the circumscribed-circle check of Mask::tiles_within_mask_range:
+// the polygon distance between A' = A + offset and B, then overlap of A' and B
+// without a vertex close to the other perimeter
+bool tiles_within_range_2D(const Tile<Coord2D> &a, const Tile<Coord2D> &b,
+                           const Coord2D &offset, const space_t radius2) {
+  if (leq_test(std::fmin(min_vertex_edge_distance2_2D(a.vertices_, offset,
+                                                      b.vertices_),
+                         min_vertex_edge_distance2_2D(
+                             b.vertices_, offset.negative(), a.vertices_)),
+               radius2))
+    return true;
+
+  return std::ranges::any_of(
+             a.vertices_,
+             [&](const Coord2D &v) { return b.coord_in_tile(v + offset); }) ||
+         std::ranges::any_of(
+             b.vertices_,
+             [&](const Coord2D &w) { return a.coord_in_tile(w - offset); }) ||
+         edges_cross_2D(a.vertices_, offset, b.vertices_);
 }
 
 // Minimum squared distance from the vertices of `from`, translated by `shift`,

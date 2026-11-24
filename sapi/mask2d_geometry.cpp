@@ -26,6 +26,9 @@
 namespace sapi {
 void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
                                       const std::vector<space_t> &mask_params) {
+  if (mask_params.size() != 1)
+    throw std::invalid_argument("Invalid circular mask params vector");
+
   mask.c_radius_.radius2_ = mask_params[0] * mask_params[0];
   if (std::signbit(mask_params[0]) || almost_zero(mask.c_radius_.radius2_))
     throw std::invalid_argument("Invalid circular mask param");
@@ -33,6 +36,9 @@ void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
 
 void initialize_elliptical_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params) {
+  if (mask_params.size() < 2 || 3 < mask_params.size())
+    throw std::invalid_argument("Invalid elliptical mask params vector");
+
   if (std::signbit(mask_params[0]) || std::signbit(mask_params[1]))
     throw std::invalid_argument("Invalid elliptical mask axes");
 
@@ -56,6 +62,9 @@ void initialize_elliptical_mask_helpers(
 
 void initialize_parallelogram_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params) {
+  if (mask_params.size() != 4)
+    throw std::invalid_argument("Invalid parallelogram mask params vector");
+
   auto it = mask_params.begin();
   auto axial_vector0 = Coord2D::copy_from_vec(it);
   auto axial_vector1 = Coord2D::copy_from_vec(it);
@@ -80,6 +89,9 @@ void initialize_parallelogram_mask_helpers(
 
 void initialize_triangular_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params) {
+  if (mask_params.size() != 4)
+    throw std::invalid_argument("Invalid triangular mask params vector");
+
   auto it = mask_params.begin();
   auto axial_vector0 = Coord2D::copy_from_vec(it);
   auto axial_vector1 = Coord2D::copy_from_vec(it);

@@ -23,11 +23,27 @@
 #ifndef MASK2D_GEOMETRY_H
 #define MASK2D_GEOMETRY_H
 
+#include <vector>
+
 #include "coordinate_geometry.h"
 #include "mask.h"
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
+// Shape helpers of 2D masks, defined in mask2d_geometry.cpp; each checks its
+// own parameters
+void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
+                                      const std::vector<space_t> &mask_params);
+
+void initialize_elliptical_mask_helpers(
+    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
+
+void initialize_parallelogram_mask_helpers(
+    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
+
+void initialize_triangular_mask_helpers(
+    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
+
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
                                                const Mask<Coord2D> &mask) {
   return mask.c_radius_.coord_in_radius(coord);

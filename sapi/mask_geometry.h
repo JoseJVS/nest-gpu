@@ -33,60 +33,28 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
-void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
-                                      const std::vector<space_t> &mask_params);
-
-void initialize_elliptical_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
-void initialize_parallelogram_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
-void initialize_triangular_mask_helpers(
-    Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
-
+// Dispatches to the dimension- and shape-aware initializers, which check their
+// own parameters
 template <Coordinate CoordT>
 void initialize_mask_helpers(Mask<CoordT> &mask,
                              const std::vector<space_t> &mask_params) {
-  const auto params_length = mask_params.size();
-
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
     switch (mask.shape_) {
-    case MASK_SHAPE::CIRCULAR: {
-      if (params_length != 1)
-        throw std::invalid_argument("Invalid circular mask params vector");
-
+    case MASK_SHAPE::CIRCULAR:
       initialize_circular_mask_helpers(mask, mask_params);
-
       break;
-    }
 
-    case MASK_SHAPE::ELLIPTICAL: {
-      if (params_length < 2 || 3 < params_length)
-        throw std::invalid_argument("Invalid elliptical mask params vector");
-
+    case MASK_SHAPE::ELLIPTICAL:
       initialize_elliptical_mask_helpers(mask, mask_params);
-
       break;
-    }
 
-    case MASK_SHAPE::PARALLELOGRAM: {
-      if (params_length != 4)
-        throw std::invalid_argument("Invalid parallelogram mask params vector");
-
+    case MASK_SHAPE::PARALLELOGRAM:
       initialize_parallelogram_mask_helpers(mask, mask_params);
-
       break;
-    }
 
-    case MASK_SHAPE::TRIANGULAR: {
-      if (params_length != 4)
-        throw std::invalid_argument("Invalid triangular mask params vector");
-
+    case MASK_SHAPE::TRIANGULAR:
       initialize_triangular_mask_helpers(mask, mask_params);
-
       break;
-    }
 
     default:
       throw std::invalid_argument("Invalid mask shape");
@@ -96,20 +64,9 @@ void initialize_mask_helpers(Mask<CoordT> &mask,
   }
 }
 
-// The 2D coord_in_*_mask functions are defined inline in mask2d_geometry.h,
-// which mask.h includes after defining Mask.
-inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
-                                               const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
-                                                 const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
-                                                    const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
-                                                 const Mask<Coord2D> &mask);
-
+// The dimension- and shape-aware functions called below (initialize_*,
+// coord_in_*_mask) are declared in the per-dimension files, which mask.h
+// includes after defining Mask; the dependent calls find them at instantiation.
 template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
@@ -135,22 +92,6 @@ OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
     return {};
   }
 }
-
-inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &a,
-                                               const Coord2D &b,
-                                               const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a,
-                                                 const Coord2D &b,
-                                                 const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a,
-                                                    const Coord2D &b,
-                                                    const Mask<Coord2D> &mask);
-
-inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a,
-                                                 const Coord2D &b,
-                                                 const Mask<Coord2D> &mask);
 
 template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,

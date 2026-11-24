@@ -164,6 +164,9 @@ Coord2D project_point_to_triangle_perimeter(
     const Coord2D &coord, const std::vector<Coord2D> &vertices,
     const CircumscribedRadius<Coord2D> &c_radius);
 
+bool tiles_within_range_2D(const Tile<Coord2D> &a, const Tile<Coord2D> &b,
+                           const Coord2D &offset, const space_t radius2);
+
 space_t min_vertex_edge_distance2_2D(const std::vector<Coord2D> &from,
                                      const Coord2D &shift,
                                      const std::vector<Coord2D> &to);

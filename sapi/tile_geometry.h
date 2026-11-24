@@ -24,7 +24,6 @@
 #define TILE_GEOMETRY_H
 
 #include <cassert>
-#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -234,25 +233,15 @@ CoordT project_point_to_surface(const CoordT &coord,
   }
 }
 
-// Called inside parallel regions: the unimplemented 3D branch asserts instead
-// of throwing
+// Whether some displacement from the driver tile translated by the offset,
+// A' = A + offset, to the pool tile B is within sqrt(radius2): their distance
+// is within the radius, or they overlap. Called inside parallel regions: the
+// unimplemented 3D branch asserts instead of throwing
 template <Coordinate CoordT>
-space_t min_vertex_edge_distance2(const std::vector<CoordT> &from,
-                                  const CoordT &shift,
-                                  const std::vector<CoordT> &to) {
+bool tiles_within_range(const Tile<CoordT> &a, const Tile<CoordT> &b,
+                        const CoordT &offset, const space_t radius2) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    return min_vertex_edge_distance2_2D(from, shift, to);
-  } else {
-    assert(false && "3D implementation not available yet");
-    return std::numeric_limits<space_t>::max();
-  }
-}
-
-template <Coordinate CoordT>
-bool edges_cross(const std::vector<CoordT> &a, const CoordT &shift,
-                 const std::vector<CoordT> &b) {
-  if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    return edges_cross_2D(a, shift, b);
+    return tiles_within_range_2D(a, b, offset, radius2);
   } else {
     assert(false && "3D implementation not available yet");
     return true;

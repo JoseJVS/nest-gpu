@@ -23,7 +23,6 @@
 #ifndef MASK_H
 #define MASK_H
 
-#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <deque>
@@ -139,22 +138,9 @@ inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
            .first)
     return false;
 
-  // 2. Polygon distance between A' and B within the blueprint radius
-  if (leq_test(std::fmin(
-                   min_vertex_edge_distance2(a.vertices_, offset_, b.vertices_),
-                   min_vertex_edge_distance2(b.vertices_, offset_.negative(),
-                                             a.vertices_)),
-               c_radius_.radius2_))
-    return true;
-
-  // 3. A' and B overlap without a vertex close to the other perimeter
-  return std::ranges::any_of(
-             a.vertices_,
-             [&](const CoordT &v) { return b.coord_in_tile(v + offset_); }) ||
-         std::ranges::any_of(
-             b.vertices_,
-             [&](const CoordT &w) { return a.coord_in_tile(w - offset_); }) ||
-         edges_cross(a.vertices_, offset_, b.vertices_);
+  // 2. Distance or overlap of A' and B within the blueprint radius (dimension-
+  // aware; exact for circular blueprints, conservative for other shapes)
+  return tiles_within_range(a, b, offset_, c_radius_.radius2_);
 }
 
 template <Coordinate CoordT>
