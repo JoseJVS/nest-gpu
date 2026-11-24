@@ -334,7 +334,7 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
 
   const auto num_splits =
       grid_parameters.compute_splits_
-          ? compute_minimal_splits(
+          ? compute_minimal_splits<CoordT>(
                 grid_parameters.expected_total_nodes_,
                 std::accumulate(gc.grid_dimensions_.cbegin(),
                                 gc.grid_dimensions_.cend(), 1,
@@ -342,9 +342,10 @@ split_t SpatialManager<CoordT>::_initialize_grid_parameters(
                 grid_parameters.expected_nodes_per_leaf_, gc.ctc_.shape_)
           : grid_parameters.num_splits_;
 
-  if (max_splits(gc.ctc_.shape_) < num_splits)
-    throw std::invalid_argument("Too many splits for the tile shape, at most " +
-                                std::to_string(max_splits(gc.ctc_.shape_)));
+  if (max_splits<CoordT>(gc.ctc_.shape_) < num_splits)
+    throw std::invalid_argument(
+        "Too many splits for the tile shape, at most " +
+        std::to_string(max_splits<CoordT>(gc.ctc_.shape_)));
 
   gc_array_.clone(gc);
 

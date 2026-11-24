@@ -25,6 +25,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -193,7 +194,11 @@ void tile_pair_overlap(TilePairInfo<CoordT> &tpi,
   }
 
   if constexpr (edge_wrap) {
-    assert(pool_tile_pos.tile_images_.size() <= 27);
+    // One bit per image in the leaf pair bitmask
+    static_assert(
+        max_tile_images<CoordT>() <
+        static_cast<std::size_t>(std::numeric_limits<count_t>::digits));
+    assert(pool_tile_pos.tile_images_.size() <= max_tile_images<CoordT>());
     const shift_t total_images =
         static_cast<shift_t>(pool_tile_pos.tile_images_.size());
 

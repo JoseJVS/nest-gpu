@@ -25,6 +25,8 @@
 #include <cassert>
 #include <cmath>
 #include <random>
+#include <stdexcept>
+#include <vector>
 
 #include "coordinate_geometry.h"
 #include "tile.h"
@@ -473,6 +475,121 @@ Coord2D project_point_to_triangle_perimeter(
     return c_radius.origin_;
 
   return project_point_to_polygon_perimeter(coord, vertices);
+}
+
+void initialize_tile_vertices_2D(std::vector<Coord2D> &vertices,
+                                 CircumscribedRadius<Coord2D> &c_radius,
+                                 const std::vector<space_t> &side_lengths,
+                                 const std::vector<angle_t> &angular_offsets,
+                                 const TILE_SHAPE shape) {
+  // Runs per tile inside grid generation tasks: the parameters were checked
+  // once by initialize_ctc (validate_tile_parameters_2D) before the region
+  assert(angular_offsets.size() < 2);
+  const angle_t angular_offset =
+      angular_offsets.empty() ? angle_t(0) : angular_offsets[0];
+
+  switch (shape) {
+  case TILE_SHAPE::RECTANGLE:
+    initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
+                           false // triangular vertices
+    );
+    break;
+
+  case TILE_SHAPE::TRIANGLE:
+    initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
+                           true // triangular vertices
+    );
+    break;
+
+  case TILE_SHAPE::HEXAGON:
+    initialize_hexagon_vertices(vertices, c_radius, side_lengths[0],
+                                angular_offset);
+    break;
+
+  default:
+    assert(false && "Invalid tile shape");
+  }
+}
+
+tileidx_t compute_leaves_count_2D(const split_t splits,
+                                  const TILE_SHAPE shape) {
+  switch (shape) {
+  case TILE_SHAPE::RECTANGLE:
+    return static_cast<tileidx_t>(
+        std::pow(uint8_t(TILE_SPLITS::RECTANGLE_SPLITS), splits));
+
+  case TILE_SHAPE::TRIANGLE:
+    return static_cast<tileidx_t>(
+        std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits));
+
+  case TILE_SHAPE::HEXAGON:
+    return static_cast<tileidx_t>(
+        splits > 0
+            ? uint8_t(TILE_SPLITS::HEXAGON_SPLITS) *
+                  std::pow(uint8_t(TILE_SPLITS::TRIANGLE_SPLITS), splits - 1)
+            : 1);
+
+  default:
+    assert(false && "Invalid tile shape");
+    return 1;
+  }
+}
+
+std::vector<split_t> get_possible_sub_tile_branches_2D(const split_t splits,
+                                                       const TILE_SHAPE shape) {
+  if (splits == 0)
+    return {};
+
+  switch (shape) {
+  case TILE_SHAPE::RECTANGLE:
+    return std::vector<split_t>(splits, split_t(TILE_SPLITS::RECTANGLE_SPLITS));
+
+  case TILE_SHAPE::TRIANGLE:
+    return std::vector<split_t>(splits, split_t(TILE_SPLITS::TRIANGLE_SPLITS));
+
+  case TILE_SHAPE::HEXAGON: {
+    std::vector<split_t> split_vec(splits,
+                                   split_t(TILE_SPLITS::TRIANGLE_SPLITS));
+    split_vec[0] = split_t(TILE_SPLITS::HEXAGON_SPLITS);
+    return split_vec;
+  }
+
+  default:
+    assert(false && "Invalid tile shape");
+    return {};
+  }
+}
+
+split_t compute_minimal_splits_2D(const double expected_total_nodes,
+                                  const double total_tiles,
+                                  const double expected_nodes_per_leaf,
+                                  const TILE_SHAPE shape) {
+  switch (shape) {
+  case TILE_SHAPE::RECTANGLE:
+    return split_t(
+        std::max(std::floor(std::log(expected_total_nodes /
+                                     (expected_nodes_per_leaf * total_tiles)) /
+                            std::log(4.)),
+                 0.));
+
+  case TILE_SHAPE::TRIANGLE:
+    return split_t(
+        std::max(std::floor(std::log(expected_total_nodes /
+                                     (expected_nodes_per_leaf * total_tiles)) /
+                            std::log(2.)),
+                 0.));
+
+  case TILE_SHAPE::HEXAGON:
+    return split_t(std::max(
+        std::floor(std::log(expected_total_nodes /
+                            (6. * expected_nodes_per_leaf * total_tiles)) /
+                       std::log(2.) +
+                   1.),
+        0.));
+
+  default:
+    throw std::invalid_argument("Invalid tile shape");
+  }
 }
 
 // Stages after the circumscribed-circle check of Mask::tiles_within_mask_range:

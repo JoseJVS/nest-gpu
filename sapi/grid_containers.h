@@ -25,6 +25,7 @@
 
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <vector>
 
 #include "sapi_config.h"
@@ -61,18 +62,25 @@ using GridPosition = std::array<tileidx_t, CoordT::D>;
 template <Coordinate CoordT>
 using GridPositionParity = std::array<bool, CoordT::D>;
 
-template <typename T>
-constexpr inline T position_to_index(const std::array<T, 2> &grid_position,
-                                     const std::array<T, 2> &grid_dimensions) {
-  return grid_position[0] + grid_dimensions[0] * grid_position[1];
+// Row-major index of a grid position in any number of dimensions:
+// p0 + d0 * (p1 + d1 * (p2 + ...)), evaluated from the last dimension
+template <typename T, std::size_t N>
+constexpr inline T position_to_index(const std::array<T, N> &grid_position,
+                                     const std::array<T, N> &grid_dimensions) {
+  static_assert(0 < N);
+  T index = grid_position[N - 1];
+  for (std::size_t dim = N - 1; 0 < dim--;)
+    index = grid_position[dim] + grid_dimensions[dim] * index;
+  return index;
 }
 
-template <typename T>
-constexpr inline T position_to_index(const std::array<T, 3> &grid_position,
-                                     const std::array<T, 3> &grid_dimensions) {
-  return grid_position[0] +
-         grid_dimensions[0] *
-             (grid_position[1] + grid_dimensions[1] * grid_position[2]);
+// Number of images of a tile under edge wrap: the tile shifted by each of the
+// IMAGE_SHIFTS along each dimension
+template <Coordinate CoordT> constexpr inline std::size_t max_tile_images() {
+  std::size_t images = 1;
+  for (dim_t dim = 0; dim < CoordT::D; ++dim)
+    images *= IMAGE_SHIFTS.size();
+  return images;
 }
 
 constexpr inline std::pair<tileidx_t, bool>

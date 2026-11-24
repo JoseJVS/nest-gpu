@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstddef>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 #include "gf_collection.h"
@@ -89,15 +90,14 @@ DimensionalNavigator<CoordT>::get_pos_and_advance() {
 template <Coordinate CoordT>
 void generate_grid_images(TilePosition<CoordT> &tile_position,
                           const GFCollection<CoordT> *const gf_collection) {
-  std::size_t possible_shifts = 1;
+  constexpr std::size_t possible_shifts = max_tile_images<CoordT>();
   GridPosition<CoordT> shifts_dimensions;
-  std::array<std::array<shift_t, 3>, CoordT::D> shifts_array;
+  std::array<std::remove_cv_t<decltype(IMAGE_SHIFTS)>, CoordT::D> shifts_array;
 
   auto dims_it = shifts_dimensions.begin();
   for (auto &shifts : shifts_array) {
-    *dims_it++ = 3;
-    possible_shifts *= 3;
-    shifts = {-1, 0, 1};
+    *dims_it++ = static_cast<tileidx_t>(IMAGE_SHIFTS.size());
+    shifts = IMAGE_SHIFTS;
   }
 
   tile_position.tile_images_.resize(possible_shifts);

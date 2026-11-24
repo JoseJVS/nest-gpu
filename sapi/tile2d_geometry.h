@@ -164,6 +164,22 @@ Coord2D project_point_to_triangle_perimeter(
     const Coord2D &coord, const std::vector<Coord2D> &vertices,
     const CircumscribedRadius<Coord2D> &c_radius);
 
+void initialize_tile_vertices_2D(std::vector<Coord2D> &vertices,
+                                 CircumscribedRadius<Coord2D> &c_radius,
+                                 const std::vector<space_t> &side_lengths,
+                                 const std::vector<angle_t> &angular_offsets,
+                                 const TILE_SHAPE shape);
+
+tileidx_t compute_leaves_count_2D(const split_t splits, const TILE_SHAPE shape);
+
+std::vector<split_t> get_possible_sub_tile_branches_2D(const split_t splits,
+                                                       const TILE_SHAPE shape);
+
+split_t compute_minimal_splits_2D(const double expected_total_nodes,
+                                  const double total_tiles,
+                                  const double expected_nodes_per_leaf,
+                                  const TILE_SHAPE shape);
+
 bool tiles_within_range_2D(const Tile<Coord2D> &a, const Tile<Coord2D> &b,
                            const Coord2D &offset, const space_t radius2);
 

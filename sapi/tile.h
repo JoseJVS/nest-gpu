@@ -199,13 +199,13 @@ Tile<CoordT>::project_point_to_surface(const CoordT &coord) const {
 template <Coordinate CoordT>
 inline tileidx_t
 Tile<CoordT>::compute_leaves_count(const split_t known_splits) const {
-  return sapi::compute_leaves_count(known_splits, shape_);
+  return sapi::compute_leaves_count<CoordT>(known_splits, shape_);
 }
 
 template <Coordinate CoordT>
 inline std::vector<split_t>
 Tile<CoordT>::get_possible_sub_tile_branches(const split_t known_splits) const {
-  return sapi::get_possible_sub_tile_branches(known_splits, shape_);
+  return sapi::get_possible_sub_tile_branches<CoordT>(known_splits, shape_);
 }
 
 template <Coordinate CoordT>

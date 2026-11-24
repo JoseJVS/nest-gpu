@@ -80,7 +80,7 @@ void validate_spatial_connections(
   // of either population) has to fit one MPI message; every rank knows every
   // rank's counts, so all ranks reach the same decision
   if (0 < tile_grid.num_tiles_) {
-    const int64_t leaves_per_tile = compute_leaves_count(
+    const int64_t leaves_per_tile = compute_leaves_count<CoordT>(
         tile_grid.splits_, tile_grid.positions_[0].tile_.shape_);
     for (vp_t rank = 0; rank < grid_neighborhood.num_processes_; ++rank) {
       const int64_t tiles = static_cast<int64_t>(

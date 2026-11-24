@@ -24,8 +24,12 @@
 #define TILE_GEOMETRY_H
 
 #include <cassert>
+#include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <vector>
 
 #include "enum_store.h"
 #include "sapi_forward_declarations.h"
@@ -43,33 +47,8 @@ void initialize_tile_vertices(std::vector<CoordT> &vertices,
                               const std::vector<angle_t> &angular_offsets,
                               const TILE_SHAPE shape) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
-    // Runs per tile inside grid generation tasks: the parameters were checked
-    // once by initialize_ctc (validate_tile_parameters_2D) before the region
-    assert(angular_offsets.size() < 2);
-    const angle_t angular_offset =
-        angular_offsets.empty() ? angle_t(0) : angular_offsets[0];
-
-    switch (shape) {
-    case TILE_SHAPE::RECTANGLE:
-      initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
-                             false // triangular vertices
-      );
-      break;
-
-    case TILE_SHAPE::TRIANGLE:
-      initialize_vertices_2D(vertices, c_radius, side_lengths, angular_offset,
-                             true // triangular vertices
-      );
-      break;
-
-    case TILE_SHAPE::HEXAGON:
-      initialize_hexagon_vertices(vertices, c_radius, side_lengths[0],
-                                  angular_offset);
-      break;
-
-    default:
-      assert(false && "Invalid tile shape");
-    }
+    initialize_tile_vertices_2D(vertices, c_radius, side_lengths,
+                                angular_offsets, shape);
   } else {
     assert(false && "3D implementation not available yet");
   }
@@ -248,18 +227,64 @@ bool tiles_within_range(const Tile<CoordT> &a, const Tile<CoordT> &b,
   }
 }
 
-tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape);
+// Number of leaves of a tile of the given shape after splits splits
+template <Coordinate CoordT>
+tileidx_t compute_leaves_count(const split_t splits, const TILE_SHAPE shape) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    return compute_leaves_count_2D(splits, shape);
+  } else {
+    assert(false && "3D implementation not available yet");
+    return 1;
+  }
+}
+
+// Sub-tile fan-out of each of the splits splits
+template <Coordinate CoordT>
+std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
+                                                    const TILE_SHAPE shape) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    return get_possible_sub_tile_branches_2D(splits, shape);
+  } else {
+    assert(false && "3D implementation not available yet");
+    return {};
+  }
+}
 
 // Largest number of splits whose leaf count fits tileidx_t
-split_t max_splits(const TILE_SHAPE shape);
+template <Coordinate CoordT> split_t max_splits(const TILE_SHAPE shape) {
+  const auto branches = get_possible_sub_tile_branches<CoordT>(
+      std::numeric_limits<split_t>::max(), shape);
 
-std::vector<split_t> get_possible_sub_tile_branches(const split_t splits,
-                                                    const TILE_SHAPE shape);
+  // Leaf count after each split, in a wider type than tileidx_t
+  int64_t leaves = 1;
+  split_t splits = 0;
+  for (const auto fan_out : branches) {
+    leaves *= fan_out;
+    if (std::numeric_limits<tileidx_t>::max() < leaves)
+      break;
+    ++splits;
+  }
 
+  return splits;
+}
+
+// Fewest splits so that leaves hold about expected_nodes_per_leaf nodes
+template <Coordinate CoordT>
 split_t compute_minimal_splits(const double expected_total_nodes,
                                const double total_tiles,
                                const double expected_nodes_per_leaf,
-                               const TILE_SHAPE shape);
+                               const TILE_SHAPE shape) {
+  if (expected_total_nodes < 1 || total_tiles < 1 ||
+      expected_nodes_per_leaf < 1)
+    throw std::invalid_argument("Invalid split parameters");
+
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    return compute_minimal_splits_2D(expected_total_nodes, total_tiles,
+                                     expected_nodes_per_leaf, shape);
+  } else {
+    throw std::runtime_error("3D implementation not available yet");
+  }
+}
 } // namespace sapi
 
 #endif

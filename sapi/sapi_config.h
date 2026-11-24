@@ -23,6 +23,7 @@
 #ifndef SAPI_CONFIG_H
 #define SAPI_CONFIG_H
 
+#include <array>
 #include <cstdint>
 
 #include "config.h"
@@ -53,6 +54,11 @@ typedef uint64_t
 // Numerics constants
 constexpr static const uint8_t TOLERANCE = 2;
 constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
+
+// Grid constants
+// Grid periods a tile is shifted by along each dimension to form its images
+// under edge wrap; a tile has IMAGE_SHIFTS.size()^D images
+constexpr static const std::array<shift_t, 3> IMAGE_SHIFTS = {-1, 0, 1};
 
 // Task constants
 // Tasks per thread when many small jobs are grouped into chunk tasks: enough

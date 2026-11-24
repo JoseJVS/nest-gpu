@@ -14,7 +14,7 @@ void test_num_splits() {
              leaf_expectation += 10) {
           const double num_nodes = (1 << shift_nodes) + 1;
           const double num_tiles = (1 << shift_tiles) + 1;
-          const auto num_splits = compute_minimal_splits(
+          const auto num_splits = compute_minimal_splits<Coord2D>(
               num_nodes, num_tiles, leaf_expectation, tile_type);
 
           switch (tile_type) {
