@@ -21,6 +21,8 @@
 set( sapi_tests_helper_headers
 test_helpers.h
 geometry_test_helpers.h
+geometry_oracle.h
+geometry2d_oracle.h
 api_test_helpers.h
 )
 
@@ -63,6 +65,7 @@ tileless_rank_test.cpp
 invalid_kernel_test.cpp
 empty_population_test.cpp
 triangular_mask_bounds_test.cpp
+exact_geometry_test.cpp
 )
 
 set( sapi_tests )
