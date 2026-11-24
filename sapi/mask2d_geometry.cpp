@@ -84,10 +84,11 @@ void initialize_parallelogram_mask_helpers(
   if (almost_zero(mask.bounding_disc_.radius2_))
     throw std::invalid_argument("Invalid parallelogram mask vectors");
 
-  mask.helper_vectors_.resize(3);
+  mask.helper_vectors_.resize(4);
   mask.helper_vectors_[0] = axial_vector0;
   mask.helper_vectors_[1] = axial_vector0 - axial_vector1;
   mask.helper_vectors_[2] = axial_vector0 + axial_vector1;
+  mask.helper_vectors_[3] = axial_vector1;
 
   mask.helper_scalars_.resize(
       1, cross_2D(mask.helper_vectors_[1], mask.helper_vectors_[2]));

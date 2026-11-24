@@ -25,6 +25,9 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
+#include <concepts>
+#include <iterator>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -397,6 +400,157 @@ minmax_vertices(const std::vector<CoordT> &coord_vec) {
 Coord2D circumscribed_center(const std::vector<Coord2D> &coords);
 
 Coord3D circumscribed_center(const std::vector<Coord3D> &coords);
+
+// Point of points farthest along direction (the first one on ties): the support
+// point of their convex hull
+template <Coordinate CoordT, typename PointRange>
+inline CoordT farthest_point(const PointRange &points,
+                             const CoordT &direction) {
+  assert(std::begin(points) != std::end(points));
+  auto best = std::begin(points);
+  space_t best_dot = vector_dot(*best, direction);
+  for (auto it = std::next(best); it != std::end(points); ++it) {
+    const space_t dot = vector_dot(*it, direction);
+    if (best_dot < dot) {
+      best_dot = dot;
+      best = it;
+    }
+  }
+  return *best;
+}
+
+// Point a + ab * (t / length2) of an edge, the closest one to the origin.
+// Near touching it is much shorter than a, so in 2D it is taken along the edge
+// normal: its direction then carries the rounding of ab only, which GJK's
+// separating-plane test needs; a + ab * t would cancel it away.
+template <Coordinate CoordT>
+inline CoordT closest_edge_point(const CoordT &a, const CoordT &ab,
+                                 const space_t t, const space_t length2) {
+  if constexpr (CoordT::D == 2) {
+    const CoordT normal = construct_coord_2D(-ab.y_, ab.x_);
+    return normal * (vector_dot(a, normal) / vector_norm2(normal));
+  } else {
+    return a + ab * (t / length2);
+  }
+}
+
+// Closest points to the origin of the simplex hull. Each reduces the simplex
+// to the vertices of the feature holding that point. Degenerate features
+// (duplicate or collinear vertices) never divide by zero; they may keep a
+// larger feature than needed.
+template <Coordinate CoordT>
+inline CoordT closest_point_on_segment_to_origin(Simplex<CoordT> &simplex) {
+  // References into the simplex: every result is taken before assign()
+  // overwrites the vertices
+  const CoordT &a = simplex.points_[0];
+  const CoordT &b = simplex.points_[1];
+  const CoordT ab = b - a;
+  // Projection of the origin on the segment line, scaled by |ab|^2
+  const space_t t = -vector_dot(a, ab);
+  if (!(0 < t)) {
+    simplex.assign(a);
+    return simplex.points_[0];
+  }
+  const space_t length2 = vector_norm2(ab);
+  if (!(t < length2)) {
+    simplex.assign(b);
+    return simplex.points_[0];
+  }
+  return closest_edge_point(a, ab, t, length2);
+}
+
+// Voronoi (feature) regions of the triangle with only dot products, so it
+// holds in any dimension. In 2D the face region holds the origin; in 3D the
+// result is its projection on the plane:
+//   C. Ericson, Real-Time Collision Detection, Morgan Kaufmann, 2005,
+//   section 5.1.5 "Closest Point on Triangle to Point".
+//   https://doi.org/10.1201/b14581
+template <Coordinate CoordT>
+CoordT closest_point_on_triangle_to_origin(Simplex<CoordT> &simplex) {
+  // References into the simplex: every result is taken before assign()
+  // overwrites the vertices
+  const CoordT &a = simplex.points_[0];
+  const CoordT &b = simplex.points_[1];
+  const CoordT &c = simplex.points_[2];
+  const CoordT ab = b - a;
+  const CoordT ac = c - a;
+
+  const space_t d1 = -vector_dot(ab, a);
+  const space_t d2 = -vector_dot(ac, a);
+  if (d1 <= 0 && d2 <= 0) {
+    simplex.assign(a);
+    return simplex.points_[0];
+  }
+
+  const space_t d3 = -vector_dot(ab, b);
+  const space_t d4 = -vector_dot(ac, b);
+  if (0 <= d3 && d4 <= d3) {
+    simplex.assign(b);
+    return simplex.points_[0];
+  }
+
+  const space_t vc = d1 * d4 - d3 * d2;
+  // Edge regions; a degenerate edge (zero length) claims none
+  if (vc <= 0 && 0 <= d1 && d3 <= 0 && 0 < d1 - d3) {
+    const CoordT point = closest_edge_point(a, ab, d1, d1 - d3);
+    simplex.assign(a, b);
+    return point;
+  }
+
+  const space_t d5 = -vector_dot(ab, c);
+  const space_t d6 = -vector_dot(ac, c);
+  if (0 <= d6 && d5 <= d6) {
+    simplex.assign(c);
+    return simplex.points_[0];
+  }
+
+  const space_t vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && 0 <= d2 && d6 <= 0 && 0 < d2 - d6) {
+    const CoordT point = closest_edge_point(a, ac, d2, d2 - d6);
+    simplex.assign(a, c);
+    return point;
+  }
+
+  const space_t va = d3 * d6 - d5 * d4;
+  const space_t to_c = d4 - d3;
+  const space_t from_c = d5 - d6;
+  if (va <= 0 && 0 <= to_c && 0 <= from_c && 0 < to_c + from_c) {
+    const CoordT point = closest_edge_point(b, c - b, to_c, to_c + from_c);
+    simplex.assign(b, c);
+    return point;
+  }
+
+  // Face region; a degenerate (flat) triangle counts as holding the origin
+  const space_t area = va + vb + vc;
+  return 0 < area ? a + ab * (vb / area) + ac * (vc / area) : CoordT();
+}
+
+// Keeps the full tetrahedron when it holds the origin (also when it is flat),
+// otherwise the face feature closest to the origin (Ericson 2005, above,
+// section 5.1.6 "Closest Point on Tetrahedron to Point")
+Coord3D closest_point_on_tetrahedron_to_origin(Simplex<Coord3D> &simplex);
+
+// Closest point to the origin of the simplex hull, reducing the simplex to
+// the vertices of the feature holding it. The simplex keeps D + 1 vertices
+// only when its hull holds the origin (or it is degenerate and may hold it).
+template <Coordinate CoordT>
+inline CoordT closest_point_on_simplex_to_origin(Simplex<CoordT> &simplex) {
+  switch (simplex.size_) {
+  case 1:
+    return simplex.points_[0];
+  case 2:
+    return closest_point_on_segment_to_origin(simplex);
+  case 3:
+    return closest_point_on_triangle_to_origin(simplex);
+  default:
+    if constexpr (CoordT::D == 3) {
+      return closest_point_on_tetrahedron_to_origin(simplex);
+    } else {
+      assert(false && "A 2D simplex has at most three vertices");
+      return CoordT();
+    }
+  }
+}
 
 // Given ellipse with h, k center, a semi major, b semi minor, @ rotation
 // If x, y point is in ellipse then

@@ -26,6 +26,7 @@
 #include <cassert>
 #include <deque>
 
+#include "coordinate_geometry.h"
 #include "sapi_forward_declarations.h"
 #include "tile_geometry.h"
 
@@ -66,6 +67,10 @@ template <Coordinate CoordT> struct Tile {
                           const nodeidx_t coord_count, AnyRNG &rng) const;
 
   CoordT project_point_to_surface(const CoordT &coord) const;
+
+  // Vertex farthest along direction: the support point of the convex tile,
+  // independent of the vertex order
+  CoordT support(const CoordT &direction) const;
 
   tileidx_t compute_leaves_count(const split_t known_splits) const;
 
@@ -194,6 +199,11 @@ template <Coordinate CoordT>
 inline CoordT
 Tile<CoordT>::project_point_to_surface(const CoordT &coord) const {
   return sapi::project_point_to_surface(coord, vertices_, c_radius_, shape_);
+}
+
+template <Coordinate CoordT>
+inline CoordT Tile<CoordT>::support(const CoordT &direction) const {
+  return farthest_point(vertices_, direction);
 }
 
 template <Coordinate CoordT>

@@ -93,6 +93,7 @@ mask.h
 gf_creators.cpp
 gf2d_creators.cpp
 coordinate_geometry.h
+convex_intersection.h
 spatial_containers.h
 mask_tile_processing.h
 api_converters.cpp

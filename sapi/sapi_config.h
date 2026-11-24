@@ -59,6 +59,10 @@ constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
 // tests, far below any real gap, so a filter never rejects what the node test
 // accepts
 constexpr static const space_t EXACT_FILTER_REL_TOL = 0x1p-30;
+// Iteration cap of the GJK intersection query (convex_intersection.h):
+// polygons finish in a few iterations, curved shapes converge geometrically;
+// a query that reaches the cap reports an intersection (conservative)
+constexpr static const uint8_t GJK_MAX_ITERATIONS = 64;
 
 // Grid constants
 // Grid periods a tile is shifted by along each dimension to form its images

@@ -66,6 +66,7 @@ invalid_kernel_test.cpp
 empty_population_test.cpp
 triangular_mask_bounds_test.cpp
 exact_geometry_test.cpp
+convex_intersection_test.cpp
 )
 
 set( sapi_tests )

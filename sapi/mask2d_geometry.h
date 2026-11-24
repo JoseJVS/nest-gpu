@@ -23,6 +23,9 @@
 #ifndef MASK2D_GEOMETRY_H
 #define MASK2D_GEOMETRY_H
 
+#include <array>
+#include <cassert>
+#include <cmath>
 #include <vector>
 
 #include "coordinate_geometry.h"
@@ -136,6 +139,80 @@ inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a,
         mask.helper_vectors_[1], mask.helper_scalars_[0]);
 
   return od;
+}
+
+// Named views of the helper layout set by the initializers in
+// mask2d_geometry.cpp, relative to the anchor.
+// Ellipse: helper_vectors_[0] holds the squared semi-axes (a^2, b^2) and, when
+// rotated, helper_vectors_[1] the (cos, sin) of the rotation.
+inline const Coord2D &ellipse_squared_semi_axes(const Mask<Coord2D> &mask) {
+  return mask.helper_vectors_[0];
+}
+
+// Parallelogram: helper_vectors_ holds a0, a0 - a1, a0 + a1 and a1, for the
+// vertices a0, a1, -a0, -a1.
+inline std::array<Coord2D, 4>
+parallelogram_vertices(const Mask<Coord2D> &mask) {
+  const Coord2D &a0 = mask.helper_vectors_[0];
+  const Coord2D &a1 = mask.helper_vectors_[3];
+  return {a0, a1, a0.negative(), a1.negative()};
+}
+
+// Triangle: helper_vectors_ holds a0 and a1, for the vertices 0 (the anchor),
+// a0 and a1.
+inline std::array<Coord2D, 3> triangle_vertices(const Mask<Coord2D> &mask) {
+  return {Coord2D(), mask.helper_vectors_[0], mask.helper_vectors_[1]};
+}
+
+// Support point of the ellipse centred at the origin: in the frame of its
+// axes, (a^2 q_x, b^2 q_y) / sqrt(a^2 q_x^2 + b^2 q_y^2) for the direction q
+// (the unit-circle support under the affine map), rotated back. The centre
+// for a zero direction.
+inline Coord2D ellipse_support(const Mask<Coord2D> &mask,
+                               const Coord2D &direction) {
+  const Coord2D &axes2 = ellipse_squared_semi_axes(mask);
+  const bool rotated = 1 < mask.helper_vectors_.size();
+  const Coord2D q =
+      rotated ? rotate_displacement(direction, mask.helper_vectors_[1])
+              : direction;
+  const space_t norm = std::sqrt((axes2 * q * q).sum());
+  if (!(0 < norm))
+    return Coord2D();
+
+  const Coord2D point = axes2 * q / norm;
+  if (!rotated)
+    return point;
+  const Coord2D &rotation = mask.helper_vectors_[1];
+  return rotate_displacement(point,
+                             construct_coord_2D(rotation.x_, -rotation.y_));
+}
+
+// Support point of the mask: its farthest point along direction, in the frame
+// of anchor_ (absolute for source/target masks, an offset from the driver node
+// for blueprints)
+inline Coord2D mask_support(const Mask<Coord2D> &mask,
+                            const Coord2D &direction) {
+  switch (mask.shape_) {
+  case MASK_SHAPE::CIRCULAR: {
+    // No absolute threshold on the direction: GJK directions shrink towards
+    // zero near touching
+    const space_t norm = vector_norm(direction);
+    return 0 < norm ? mask.anchor_ +
+                          direction *
+                              (std::sqrt(mask.bounding_disc_.radius2_) / norm)
+                    : mask.anchor_;
+  }
+  case MASK_SHAPE::ELLIPTICAL:
+    return mask.anchor_ + ellipse_support(mask, direction);
+  case MASK_SHAPE::PARALLELOGRAM:
+    return mask.anchor_ +
+           farthest_point(parallelogram_vertices(mask), direction);
+  case MASK_SHAPE::TRIANGULAR:
+    return mask.anchor_ + farthest_point(triangle_vertices(mask), direction);
+  default:
+    assert(false && "Invalid mask shape");
+    return mask.anchor_;
+  }
 }
 } // namespace sapi
 

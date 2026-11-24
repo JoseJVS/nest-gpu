@@ -20,7 +20,9 @@
  *
  */
 
+#include <array>
 #include <cassert>
+#include <limits>
 
 #include "coordinate_geometry.h"
 
@@ -135,5 +137,41 @@ Coord3D circumscribed_center(const std::vector<Coord3D> &coords) {
   return construct_coord_3D(coords[0].x_ + x_projection.x_ + y_projection.x_,
                             coords[0].y_ + x_projection.y_ + y_projection.y_,
                             coords[0].z_ + x_projection.z_ + y_projection.z_);
+}
+
+Coord3D closest_point_on_tetrahedron_to_origin(Simplex<Coord3D> &simplex) {
+  // The simplex is only replaced at the end, after its last use through p
+  const auto &p = simplex.points_;
+  // Faces i, j, k and the vertex l opposite to each
+  constexpr std::array<std::array<std::size_t, 4>, 4> faces{
+      {{0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 3, 1}, {1, 2, 3, 0}}};
+
+  Simplex<Coord3D> feature;
+  Coord3D closest;
+  space_t closest2 = std::numeric_limits<space_t>::infinity();
+  for (const auto &[i, j, k, l] : faces) {
+    // Only faces with the origin strictly beyond them (opposite to l) hold
+    // the closest point; a flat tetrahedron has none
+    const Coord3D normal = vector_cross(p[j] - p[i], p[k] - p[i]);
+    if (!(0 < vector_dot(p[i], normal) * vector_dot(p[l] - p[i], normal)))
+      continue;
+
+    Simplex<Coord3D> face;
+    face.assign(p[i], p[j], p[k]);
+    const Coord3D point = closest_point_on_triangle_to_origin(face);
+    const space_t distance2 = vector_norm2(point);
+    if (distance2 < closest2) {
+      closest2 = distance2;
+      closest = point;
+      feature = face;
+    }
+  }
+
+  // Inside (or flat, or not comparable): keep the tetrahedron
+  if (feature.size_ == 0)
+    return Coord3D();
+
+  simplex = feature;
+  return closest;
 }
 } // namespace sapi

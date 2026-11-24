@@ -23,6 +23,7 @@
 #ifndef COORDINATES_H
 #define COORDINATES_H
 
+#include <array>
 #include <bit>
 #include <cassert>
 #include <concepts>
@@ -376,6 +377,29 @@ inline Coord3D Coord3D::bit_copy_from_vec(ForwardIteratorT &&read_it) {
 }
 
 static_assert(Coordinate<Coord2D> && Coordinate<Coord3D>);
+
+// Vertices of a GJK simplex: a point, a segment, a triangle and, in 3D, a
+// tetrahedron (at most D + 1 points). A k-simplex is the convex hull of k + 1
+// affinely independent points:
+//   B. Grünbaum, Convex Polytopes, 2nd ed., Graduate Texts in Mathematics,
+//   Springer, New York, 2003. https://doi.org/10.1007/978-1-4613-0019-9
+template <Coordinate CoordT> struct Simplex {
+  std::array<CoordT, CoordT::D + 1> points_{};
+  dim_t size_ = 0;
+
+  void push(const CoordT &point) {
+    assert(size_ < points_.size());
+    points_[size_++] = point;
+  }
+
+  // Replaces the vertices (the arguments may alias them: they are copied
+  // before the assignment)
+  template <std::same_as<CoordT>... Points>
+  void assign(const Points &...points) {
+    points_ = {points...};
+    size_ = sizeof...(points);
+  }
+};
 
 template <Coordinate CoordT> struct Displacement {
   space_t distance2_ = 0.;
