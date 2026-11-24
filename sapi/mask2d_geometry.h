@@ -28,9 +28,11 @@
 #include <cmath>
 #include <vector>
 
+#include "convex_intersection.h"
 #include "coordinate_geometry.h"
 #include "mask.h"
 #include "sapi_forward_declarations.h"
+#include "tile.h"
 
 namespace sapi {
 // Shape helpers of 2D masks, defined in mask2d_geometry.cpp; each checks its
@@ -213,6 +215,86 @@ inline Coord2D mask_support(const Mask<Coord2D> &mask,
     assert(false && "Invalid mask shape");
     return mask.anchor_;
   }
+}
+
+// Tile tests per shape, dispatched from mask_geometry.h after the generic fast
+// tests of Mask. A circle equals its bounding disc, so the disc decides it
+// exactly; the other shapes use the exact intersection (GJK) of their support
+// with the tiles, within exact_filter_margin.
+
+// Source/target masks: the tile perimeter point closest to the centre lies
+// within the radius
+inline bool circular_mask_meets_tile(const Mask<Coord2D> &mask,
+                                     const Tile<Coord2D> &tile) {
+  return mask.bounding_disc_
+      .coord_in_radius(
+          tile.project_point_to_surface(mask.bounding_disc_.origin_))
+      .first;
+}
+
+inline bool mask_support_meets_tile(const Mask<Coord2D> &mask,
+                                    const Tile<Coord2D> &tile) {
+  return convex_sets_intersect(
+      [&mask](const Coord2D &u) { return mask_support(mask, u); },
+      [&tile](const Coord2D &u) { return tile.support(u); },
+      mask.bounding_disc_.origin_ - tile.c_radius_.origin_,
+      exact_filter_margin(mask.bounding_disc_, tile.c_radius_));
+}
+
+// Blueprint placed at the node coord: the tile point closest to the disc centre
+// lies within the radius
+inline bool coord_tile_in_circular_blueprint(const Mask<Coord2D> &mask,
+                                             const Coord2D &coord,
+                                             const Tile<Coord2D> &tile) {
+  const Coord2D centre = coord + mask.bounding_disc_.origin_;
+  return leq_test(distance2(centre, tile.project_point_to_surface(centre)),
+                  mask.bounding_disc_.radius2_);
+}
+
+// The disc test is cheaper than the query and exact for a circle, so other
+// shapes first reject tiles out of reach of the disc placed at the node
+inline bool coord_tile_in_blueprint_support(const Mask<Coord2D> &mask,
+                                            const Coord2D &coord,
+                                            const Tile<Coord2D> &tile) {
+  const CircumscribedRadius<Coord2D> disc{
+      .radius2_ = mask.bounding_disc_.radius2_,
+      .origin_ = coord + mask.bounding_disc_.origin_};
+  if (!disc.overlapping_radi(tile.c_radius_).first)
+    return false;
+
+  return convex_sets_intersect(
+      [&coord, &mask](const Coord2D &u) {
+        return coord + mask_support(mask, u);
+      },
+      [&tile](const Coord2D &u) { return tile.support(u); },
+      coord + mask.bounding_disc_.origin_ - tile.c_radius_.origin_,
+      exact_filter_margin(
+          mask.bounding_disc_,
+          CircumscribedRadius<Coord2D>{.radius2_ = 0., .origin_ = coord},
+          tile.c_radius_));
+}
+
+// Blueprint tile pairs: A' = A + disc centre and B lie within the radius of
+// each other
+inline bool tile_pair_in_circular_blueprint(const Mask<Coord2D> &mask,
+                                            const Tile<Coord2D> &a,
+                                            const Tile<Coord2D> &b) {
+  return tiles_within_range_2D(a, b, mask.bounding_disc_.origin_,
+                               mask.bounding_disc_.radius2_);
+}
+
+// The blueprint meets the displacements B - A, whose support is
+// b.support(u) - a.support(-u)
+inline bool tile_pair_in_blueprint_support(const Mask<Coord2D> &mask,
+                                           const Tile<Coord2D> &a,
+                                           const Tile<Coord2D> &b) {
+  return convex_sets_intersect(
+      [&mask](const Coord2D &u) { return mask_support(mask, u); },
+      [&a, &b](const Coord2D &u) {
+        return b.support(u) - a.support(u.negative());
+      },
+      mask.bounding_disc_.origin_ - (b.c_radius_.origin_ - a.c_radius_.origin_),
+      exact_filter_margin(mask.bounding_disc_, a.c_radius_, b.c_radius_));
 }
 } // namespace sapi
 

@@ -26,8 +26,10 @@
 //       edge-wrap images) and Mask::overlap_with_tile_surface on node/tile
 // They must accept every robust overlap and every tile (pair) holding a node
 // (pair) the mask accepts, also within 1e-9 of the mask boundary. Rejecting
-// gaps (tightness) is required for circular masks, whose filters are exact,
-// and counted for the other shapes until their exact filters are enabled.
+// gaps (tightness) is required for every filter and shape since Q7.16d, when
+// the non-circular filters became exact (EXACT_NONCIRCULAR_B1/B2). They also
+// accept a subset of what the conservative disc filters accepted, and the
+// same for circular masks.
 
 #include <cstdio>
 #include <deque>
@@ -58,8 +60,8 @@ namespace {
 using Oracle = GeometryOracle<Coord2D>;
 
 // Whether the B1 and B2 filters of non-circular masks are exact (Q7.16d/e)
-constexpr bool EXACT_NONCIRCULAR_B1 = false;
-constexpr bool EXACT_NONCIRCULAR_B2 = false;
+constexpr bool EXACT_NONCIRCULAR_B1 = true;
+constexpr bool EXACT_NONCIRCULAR_B2 = true;
 
 // Nodes this close to the mask boundary are sampled on both sides of it
 constexpr double BOUNDARY_GAP = 1e-9;
@@ -137,6 +139,52 @@ Mask<Coord2D> blueprint(const MaskDef &def, const P offset) {
 
 // Reach of the shape from its anchor, from the oracle (not the code under test)
 double extent(const MaskDef &def) { return Oracle::extent(Oracle::shape(def)); }
+
+// The last stage of B2 before Q7.16d, which stands the bounding disc in for
+// the shape
+bool conservative_surface(const Mask<Coord2D> &mask,
+                          const Tile<Coord2D> &tile) {
+  return mask.bounding_disc_
+      .coord_in_radius(
+          tile.project_point_to_surface(mask.bounding_disc_.origin_))
+      .first;
+}
+
+// The B1 filters before Q7.16d, which stand the bounding disc in for the shape
+bool conservative_pair(const Mask<Coord2D> &bp, const Tile<Coord2D> &a,
+                       const Tile<Coord2D> &b) {
+  const auto &disc = bp.bounding_disc_;
+  if (!a.c_radius_
+           .coord_in_radius(b.c_radius_.origin_ - disc.origin_,
+                            std::sqrt(b.c_radius_.radius2_) +
+                                std::sqrt(disc.radius2_))
+           .first)
+    return false;
+  return tiles_within_range(a, b, disc.origin_, disc.radius2_);
+}
+
+bool conservative_point(const Mask<Coord2D> &bp, const Coord2D &coord,
+                        const Tile<Coord2D> &tile) {
+  const Coord2D shifted = coord + bp.bounding_disc_.origin_;
+  return tile.coord_in_tile(shifted) ||
+         leq_test(distance2(shifted, tile.project_point_to_surface(shifted)),
+                  bp.bounding_disc_.radius2_);
+}
+
+// B1 accepts a subset of the pairs the conservative filter accepted, and the
+// same pairs for circular blueprints, through the same-level sub-tile pairs
+void check_subset(const Mask<Coord2D> &bp, const Tile<Coord2D> &a,
+                  const Tile<Coord2D> &b, const std::string &where) {
+  const bool now = bp.tiles_within_mask_range(a, b);
+  const bool before = conservative_pair(bp, a, b);
+  require(!now || before,
+          "B1 accepts a pair the conservative filter rejects: " + where);
+  require(bp.shape_ != MASK_SHAPE::CIRCULAR || now == before,
+          "circular B1 verdict changed: " + where);
+  for (const auto &sa : a.sub_tiles_)
+    for (const auto &sb : b.sub_tiles_)
+      check_subset(bp, sa, sb, where);
+}
 
 // A point strictly inside the shape, relative to the anchor
 P interior_point(const Shape2D &shape) {
@@ -268,6 +316,16 @@ void test_source_target(const std::vector<NamedTile> &catalog) {
               with(Oracle::node_samples(*tile),
                    near_boundary(shape, origin + offset, polygon(*tile))),
               where);
+
+          // The exact last stage accepts a subset of the disc stage, the
+          // same tiles for circular masks
+          const bool now = mask.overlap_with_tile_surface(*tile);
+          const bool before = conservative_surface(mask, *tile);
+          require(!now || before,
+                  "B2 surface stage accepts what the disc stage rejects: " +
+                      where);
+          require(def.shape != MASK_SHAPE::CIRCULAR || now == before,
+                  "circular B2 surface verdict changed: " + where);
           for (const auto &st : tile->sub_tiles_)
             stack.push_back(&st);
         }
@@ -306,11 +364,13 @@ void test_blueprints(const std::vector<NamedTile> &catalog) {
           const auto bp = blueprint(def, offset);
           check_pair_hierarchy(bp, shape, *a, *b, true,
                                b1_tally("tile pairs", def.shape), where);
+          check_subset(bp, *a, *b, where);
 
           const auto inverted = blueprint(inverted_def, P{0, 0} - offset);
           check_pair_hierarchy(inverted, inverted_shape, *b, *a, true,
                                b1_tally("tile pairs (inverted)", def.shape),
                                where + " inverted");
+          check_subset(inverted, *b, *a, where + " inverted");
           asymmetric += bp.tiles_within_mask_range(*a, *b) !=
                         inverted.tiles_within_mask_range(*b, *a);
 
@@ -330,6 +390,13 @@ void test_blueprints(const std::vector<NamedTile> &catalog) {
             const auto &c = a_samples[i];
             const bool accepted = check_point(
                 bp, shape, c, *b, b1_tally("node/tile", def.shape), where);
+            const bool before = conservative_point(bp, c, *b);
+            require(!accepted || before,
+                    "B1 node/tile accepts what the conservative filter "
+                    "rejects: " +
+                        where);
+            require(def.shape != MASK_SHAPE::CIRCULAR || accepted == before,
+                    "circular B1 node/tile verdict changed: " + where);
             const auto mask = source_mask(def, from(c), offset);
             const bool b2 =
                 check_tile_region(mask, shape, *b, b2_tally(def.shape),
@@ -407,6 +474,7 @@ void test_wrap_images() {
               check_pair_hierarchy(bp, shape, driver->tile_, image, true,
                                    b1_tally("tile pairs (images)", def.shape),
                                    where);
+              check_subset(bp, driver->tile_, image, where);
 
               const auto unshifted = blueprint(def, offset - shift);
               const auto v = oracle_verdict<Coord2D>(

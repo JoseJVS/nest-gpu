@@ -110,50 +110,50 @@ inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &coord) const {
 template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
                                                    const CoordT &b) const {
+  assert(!is_absolute_);
   return sapi::coord_in_mask(a, b, *this);
 }
 
+// The tile filters below run generic fast acceptance and rejection tests, then
+// defer to the dimension- and shape-aware tests (mask_geometry.h), which are
+// exact up to exact_filter_margin and never reject what the node test accepts.
+
+// Last stage of tile_overlap, after its vertex and centre tests
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
   assert(is_absolute_);
-  // The perimeter point closest to the disc centre decides overlap exactly for
-  // circles; for other shapes the bounding disc makes it conservative
-  return bounding_disc_
-      .coord_in_radius(tile.project_point_to_surface(bounding_disc_.origin_))
-      .first;
+  return sapi::mask_meets_tile(*this, tile);
 }
 
 // Two-argument (blueprint) methods: the driver node places the mask, so anchor_
-// and bounding_disc_ are relative to it. Every pair the node test accepts lies
-// in the bounding disc, so the tests are exact for circular blueprints and
-// conservative for other shapes.
+// and bounding_disc_ are relative to it.
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
-  const CoordT shifted = coord + bounding_disc_.origin_;
-  return tile.coord_in_tile(shifted) ||
-         leq_test(distance2(shifted, tile.project_point_to_surface(shifted)),
-                  bounding_disc_.radius2_);
+  assert(!is_absolute_);
+  // The anchor lies in the mask
+  if (tile.coord_in_tile(coord + anchor_))
+    return true;
+
+  return sapi::coord_tile_in_blueprint(*this, coord, tile);
 }
 
 template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
-  // Driver tile translated to the bounding disc centre: A' = A + disc centre
-  const CoordT &disc_offset = bounding_disc_.origin_;
-  // 1. Circumscribed circles of A' and B too far apart for the blueprint
+  assert(!is_absolute_);
+  // The circumscribed circles of A + disc centre and B too far apart for the
+  // bounding disc
   if (!a.c_radius_
-           .coord_in_radius(b.c_radius_.origin_ - disc_offset,
+           .coord_in_radius(b.c_radius_.origin_ - bounding_disc_.origin_,
                             std::sqrt(b.c_radius_.radius2_) +
                                 std::sqrt(bounding_disc_.radius2_))
            .first)
     return false;
 
-  // 2. Distance or overlap of A' and B within the blueprint radius (dimension-
-  // aware; exact for circular blueprints, conservative for other shapes)
-  return tiles_within_range(a, b, disc_offset, bounding_disc_.radius2_);
+  return sapi::tile_pair_in_blueprint(*this, a, b);
 }
 
 template <Coordinate CoordT>

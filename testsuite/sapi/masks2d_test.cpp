@@ -135,9 +135,18 @@ void test_offset() {
 
   assert(cmask.coord_in_mask(c).first && pmask.coord_in_mask(c).first &&
          emask.coord_in_mask(c).first);
-  assert(cmask.coord_in_mask(Coord2D(), c).first &&
-         pmask.coord_in_mask(Coord2D(), c).first &&
-         emask.coord_in_mask(Coord2D(), c).first);
+  // The same shapes as blueprints (no origin, so the offset is the anchor)
+  // for the two-argument query
+  const auto cblueprint =
+      construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {}, {1.0}, {2, 1});
+  const auto pblueprint =
+      construct_mask<Coord2D>(MASK_SHAPE::PARALLELOGRAM, {},
+                              {M_SQRT2, M_SQRT2, M_SQRT2, -M_SQRT2}, {1, 1});
+  const auto eblueprint =
+      construct_mask<Coord2D>(MASK_SHAPE::ELLIPTICAL, {}, {2, 1}, {0, 2});
+  assert(cblueprint.coord_in_mask(Coord2D(), c).first &&
+         pblueprint.coord_in_mask(Coord2D(), c).first &&
+         eblueprint.coord_in_mask(Coord2D(), c).first);
 }
 
 void test_triangular_mask() {

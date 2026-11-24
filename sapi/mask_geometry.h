@@ -24,6 +24,7 @@
 #define MASK_GEOMETRY_H
 
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -65,8 +66,9 @@ void initialize_mask_helpers(Mask<CoordT> &mask,
 }
 
 // The dimension- and shape-aware functions called below (initialize_*,
-// coord_in_*_mask) are declared in the per-dimension files, which mask.h
-// includes after defining Mask; the dependent calls find them at instantiation.
+// coord_in_*_mask, the tile tests) are declared in the per-dimension files,
+// which mask.h includes after defining Mask; the dependent calls find them at
+// instantiation.
 template <Coordinate CoordT>
 OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
   if constexpr (std::is_same_v<CoordT, Coord2D>) {
@@ -117,6 +119,89 @@ OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,
   } else {
     assert(false && "3D implementation not available yet");
     return {};
+  }
+}
+
+// Absolute margin of the exact (GJK) tile tests: EXACT_FILTER_REL_TOL times
+// the size of the given discs (mask, tiles, nodes) and of their coordinates.
+// The rounding of the node tests and of the query grows with all of them, so
+// the margin covers it and no pair the node test accepts is rejected; it stays
+// far below real gaps.
+template <typename... Discs>
+inline space_t exact_filter_margin(const Discs &...discs) {
+  return EXACT_FILTER_REL_TOL *
+         std::sqrt(((discs.radius2_ + vector_norm2(discs.origin_)) + ...));
+}
+
+// Whether a source/target mask meets the tile (the last stage of
+// tile_overlap)
+template <Coordinate CoordT>
+bool mask_meets_tile(const Mask<CoordT> &mask, const Tile<CoordT> &tile) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    switch (mask.shape_) {
+    case MASK_SHAPE::CIRCULAR:
+      return circular_mask_meets_tile(mask, tile);
+
+    case MASK_SHAPE::ELLIPTICAL:
+    case MASK_SHAPE::PARALLELOGRAM:
+    case MASK_SHAPE::TRIANGULAR:
+      return mask_support_meets_tile(mask, tile);
+
+    default:
+      assert(false && "Invalid mask shape");
+      return true;
+    }
+  } else {
+    assert(false && "3D implementation not available yet");
+    return true;
+  }
+}
+
+// Whether the blueprint placed at the node coord meets the tile
+template <Coordinate CoordT>
+bool coord_tile_in_blueprint(const Mask<CoordT> &mask, const CoordT &coord,
+                             const Tile<CoordT> &tile) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    switch (mask.shape_) {
+    case MASK_SHAPE::CIRCULAR:
+      return coord_tile_in_circular_blueprint(mask, coord, tile);
+
+    case MASK_SHAPE::ELLIPTICAL:
+    case MASK_SHAPE::PARALLELOGRAM:
+    case MASK_SHAPE::TRIANGULAR:
+      return coord_tile_in_blueprint_support(mask, coord, tile);
+
+    default:
+      assert(false && "Invalid mask shape");
+      return true;
+    }
+  } else {
+    assert(false && "3D implementation not available yet");
+    return true;
+  }
+}
+
+// Whether the blueprint holds a displacement b - a of the tiles a and b
+template <Coordinate CoordT>
+bool tile_pair_in_blueprint(const Mask<CoordT> &mask, const Tile<CoordT> &a,
+                            const Tile<CoordT> &b) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    switch (mask.shape_) {
+    case MASK_SHAPE::CIRCULAR:
+      return tile_pair_in_circular_blueprint(mask, a, b);
+
+    case MASK_SHAPE::ELLIPTICAL:
+    case MASK_SHAPE::PARALLELOGRAM:
+    case MASK_SHAPE::TRIANGULAR:
+      return tile_pair_in_blueprint_support(mask, a, b);
+
+    default:
+      assert(false && "Invalid mask shape");
+      return true;
+    }
+  } else {
+    assert(false && "3D implementation not available yet");
+    return true;
   }
 }
 } // namespace sapi
