@@ -65,15 +65,22 @@ bool region_meets_blueprint(const Mask<Coord2D> &blueprint,
                             const std::vector<P> &displacements) {
   const Coord2D zero = construct_coord_2D(0., 0.);
   for (const auto &d : sample_region(displacements, 30, 300))
-    if (blueprint.coord_in_mask(zero, d + blueprint.offset_).first)
+    if (blueprint.coord_in_mask(zero, d + blueprint.anchor_).first)
       return true;
   return false;
 }
 
+// Centre of the blueprint's bounding disc in the frame of the displacement
+// regions (relative to the anchor): zero for the centred shapes
+P disc_centre(const Mask<Coord2D> &blueprint) {
+  return from(blueprint.bounding_disc_.origin_) - from(blueprint.anchor_);
+}
+
+// distance is measured from the bounding disc centre
 void check_verdict(const bool verdict, const double distance,
                    const Mask<Coord2D> &blueprint, const BlueprintDef &def,
                    const std::vector<P> &region) {
-  const double radius = std::sqrt(blueprint.c_radius_.radius2_);
+  const double radius = std::sqrt(blueprint.bounding_disc_.radius2_);
   if (def.shape == MASK_SHAPE::CIRCULAR) {
     if (verdict)
       assert(distance <= radius * (1 + 1e-5) + 1e-6);
@@ -86,20 +93,20 @@ void check_verdict(const bool verdict, const double distance,
 
 void check_pair(const Tile<Coord2D> &a, const Tile<Coord2D> &b,
                 const Mask<Coord2D> &blueprint, const BlueprintDef &def) {
-  const auto d = minkowski_difference(a, b, from(blueprint.offset_));
+  const auto d = minkowski_difference(a, b, from(blueprint.anchor_));
   check_verdict(blueprint.tiles_within_mask_range(a, b),
-                region_distance({0., 0.}, d), blueprint, def, d);
+                region_distance(disc_centre(blueprint), d), blueprint, def, d);
 }
 
-// A point at coord drives: pool points b in tile B with b - coord - offset in
+// A point at coord drives: pool points b in tile B with b - coord - anchor in
 // the blueprint
 void check_point(const Coord2D &coord, const Tile<Coord2D> &b,
                  const Mask<Coord2D> &blueprint, const BlueprintDef &def) {
   std::vector<P> d;
   for (const auto &v : polygon(b))
-    d.push_back(v - from(coord) - from(blueprint.offset_));
+    d.push_back(v - from(coord) - from(blueprint.anchor_));
   check_verdict(blueprint.overlap_with_tile_surface(coord, b),
-                region_distance({0., 0.}, d), blueprint, def, d);
+                region_distance(disc_centre(blueprint), d), blueprint, def, d);
 }
 
 void test_grids() {
@@ -157,12 +164,13 @@ void test_grids() {
           for (const auto &[i, j] : pairs)
             check_pair(*level[i], *level[j], blueprint, def);
 
-          const double radius = std::sqrt(blueprint.c_radius_.radius2_);
+          const double radius = std::sqrt(blueprint.bounding_disc_.radius2_);
           for (std::size_t i = 0; i < level.size(); i += 1 + level.size() / 8) {
             const auto &b = *level[i];
             const double reach = std::sqrt(b.c_radius_.radius2_) + radius;
             for (int k = 0; k < 4; ++k)
-              check_point(to_coord(from(b.c_radius_.origin_) - offset +
+              check_point(to_coord(from(b.c_radius_.origin_) -
+                                   from(blueprint.bounding_disc_.origin_) +
                                    P{unit(rng), unit(rng)} * (1.2 * reach)),
                           b, blueprint, def);
           }

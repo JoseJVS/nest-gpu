@@ -44,22 +44,24 @@ void initialize_parallelogram_mask_helpers(
 void initialize_triangular_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
 
+// Centred shapes (circle, ellipse, parallelogram): the bounding disc is centred
+// on the anchor, so the disc displacement is the anchor displacement
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
                                                const Mask<Coord2D> &mask) {
-  return mask.c_radius_.coord_in_radius(coord);
+  return mask.bounding_disc_.coord_in_radius(coord);
 }
 
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &a,
                                                const Coord2D &b,
                                                const Mask<Coord2D> &mask) {
-  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.offset_)));
-  od.first = leq_test(od.second.distance2_, mask.c_radius_.radius2_);
+  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.anchor_)));
+  od.first = leq_test(od.second.distance2_, mask.bounding_disc_.radius2_);
   return od;
 }
 
 inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
                                                  const Mask<Coord2D> &mask) {
-  auto od = mask.c_radius_.coord_in_radius(coord);
+  auto od = mask.bounding_disc_.coord_in_radius(coord);
   if (od.first)
     od.first = displacement_in_ellipse(
         1 < mask.helper_vectors_.size()
@@ -73,8 +75,8 @@ inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
 inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a,
                                                  const Coord2D &b,
                                                  const Mask<Coord2D> &mask) {
-  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.offset_)));
-  if (leq_test(od.second.distance2_, mask.c_radius_.radius2_))
+  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.anchor_)));
+  if (leq_test(od.second.distance2_, mask.bounding_disc_.radius2_))
     od.first = displacement_in_ellipse(
         1 < mask.helper_vectors_.size()
             ? rotate_displacement(od.second.displacement_,
@@ -86,7 +88,7 @@ inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a,
 
 inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
                                                     const Mask<Coord2D> &mask) {
-  auto od = mask.c_radius_.coord_in_radius(coord);
+  auto od = mask.bounding_disc_.coord_in_radius(coord);
   if (od.first)
     od.first = algebraic_projection_comparison<Coord2D, false>(
         od.second.displacement_ + mask.helper_vectors_[0],
@@ -99,8 +101,8 @@ inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &coord,
 inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a,
                                                     const Coord2D &b,
                                                     const Mask<Coord2D> &mask) {
-  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.offset_)));
-  if (leq_test(od.second.distance2_, mask.c_radius_.radius2_))
+  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.anchor_)));
+  if (leq_test(od.second.distance2_, mask.bounding_disc_.radius2_))
     od.first = algebraic_projection_comparison<Coord2D, false>(
         od.second.displacement_ + mask.helper_vectors_[0],
         mask.helper_vectors_[1], mask.helper_vectors_[2],
@@ -109,10 +111,13 @@ inline OptDisp<Coord2D> coord_in_parallelogram_mask(const Coord2D &a,
   return od;
 }
 
+// The triangle is defined relative to its anchor vertex while its bounding
+// disc is centred on the triangle: the prefilter uses the disc, the exact test
+// and the returned displacement use the anchor
 inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
                                                  const Mask<Coord2D> &mask) {
-  auto od = mask.c_radius_.coord_in_radius(coord);
-  if (od.first)
+  OptDisp<Coord2D> od(false, construct_displacement(coord - mask.anchor_));
+  if (mask.bounding_disc_.coord_in_radius(coord).first)
     od.first = algebraic_projection_comparison<Coord2D, true>(
         od.second.displacement_, mask.helper_vectors_[0],
         mask.helper_vectors_[1], mask.helper_scalars_[0]);
@@ -123,8 +128,9 @@ inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &coord,
 inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a,
                                                  const Coord2D &b,
                                                  const Mask<Coord2D> &mask) {
-  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.offset_)));
-  if (leq_test(od.second.distance2_, mask.c_radius_.radius2_))
+  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.anchor_)));
+  if (leq_test(vector_norm2(b - (a + mask.bounding_disc_.origin_)),
+               mask.bounding_disc_.radius2_))
     od.first = algebraic_projection_comparison<Coord2D, true>(
         od.second.displacement_, mask.helper_vectors_[0],
         mask.helper_vectors_[1], mask.helper_scalars_[0]);

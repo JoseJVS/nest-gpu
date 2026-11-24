@@ -48,10 +48,10 @@ const std::vector<MaskDef> MASKS{
     {MASK_SHAPE::PARALLELOGRAM, {1., 0.2, -0.3, 0.8}},
     {MASK_SHAPE::TRIANGULAR, {1.2, 0., 0., 1.2}}};
 
-// Outside with a margin: moving 1e-5 of the way to the mask origin keeps it
-// outside (all mask shapes are convex and contain their origin)
+// Outside with a margin: moving 1e-5 of the way to the mask anchor keeps it
+// outside (all mask shapes are convex and contain their anchor)
 bool robustly_outside(const Mask<Coord2D> &mask, const Coord2D &coord) {
-  const P o = from(mask.c_radius_.origin_);
+  const P o = from(mask.anchor_);
   const P closer = o + (from(coord) - o) * (1 - 1e-5);
   return !mask.coord_in_mask(coord).first &&
          !mask.coord_in_mask(to_coord(closer)).first;
@@ -77,8 +77,9 @@ void check_overlap(const Mask<Coord2D> &mask, const MaskDef &def,
 
   default:
     if (def.shape == MASK_SHAPE::CIRCULAR)
-      assert(region_distance(from(mask.c_radius_.origin_), polygon(tile)) <=
-             def.params[0] * (1 + 1e-5) + 1e-6);
+      assert(
+          region_distance(from(mask.bounding_disc_.origin_), polygon(tile)) <=
+          def.params[0] * (1 + 1e-5) + 1e-6);
     break;
   }
 }
@@ -96,7 +97,7 @@ void test_catalog() {
     for (const auto &def : MASKS) {
       const double mask_radius =
           std::sqrt(construct_mask<Coord2D>(def.shape, {0., 0.}, def.params, {})
-                        .c_radius_.radius2_);
+                        .bounding_disc_.radius2_);
       for (int k = 0; k < 40; ++k) {
         const P c =
             from(nt.tile->c_radius_.origin_) +

@@ -99,11 +99,11 @@ void test_updated_dist_check() {
   c.y_ = 1;
 
   assert(construct_circumscribed_radius<Coord2D>(Coord2D(),
-                                                 pmask.c_radius_.radius2_)
+                                                 pmask.bounding_disc_.radius2_)
              .coord_in_radius(c)
              .first &&
          construct_circumscribed_radius<Coord2D>(Coord2D(),
-                                                 emask.c_radius_.radius2_)
+                                                 emask.bounding_disc_.radius2_)
              .coord_in_radius(c)
              .first);
 

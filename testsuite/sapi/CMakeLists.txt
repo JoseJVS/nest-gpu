@@ -62,6 +62,7 @@ input_validation_test.cpp
 tileless_rank_test.cpp
 invalid_kernel_test.cpp
 empty_population_test.cpp
+triangular_mask_bounds_test.cpp
 )
 
 set( sapi_tests )

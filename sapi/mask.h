@@ -33,10 +33,19 @@
 
 namespace sapi {
 template <Coordinate CoordT> struct Mask {
-  bool has_c_radius_ = false;
+  // Frame of anchor_ and bounding_disc_. Source/target masks are built with an
+  // origin and placed absolutely (true): the one-argument methods use them.
+  // Blueprints have no origin (false): anchor_ and bounding_disc_ are offsets
+  // from the driver node, used by the two-argument methods.
+  bool is_absolute_ = false;
   MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;
-  CoordT offset_;
-  CircumscribedRadius<CoordT> c_radius_;
+  // Point every shape is defined from, lying in the mask: origin + offset for
+  // source/target masks, the offset for a blueprint
+  CoordT anchor_;
+  // Disc containing the whole shape, in the frame of anchor_: centred on the
+  // anchor for centred shapes (circle, ellipse, parallelogram), on the shape
+  // otherwise (smallest enclosing disc of a triangle)
+  CircumscribedRadius<CoordT> bounding_disc_;
   std::vector<CoordT> helper_vectors_;
   std::vector<space_t> helper_scalars_;
 
@@ -75,15 +84,18 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
   Mask<CoordT> m;
   m.shape_ = shape;
 
+  CoordT offset;
   if (!mask_offset.empty())
-    m.offset_ = CoordT::copy_from_vec(mask_offset.begin());
+    offset = CoordT::copy_from_vec(mask_offset.begin());
 
-  if (!mask_origin.empty()) {
-    m.has_c_radius_ = true;
-    m.c_radius_.origin_ =
-        CoordT::copy_from_vec(mask_origin.begin()) + m.offset_;
+  if (mask_origin.empty()) {
+    m.anchor_ = offset;
+  } else {
+    m.is_absolute_ = true;
+    m.anchor_ = CoordT::copy_from_vec(mask_origin.begin()) + offset;
   }
 
+  // The shape initializers set the bounding disc in the frame of anchor_
   initialize_mask_helpers(m, mask_params);
 
   return m;
@@ -91,7 +103,7 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
 
 template <Coordinate CoordT>
 inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &coord) const {
-  assert(has_c_radius_);
+  assert(is_absolute_);
   return sapi::coord_in_mask(coord, *this);
 }
 
@@ -104,50 +116,51 @@ inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
-  assert(has_c_radius_);
-  // The perimeter point closest to the mask center decides overlap exactly for
-  // circles; for other shapes the circumscribed circle makes it conservative
-  return c_radius_
-      .coord_in_radius(tile.project_point_to_surface(c_radius_.origin_))
+  assert(is_absolute_);
+  // The perimeter point closest to the disc centre decides overlap exactly for
+  // circles; for other shapes the bounding disc makes it conservative
+  return bounding_disc_
+      .coord_in_radius(tile.project_point_to_surface(bounding_disc_.origin_))
       .first;
 }
 
-// Two-argument (blueprint) methods: the anchor comes from the arguments, so
-// only offset_ and c_radius_.radius2_ of the mask are used. Every pair the
-// node test accepts lies within sqrt(radius2_) of the offset anchor, so the
-// tests are exact for circular blueprints and conservative for other shapes.
+// Two-argument (blueprint) methods: the driver node places the mask, so anchor_
+// and bounding_disc_ are relative to it. Every pair the node test accepts lies
+// in the bounding disc, so the tests are exact for circular blueprints and
+// conservative for other shapes.
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
-  const CoordT shifted = coord + offset_;
+  const CoordT shifted = coord + bounding_disc_.origin_;
   return tile.coord_in_tile(shifted) ||
          leq_test(distance2(shifted, tile.project_point_to_surface(shifted)),
-                  c_radius_.radius2_);
+                  bounding_disc_.radius2_);
 }
 
 template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
-  // Driver tile translated by the offset: A' = A + offset_
+  // Driver tile translated to the bounding disc centre: A' = A + disc centre
+  const CoordT &disc_offset = bounding_disc_.origin_;
   // 1. Circumscribed circles of A' and B too far apart for the blueprint
   if (!a.c_radius_
-           .coord_in_radius(b.c_radius_.origin_ - offset_,
+           .coord_in_radius(b.c_radius_.origin_ - disc_offset,
                             std::sqrt(b.c_radius_.radius2_) +
-                                std::sqrt(c_radius_.radius2_))
+                                std::sqrt(bounding_disc_.radius2_))
            .first)
     return false;
 
   // 2. Distance or overlap of A' and B within the blueprint radius (dimension-
   // aware; exact for circular blueprints, conservative for other shapes)
-  return tiles_within_range(a, b, offset_, c_radius_.radius2_);
+  return tiles_within_range(a, b, disc_offset, bounding_disc_.radius2_);
 }
 
 template <Coordinate CoordT>
 OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
-  assert(has_c_radius_);
+  assert(is_absolute_);
 
-  if (!c_radius_.overlapping_radi(tile.c_radius_).first)
+  if (!bounding_disc_.overlapping_radi(tile.c_radius_).first)
     return OVERLAP_LEVEL::NONE;
 
   bool fully_in_mask = true;
@@ -167,7 +180,8 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
   if (0 < vertices_in_mask)
     return OVERLAP_LEVEL::PARTIAL;
 
-  if (tile.coord_in_tile(c_radius_.origin_) ||
+  // The anchor lies in the mask
+  if (tile.coord_in_tile(anchor_) ||
       coord_in_mask(tile.c_radius_.origin_).first)
     return OVERLAP_LEVEL::PARTIAL;
 
@@ -186,7 +200,7 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
 template <Coordinate CoordT>
 std::deque<const Tile<CoordT> *>
 Mask<CoordT>::get_overlapping_leaf_sub_tiles(const Tile<CoordT> &tile) const {
-  assert(has_c_radius_);
+  assert(is_absolute_);
 
   std::deque<const Tile<CoordT> *> leaf_sub_tiles;
   std::deque<const Tile<CoordT> *> temps{&tile};
