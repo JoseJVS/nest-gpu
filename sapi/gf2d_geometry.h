@@ -23,9 +23,13 @@
 #ifndef GF2D_GEOMETRY_H
 #define GF2D_GEOMETRY_H
 
+#include <stdexcept>
+#include <vector>
+
 #include "coordinate_geometry.h"
 #include "grid_functors.h"
 #include "tile.h"
+#include "tile2d_geometry.h"
 
 namespace sapi {
 inline void initialize_soc_2D(ShiftedOriginCreator<Coord2D> &soc,
@@ -52,6 +56,30 @@ inline void initialize_hexagonal_soc(ShiftedOriginCreator<Coord2D> &soc,
 
   if (angular_offset != 0)
     soc.helper_vectors_.resize(1, create_angular_offset(angular_offset));
+}
+
+// Checks the tile parameters once and initializes the shifted origin creator
+// of the 2D shape
+inline void initialize_shifted_origin_creator_2D(
+    ShiftedOriginCreator<Coord2D> &soc,
+    const std::vector<space_t> &side_lengths,
+    const std::vector<angle_t> &angular_offsets) {
+  const angle_t angular_offset =
+      validate_tile_parameters_2D(soc.shape_, side_lengths, angular_offsets);
+
+  switch (soc.shape_) {
+  case TILE_SHAPE::RECTANGLE:
+  case TILE_SHAPE::TRIANGLE:
+    initialize_soc_2D(soc, side_lengths, angular_offset);
+    break;
+
+  case TILE_SHAPE::HEXAGON:
+    initialize_hexagonal_soc(soc, side_lengths, angular_offset);
+    break;
+
+  default:
+    throw std::invalid_argument("Invalid tile shape");
+  }
 }
 
 inline Coord2D
@@ -119,6 +147,33 @@ inline void initialize_hexagonal_ctc(CachedTileCreator<Coord2D> &ctc,
                                      const angle_t angular_offset) {
   ctc.side_lengths_ = side_lengths;
   ctc.angular_offsets_.resize(1, angular_offset + 30);
+}
+
+// Checks the tile parameters once and initializes the cached tile creator of
+// the 2D shape
+inline void
+initialize_cached_tile_creator_2D(CachedTileCreator<Coord2D> &ctc,
+                                  const std::vector<space_t> &side_lengths,
+                                  const std::vector<angle_t> &angular_offsets) {
+  const angle_t angular_offset =
+      validate_tile_parameters_2D(ctc.shape_, side_lengths, angular_offsets);
+
+  switch (ctc.shape_) {
+  case TILE_SHAPE::RECTANGLE:
+    initialize_rectangular_ctc(ctc, side_lengths, angular_offset);
+    break;
+
+  case TILE_SHAPE::TRIANGLE:
+    initialize_triangular_ctc(ctc, side_lengths, angular_offset);
+    break;
+
+  case TILE_SHAPE::HEXAGON:
+    initialize_hexagonal_ctc(ctc, side_lengths, angular_offset);
+    break;
+
+  default:
+    throw std::invalid_argument("Invalid tile shape");
+  }
 }
 
 inline bool

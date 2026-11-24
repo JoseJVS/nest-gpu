@@ -91,6 +91,7 @@ mask2d_geometry.cpp
 algebraic_functors.h
 mask.h
 gf_creators.cpp
+gf2d_creators.cpp
 coordinate_geometry.h
 spatial_containers.h
 mask_tile_processing.h

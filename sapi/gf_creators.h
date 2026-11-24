@@ -23,10 +23,37 @@
 #ifndef GF_CREATORS_H
 #define GF_CREATORS_H
 
+#include <vector>
+
 #include "coordinates.h"
+#include "creator_registry.h"
+#include "grid_functors.h"
 #include "sapi_forward_declarations.h"
+#include "type_erasure_helpers.h"
 
 namespace sapi {
+template <Coordinate CoordT, TILE_SHAPE shape>
+struct SOCCreator final
+    : public StateLessCreator<ShiftedOriginCreator<CoordT>> {
+  ShiftedOriginCreator<CoordT>
+  create(const std::vector<space_t> &side_lengths,
+         const std::vector<angle_t> &angular_offsets) const override {
+    return construct_shifted_origin_creator<CoordT>(shape, side_lengths,
+                                                    angular_offsets);
+  }
+};
+
+template <Coordinate CoordT, TILE_SHAPE shape>
+struct CTCCreator final : public StateLessCreator<CachedTileCreator<CoordT>> {
+  CachedTileCreator<CoordT>
+  create(const std::vector<space_t> &side_lengths,
+         const std::vector<angle_t> &angular_offsets) const override {
+    return construct_cached_tile_creator<CoordT>(shape, side_lengths,
+                                                 angular_offsets);
+  }
+};
+
+// Registries per dimension: gf2d_creators.cpp fills the 2D ones
 void initialize_gsc_registry(
     CreatorRegistry<GridTargetPositionShifts<Coord2D>> &gscr);
 void initialize_gsc_registry(

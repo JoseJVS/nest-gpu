@@ -110,4 +110,8 @@ inline Tile<CoordT> CachedTileCreator<CoordT>::create_tile(
 }
 } // namespace sapi
 
+// Dimension-aware implementations of the gf_geometry.h dispatch. They need the
+// complete functor types, so they are included after them.
+#include "gf2d_geometry.h"
+
 #endif
