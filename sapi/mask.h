@@ -34,11 +34,12 @@
 namespace sapi {
 template <Coordinate CoordT> struct Mask {
   MASK_SHAPE shape_ = MASK_SHAPE::NULL_MS;
-  // Point every shape is defined from, lying in the mask. Source/target masks
-  // are built with an origin and placed absolutely (origin + offset); the
-  // one-argument methods use them. Blueprints have no origin: anchor_ and
-  // bounding_disc_ are offsets from the driver node (the offset), used by the
-  // two-argument methods.
+  // Point every shape is defined from. The generic tests below do not assume
+  // it lies in the mask; the per-shape tests of the convex shapes, which
+  // contain it, do. Source/target masks are built with an origin and placed
+  // absolutely (origin + offset); the one-argument methods use them.
+  // Blueprints have no origin: anchor_ and bounding_disc_ are offsets from the
+  // driver node (the offset), used by the two-argument methods.
   CoordT anchor_;
   // Disc containing the whole shape, in the frame of anchor_: centred on the
   // anchor for centred shapes (circle, ellipse, parallelogram), on the shape
@@ -124,10 +125,6 @@ template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
                                         const Tile<CoordT> &tile) const {
-  // The anchor lies in the mask
-  if (tile.coord_in_tile(coord + anchor_))
-    return true;
-
   return sapi::coord_tile_in_blueprint(*this, coord, tile);
 }
 
@@ -163,15 +160,14 @@ OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
     ++vertices_in_mask;
   }
 
+  // Whether holding every vertex means holding the tile depends on the shape
   if (fully_in_mask)
-    return OVERLAP_LEVEL::FULL;
+    return sapi::overlap_with_all_vertices_in_mask(*this, tile);
 
   if (0 < vertices_in_mask)
     return OVERLAP_LEVEL::PARTIAL;
 
-  // The anchor lies in the mask
-  if (tile.coord_in_tile(anchor_) ||
-      coord_in_mask(tile.c_radius_.origin_).first)
+  if (coord_in_mask(tile.c_radius_.origin_).first)
     return OVERLAP_LEVEL::PARTIAL;
 
   // Continue after the vertex that failed the first loop (it always broke at

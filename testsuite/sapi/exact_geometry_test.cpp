@@ -141,13 +141,14 @@ Mask<Coord2D> blueprint(const MaskDef &def, const P offset) {
 double extent(const MaskDef &def) { return Oracle::extent(Oracle::shape(def)); }
 
 // The last stage of B2 before Q7.16d, which stands the bounding disc in for
-// the shape
+// the shape, with the anchor accept that now lives in the per-shape tests
 bool conservative_surface(const Mask<Coord2D> &mask,
                           const Tile<Coord2D> &tile) {
-  return mask.bounding_disc_
-      .coord_in_radius(
-          tile.project_point_to_surface(mask.bounding_disc_.origin_))
-      .first;
+  return tile.coord_in_tile(mask.anchor_) ||
+         mask.bounding_disc_
+             .coord_in_radius(
+                 tile.project_point_to_surface(mask.bounding_disc_.origin_))
+             .first;
 }
 
 // The B1 filters before Q7.16d, which stand the bounding disc in for the shape

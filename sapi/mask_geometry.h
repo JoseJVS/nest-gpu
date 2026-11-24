@@ -133,6 +133,29 @@ inline space_t exact_filter_margin(const Discs &...discs) {
          std::sqrt(((discs.radius2_ + vector_norm2(discs.origin_)) + ...));
 }
 
+// Overlap of a source/target mask with a tile whose vertices all lie in it
+template <Coordinate CoordT>
+inline OVERLAP_LEVEL
+overlap_with_all_vertices_in_mask(const Mask<CoordT> &mask,
+                                  const Tile<CoordT> &tile) {
+  if constexpr (std::is_same_v<CoordT, Coord2D>) {
+    switch (mask.shape_) {
+    case MASK_SHAPE::CIRCULAR:
+    case MASK_SHAPE::ELLIPTICAL:
+    case MASK_SHAPE::PARALLELOGRAM:
+    case MASK_SHAPE::TRIANGULAR:
+      return overlap_with_all_vertices_in_convex_mask(mask, tile);
+
+    default:
+      assert(false && "Invalid mask shape");
+      return OVERLAP_LEVEL::PARTIAL;
+    }
+  } else {
+    assert(false && "3D implementation not available yet");
+    return OVERLAP_LEVEL::PARTIAL;
+  }
+}
+
 // Whether a source/target mask meets the tile (the last stage of
 // tile_overlap)
 template <Coordinate CoordT>

@@ -222,10 +222,34 @@ inline Coord2D mask_support(const Mask<Coord2D> &mask,
 // exactly; the other shapes use the exact intersection (GJK) of their support
 // with the tiles, within exact_filter_margin.
 
+// Shared by the convex shapes: a mask holding every vertex of a tile holds
+// the tile
+inline OVERLAP_LEVEL
+overlap_with_all_vertices_in_convex_mask(const Mask<Coord2D> &,
+                                         const Tile<Coord2D> &) {
+  return OVERLAP_LEVEL::FULL;
+}
+
+// A convex mask contains its anchor, so a tile holding the anchor meets the
+// mask (the cheap accept the tests below start with)
+inline bool anchor_in_tile(const Mask<Coord2D> &mask,
+                           const Tile<Coord2D> &tile) {
+  return tile.coord_in_tile(mask.anchor_);
+}
+
+// Blueprint placed at the node coord
+inline bool anchor_in_tile(const Mask<Coord2D> &mask, const Coord2D &coord,
+                           const Tile<Coord2D> &tile) {
+  return tile.coord_in_tile(coord + mask.anchor_);
+}
+
 // Source/target masks: the tile perimeter point closest to the centre lies
 // within the radius
 inline bool circular_mask_meets_tile(const Mask<Coord2D> &mask,
                                      const Tile<Coord2D> &tile) {
+  if (anchor_in_tile(mask, tile))
+    return true;
+
   return mask.bounding_disc_
       .coord_in_radius(
           tile.project_point_to_surface(mask.bounding_disc_.origin_))
@@ -234,6 +258,9 @@ inline bool circular_mask_meets_tile(const Mask<Coord2D> &mask,
 
 inline bool mask_support_meets_tile(const Mask<Coord2D> &mask,
                                     const Tile<Coord2D> &tile) {
+  if (anchor_in_tile(mask, tile))
+    return true;
+
   return convex_sets_intersect(
       [&mask](const Coord2D &u) { return mask_support(mask, u); },
       [&tile](const Coord2D &u) { return tile.support(u); },
@@ -246,6 +273,9 @@ inline bool mask_support_meets_tile(const Mask<Coord2D> &mask,
 inline bool coord_tile_in_circular_blueprint(const Mask<Coord2D> &mask,
                                              const Coord2D &coord,
                                              const Tile<Coord2D> &tile) {
+  if (anchor_in_tile(mask, coord, tile))
+    return true;
+
   const Coord2D centre = coord + mask.bounding_disc_.origin_;
   return leq_test(distance2(centre, tile.project_point_to_surface(centre)),
                   mask.bounding_disc_.radius2_);
@@ -256,6 +286,9 @@ inline bool coord_tile_in_circular_blueprint(const Mask<Coord2D> &mask,
 inline bool coord_tile_in_blueprint_support(const Mask<Coord2D> &mask,
                                             const Coord2D &coord,
                                             const Tile<Coord2D> &tile) {
+  if (anchor_in_tile(mask, coord, tile))
+    return true;
+
   const CircumscribedRadius<Coord2D> disc{
       .radius2_ = mask.bounding_disc_.radius2_,
       .origin_ = coord + mask.bounding_disc_.origin_};
