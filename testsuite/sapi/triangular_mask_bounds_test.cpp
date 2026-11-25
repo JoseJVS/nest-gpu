@@ -113,8 +113,9 @@ std::vector<Coord2D> ellipse_samples(const MaskDef &def, const P anchor) {
     for (const double f : {1., 0.6, 0.2}) {
       const double t = 2 * M_PI * k / 720.;
       const P e{f * a * std::cos(t), f * b * std::sin(t)};
-      s.push_back(to_coord(anchor + P{e.x * std::cos(r) - e.y * std::sin(r),
-                                      e.x * std::sin(r) + e.y * std::cos(r)}));
+      // The ellipse turns clockwise by the rotation
+      s.push_back(to_coord(anchor + P{e.x * std::cos(r) + e.y * std::sin(r),
+                                      -e.x * std::sin(r) + e.y * std::cos(r)}));
     }
   return s;
 }

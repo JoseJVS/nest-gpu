@@ -175,8 +175,8 @@ inline OptDisp<Coord2D> coord_in_annular_mask(const Coord2D &a,
 // axes, (a^2 q_x, b^2 q_y) / sqrt(a^2 q_x^2 + b^2 q_y^2) for the direction q
 // (the unit-circle support under the affine map), rotated back. The center
 // for a zero direction. helper_vectors_[0] holds the squared semi-axes
-// (a^2, b^2) and, when rotated, helper_vectors_[1] the (cos, sin) of the
-// rotation.
+// (a^2, b^2) and, when rotated, helper_vectors_[1] the (cos, sin) of minus
+// the rotation (the ellipse turns clockwise).
 inline Coord2D ellipse_support(const Mask<Coord2D> &mask,
                                const Coord2D &direction) {
   const bool rotated = 1 < mask.helper_vectors_.size();

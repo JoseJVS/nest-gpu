@@ -218,8 +218,9 @@ void test_regressions() {
   const auto circle = [](const double r, const double x, const double y) {
     return construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {}, {r}, {x, y});
   };
-  const auto ellipse45 =
-      construct_mask<Coord2D>(MASK_SHAPE::ELLIPTICAL, {}, {2., 0.2, 45.}, {});
+  // Major axis along the diagonal (1, 1): ellipses turn clockwise
+  const auto ellipse_diagonal =
+      construct_mask<Coord2D>(MASK_SHAPE::ELLIPTICAL, {}, {2., 0.2, -45.}, {});
 
   assert(circle(0.3, 0., 0.).tiles_within_mask_range(a, a));
   assert(circle(0.3, 0., 0.).tiles_within_mask_range(a, b));
@@ -228,8 +229,8 @@ void test_regressions() {
   assert(circle(0.3, 1., 0.).tiles_within_mask_range(a, b));
   assert(circle(0.3, 2., 0.).tiles_within_mask_range(a, c));
   assert(!circle(0.3, 1., 0.).tiles_within_mask_range(b, a));
-  assert(ellipse45.tiles_within_mask_range(a, c));
-  assert(ellipse45.tiles_within_mask_range(a, d));
+  assert(ellipse_diagonal.tiles_within_mask_range(a, c));
+  assert(ellipse_diagonal.tiles_within_mask_range(a, d));
   assert(circle(0.21, -0.2, -0.9).tiles_within_mask_range(a, b));
 }
 

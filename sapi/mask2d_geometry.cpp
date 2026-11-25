@@ -81,7 +81,10 @@ void initialize_elliptical_mask_helpers(
   } else {
     mask.helper_vectors_.resize(2);
     mask.helper_vectors_[0] = axes;
-    mask.helper_vectors_[1] = create_angular_offset(rotation);
+    // The ellipse turns clockwise by rotation, like the tiles and grids:
+    // rotate_displacement with the offset of -rotation maps displacements
+    // into the frame of its axes
+    mask.helper_vectors_[1] = create_angular_offset(-rotation);
   }
 
   mask.bounding_disk_.origin_ = mask.anchor_;

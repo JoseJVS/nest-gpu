@@ -89,11 +89,13 @@ void initialize_hexagon_vertices(std::vector<Coord2D> &vertices,
   // Checked in validate_tile_parameters_2D
   assert(!std::signbit(side_length) && !almost_zero(c_radius.radius2_));
 
+  // Vertex k at 60 k degrees, turned clockwise by angular_offset like the
+  // other tiles and the grids (rotate_displacement)
   vertices.reserve(6);
   for (angle_t angle_ix = 0; angle_ix < 6; ++angle_ix)
     vertices.emplace_back(
         c_radius.origin_ +
-        (create_angular_offset(angle_ix * 60 + angular_offset) * side_length));
+        (create_angular_offset(angle_ix * 60 - angular_offset) * side_length));
 }
 
 void initialize_helpers_2D(std::vector<Coord2D> &helper_vectors,

@@ -27,12 +27,13 @@ int main() {
          m.helper_vectors_.size() == 4 &&
          m.helper_vectors_.at(3) == construct_coord_2D(-1, 1));
 
+  // The ellipse turns clockwise: it stores the (cos, sin) of -90 degrees
   m = mkr.get_creator("elliptical")->create({}, {1, 0.5, 90}, {});
   assert(m.shape_ == MASK_SHAPE::ELLIPTICAL &&
          almost_equal(m.bounding_disk_.radius2_, 1) && m.anchor_.is_null() &&
          m.helper_scalars_.empty() && m.helper_vectors_.size() == 2 &&
          m.helper_vectors_.at(0) == construct_coord_2D(1, 0.25) &&
-         m.helper_vectors_.at(1) == construct_coord_2D(0, 1));
+         m.helper_vectors_.at(1) == construct_coord_2D(0, -1));
 
   m = mkr.get_creator("triangular")->create({}, {1, 1, -1, 1}, {10, 1});
   // Smallest enclosing disk of the right triangle {0, (1,1), (-1,1)} anchored

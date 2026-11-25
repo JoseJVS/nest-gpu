@@ -135,9 +135,10 @@ void test_catalog() {
 void test_regressions() {
   const Tile<Coord2D> square(TILE_SHAPE::RECTANGLE,
                              construct_coord_2D(1.1, 1.5), {1.}, {});
-  const auto ellipse45 = construct_mask<Coord2D>(MASK_SHAPE::ELLIPTICAL,
-                                                 {0., 0.}, {2., 0.2, 45.}, {});
-  assert(ellipse45.tile_overlap(square) == OVERLAP_LEVEL::PARTIAL);
+  // Major axis along the diagonal (1, 1): ellipses turn clockwise
+  const auto ellipse_diagonal = construct_mask<Coord2D>(
+      MASK_SHAPE::ELLIPTICAL, {0., 0.}, {2., 0.2, -45.}, {});
+  assert(ellipse_diagonal.tile_overlap(square) == OVERLAP_LEVEL::PARTIAL);
 
   const auto ellipse0 =
       construct_mask<Coord2D>(MASK_SHAPE::ELLIPTICAL, {0., 0.}, {2., 0.2}, {});

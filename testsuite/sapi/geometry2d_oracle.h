@@ -266,8 +266,9 @@ template <> struct GeometryOracle<sapi::Coord2D> {
       s.a = p[0];
       s.b = p[1];
       const double angle = p.size() > 2 ? p[2] * std::numbers::pi / 180 : 0.;
+      // The ellipse turns clockwise by the angle
       s.cos = std::cos(angle);
-      s.sin = std::sin(angle);
+      s.sin = -std::sin(angle);
       break;
     }
     case sapi::MASK_SHAPE::ANNULAR:
