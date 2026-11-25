@@ -28,6 +28,8 @@
 #include <cmath>
 #include <concepts>
 #include <iterator>
+#include <limits>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -36,6 +38,15 @@
 #include "sapi_forward_declarations.h"
 
 namespace sapi {
+// 3D rotation R stored by its rows (see create_rotation_3D)
+typedef std::array<Coord3D, 3> Rotation3D;
+
+// Cells: the parallelotope (parallelogram, parallelepiped) or simplex
+// (triangle, tetrahedron) spanned by D edge vectors from a corner, given as a
+// span over D consecutive vectors (e.g. of helper_vectors_)
+template <Coordinate CoordT>
+using CellEdges = std::span<const CoordT, CoordT::D>;
+
 template <Coordinate CoordT>
 inline space_t vector_dot(const CoordT &coordA, const CoordT &coordB) {
   return (coordA * coordB).sum();
@@ -93,59 +104,69 @@ inline CoordT midpoint(const CoordT &coordA, const CoordT &coordB) {
   return (coordA + coordB) / 2;
 }
 
-template <Coordinate CoordT, bool clamp>
-space_t projection_coeff(const CoordT &vectorBA, const CoordT &vectorBC) {
-  // We project BA onto BC using orthogonal vector projection.
-  const space_t dot_BA_BC = vector_dot(vectorBA, vectorBC);
-  const space_t n2BC = vector_norm2(vectorBC);
-
-  [[maybe_unused]] const bool n2_BC_az = almost_zero(n2BC);
-  const bool dot_BA_BC_az = almost_zero(dot_BA_BC);
-  const bool dot_BA_BC_aeq_n2BC = almost_equal(dot_BA_BC, n2BC);
-  assert(!n2_BC_az || (dot_BA_BC_az && n2_BC_az));
-
-  switch ((dot_BA_BC_az << 0) + (dot_BA_BC_aeq_n2BC << 1)) {
-  case 1:
-    return 0;
-
-  case 2:
-    return 1;
-
-  case 3:
-    return 0;
-
-  default:
-    // Safe to divide at this point
-    if constexpr (clamp)
-      return std::fmin(std::fmax(dot_BA_BC / n2BC, 0.), 1.);
-    else
-      return dot_BA_BC / n2BC;
-  }
-}
-
-template <Coordinate CoordT, bool clamp>
-inline CoordT projection_vector(const CoordT &vectorBA,
-                                const CoordT &vectorBC) {
-  // We project BA onto BC using orthogonal vector projection.
-  return vectorBC * projection_coeff<CoordT, clamp>(vectorBA, vectorBC);
-}
-
-// Projection of A onto the line BC, on the segment when clamped. The
-// coefficient snaps to 0 or 1 within almost_zero/almost_equal; the tile
-// perimeter projection relies on it (its results are pinned by the geometry
-// bit records). GJK uses closest_edge_point instead, which reports no clamping
-// and keeps the near-touching rounding (plan §7, doxygen note 25).
+// Closest point to A on the line BC or, when clamped, on the segment BC (B
+// when A projects before B, C after C). A minus its offset orthogonal to BC:
+// along the normal of BC in 2D, BC x (BA x BC) / |BC|^2 in 3D, rather than
+// BA - BC (BA . BC) / |BC|^2, which cancels when A is almost on the line. Near
+// touching the offset then keeps its direction (it carries the rounding of BC
+// only), which GJK's separating-plane test needs. A zero BC gives B.
 template <Coordinate CoordT, bool clamp>
 inline CoordT projection_coord(const CoordT &coordA, const CoordT &coordB,
                                const CoordT &coordC) {
-  // We project A onto BC using orthogonal vector projection.
-  return coordB +
-         projection_vector<CoordT, clamp>(coordA - coordB, coordC - coordB);
+  const CoordT vectorBA = coordA - coordB;
+  const CoordT vectorBC = coordC - coordB;
+  if constexpr (clamp) {
+    const space_t dot_BA_BC = vector_dot(vectorBA, vectorBC);
+    // Early returns: the second test is only needed after the first
+    if (!(0 < dot_BA_BC))
+      return coordB;
+    if (!(dot_BA_BC < vector_norm2(vectorBC)))
+      return coordC;
+  }
+
+  if constexpr (CoordT::D == 2) {
+    const CoordT normal = construct_coord_2D(-vectorBC.y_, vectorBC.x_);
+    const space_t normal2 = vector_norm2(normal);
+    return 0 < normal2
+               ? coordA - normal * (vector_dot(vectorBA, normal) / normal2)
+               : coordB;
+  } else {
+    const space_t length2 = vector_norm2(vectorBC);
+    return 0 < length2
+               ? coordA -
+                     vector_cross(vectorBC, vector_cross(vectorBA, vectorBC)) /
+                         length2
+               : coordB;
+  }
 }
 
+// (cos, sin) of an angle in degrees, exact (0 and +-1) for the multiples of
+// 90 degrees
 inline Coord2D create_angular_offset(const space_t angle) {
-  const space_t rad_angle = radians(angle);
-  return construct_coord_2D(std::cos(rad_angle), std::sin(rad_angle));
+  const bool off_axis = std::fmod(angle, 90) != 0;
+  // Quarter turns (0 to 3), only used for the multiples of 90 degrees
+  const int quarter =
+      off_axis ? 0 : (static_cast<int>(std::fmod(angle / 90, 4)) + 4) % 4;
+
+  // Bits 0-1: quarter turn; bit 2: not a multiple of 90 degrees
+  switch ((off_axis << 2) + quarter) {
+  case 0:
+    return construct_coord_2D(1, 0);
+
+  case 1:
+    return construct_coord_2D(0, 1);
+
+  case 2:
+    return construct_coord_2D(-1, 0);
+
+  case 3:
+    return construct_coord_2D(0, -1);
+
+  default: {
+    const space_t rad_angle = radians(angle);
+    return construct_coord_2D(std::cos(rad_angle), std::sin(rad_angle));
+  }
+  }
 }
 
 inline Coord2D rotate_displacement(const Coord2D &displacement,
@@ -156,10 +177,60 @@ inline Coord2D rotate_displacement(const Coord2D &displacement,
                             cross_2D(angular_coord, displacement));
 }
 
-// Whether BA = s BC + t BD has 0 < s, t < 1 (and s + t <= 1 for a triangle),
-// by Cramer's rule with the precomputed determinant det_BCD = BC x BD. 2D only:
-// the 3D shapes (parallelepiped, tetrahedron) need three coefficients from
-// scalar triple products, a different primitive.
+// Inverse of the 2D rotate_displacement (the rotation by the opposite angle)
+inline Coord2D inverse_rotate_displacement(const Coord2D &displacement,
+                                           const Coord2D &angular_coord) {
+  return rotate_displacement(
+      displacement, construct_coord_2D(angular_coord.x_, -angular_coord.y_));
+}
+
+// Scalar triple product a . (b x c): the signed volume of the parallelepiped
+// spanned by a, b, c (the 3x3 determinant with rows a, b, c)
+inline space_t triple_product(const Coord3D &a, const Coord3D &b,
+                              const Coord3D &c) {
+  return vector_dot(a, vector_cross(b, c));
+}
+
+// Rotation R = Rz(alpha) Ry(beta) Rx(gamma), intrinsic z-y'-x'' angles in
+// integer degrees, by rows. Multiples of 90 degrees give exact entries (0 and
+// +-1).
+inline Rotation3D create_rotation_3D(const angle_t alpha, const angle_t beta,
+                                     const angle_t gamma) {
+  const Coord2D a = create_angular_offset(alpha);
+  const Coord2D b = create_angular_offset(beta);
+  const Coord2D g = create_angular_offset(gamma);
+  // (cos, sin) are (x_, y_)
+  return {construct_coord_3D(a.x_ * b.x_, a.x_ * b.y_ * g.y_ - a.y_ * g.x_,
+                             a.x_ * b.y_ * g.x_ + a.y_ * g.y_),
+          construct_coord_3D(a.y_ * b.x_, a.y_ * b.y_ * g.y_ + a.x_ * g.x_,
+                             a.y_ * b.y_ * g.x_ - a.x_ * g.y_),
+          construct_coord_3D(-b.y_, b.x_ * g.y_, b.x_ * g.x_)};
+}
+
+// R^T d, the 3D counterpart of the 2D rotate_displacement: for a rotation
+// about z alone it matches the 2D result with create_angular_offset(alpha) in
+// x and y (up to rounding, exactly for multiples of 90 degrees) and keeps z.
+// Like the 2D tiles and grids, a body placed with it turns clockwise.
+inline Coord3D rotate_displacement(const Coord3D &displacement,
+                                   const Rotation3D &rotation) {
+  return rotation[0] * displacement.x_ + rotation[1] * displacement.y_ +
+         rotation[2] * displacement.z_;
+}
+
+// R d, the inverse of rotate_displacement
+inline Coord3D inverse_rotate_displacement(const Coord3D &displacement,
+                                           const Rotation3D &rotation) {
+  return construct_coord_3D(vector_dot(rotation[0], displacement),
+                            vector_dot(rotation[1], displacement),
+                            vector_dot(rotation[2], displacement));
+}
+
+// Whether BA = s BC + t BD has 0 <= s, t <= 1 (and s + t <= 1 for a
+// triangle), by Cramer's rule with the precomputed determinant
+// det_BCD = BC x BD. Closed: coefficients within almost_zero / almost_equal of
+// 0 or 1 snap to them, which puts points on the edges in. The 3D overload
+// below takes three coefficients from scalar triple products. Reached through
+// displacement_in_cell.
 template <bool triangular_comparison>
 bool algebraic_projection_comparison(const Coord2D &vectorBA,
                                      const Coord2D &vectorBC,
@@ -216,6 +287,115 @@ bool algebraic_projection_comparison(const Coord2D &vectorBA,
            std::isless(0, coeffABD) && std::isless(coeffABD, 1) &&
            leq_test(coeffABC + coeffABD, 2 - triangular_comparison);
   }
+}
+
+// Cramer coefficient numerator / det, snapped to 0 or 1 when the numerator is
+// almost zero or almost equal to det (as in the 2D comparison)
+inline space_t snapped_cramer_coefficient(const space_t numerator,
+                                          const space_t det) {
+  switch ((almost_zero(numerator) << 0) + (almost_equal(numerator, det) << 1)) {
+  case 1:
+    return 0;
+
+  case 2:
+    return 1;
+
+  case 3:
+    return 0;
+
+  default:
+    return numerator / det;
+  }
+}
+
+// Whether BA = s BC + t BD + u BE has 0 <= s, t, u <= 1 (the parallelepiped
+// spanned by BC, BD, BE from B) and, for a tetrahedron, s + t + u <= 1 (the
+// tetrahedron B, C, D, E). Closed: the snapped coefficients put points on the
+// faces in.
+template <bool tetrahedral_comparison>
+bool algebraic_projection_comparison(const Coord3D &vectorBA,
+                                     const Coord3D &vectorBC,
+                                     const Coord3D &vectorBD,
+                                     const Coord3D &vectorBE,
+                                     const space_t det_BCDE) {
+  // Coefficients (s, t, u) by Cramer's rule with scalar triple products
+  const Coord3D coeffs = construct_coord_3D(
+      snapped_cramer_coefficient(triple_product(vectorBA, vectorBD, vectorBE),
+                                 det_BCDE),
+      snapped_cramer_coefficient(triple_product(vectorBC, vectorBA, vectorBE),
+                                 det_BCDE),
+      snapped_cramer_coefficient(triple_product(vectorBC, vectorBD, vectorBA),
+                                 det_BCDE));
+  const bool in_unit_cube =
+      std::islessequal(0, coeffs.x_) && std::islessequal(coeffs.x_, 1) &&
+      std::islessequal(0, coeffs.y_) && std::islessequal(coeffs.y_, 1) &&
+      std::islessequal(0, coeffs.z_) && std::islessequal(coeffs.z_, 1);
+  return in_unit_cube && (!tetrahedral_comparison || leq_test(coeffs.sum(), 1));
+}
+
+// Signed volume of the parallelotope spanned by the edges: cross_2D in 2D,
+// triple_product in 3D
+template <Coordinate CoordT>
+inline space_t cell_determinant(const CellEdges<CoordT> edges) {
+  if constexpr (CoordT::D == 2)
+    return cross_2D(edges[0], edges[1]);
+  else
+    return triple_product(edges[0], edges[1], edges[2]);
+}
+
+// Whether the displacement from the corner lies in the closed parallelotope
+// (simplex: in the simplex) spanned by the edges; det is their
+// cell_determinant
+template <bool simplex, Coordinate CoordT>
+inline bool displacement_in_cell(const CoordT &displacement,
+                                 const CellEdges<CoordT> edges,
+                                 const space_t det) {
+  if constexpr (CoordT::D == 2)
+    return algebraic_projection_comparison<simplex>(displacement, edges[0],
+                                                    edges[1], det);
+  else
+    return algebraic_projection_comparison<simplex>(displacement, edges[0],
+                                                    edges[1], edges[2], det);
+}
+
+// Barycentric weights (w0, w1, w2) of a uniform point in a triangle from two
+// uniform draws m0, m1 in [0, 1]: draws with m0 + m1 > 1 fold back into the
+// triangle
+inline std::array<space_t, 3> triangle_sample_weights(space_t m0, space_t m1) {
+  const bool adjust = std::isless(1., m0 + m1);
+  m0 = adjust * std::fmax(std::fmin(1., 1. - m0), 0.) + !adjust * m0;
+  m1 = adjust * std::fmax(std::fmin(1., 1. - m1), 0.) + !adjust * m1;
+  return {m0, m1, std::fmax(std::fmin(1., 1. - m0 - m1), 0.)};
+}
+
+// Center of the circle through a, b, c in their plane (any dimension), from
+// the Gram system of the edges u = b - a and v = c - a (relative to a, so it
+// does not lose precision far from the origin). Not finite for collinear
+// points.
+template <Coordinate CoordT>
+inline CoordT circumscribed_center(const CoordT &a, const CoordT &b,
+                                   const CoordT &c) {
+  const CoordT u = b - a;
+  const CoordT v = c - a;
+  const space_t uu = vector_norm2(u);
+  const space_t vv = vector_norm2(v);
+  const space_t uv = vector_dot(u, v);
+  const space_t det2 = 2 * (uu * vv - uv * uv);
+  return a + u * (vv * (uu - uv) / det2) + v * (uu * (vv - uv) / det2);
+}
+
+// Center of the sphere through a, b, c, d: with u, v, w the edges from a,
+//   a + (|u|^2 v x w + |v|^2 w x u + |w|^2 u x v) / (2 u . (v x w)).
+// Not finite for coplanar points.
+inline Coord3D circumscribed_center(const Coord3D &a, const Coord3D &b,
+                                    const Coord3D &c, const Coord3D &d) {
+  const Coord3D u = b - a;
+  const Coord3D v = c - a;
+  const Coord3D w = d - a;
+  return a + (vector_cross(v, w) * vector_norm2(u) +
+              vector_cross(w, u) * vector_norm2(v) +
+              vector_cross(u, v) * vector_norm2(w)) /
+                 (2 * triple_product(u, v, w));
 }
 
 template <Coordinate CoordT>
@@ -340,17 +520,12 @@ compute_c_radius(const std::vector<CoordT> &coords) {
     c_radius.origin_ = sorted_coords[2] * (1. - projection_coefficient) +
                        base_vertices_add * (projection_coefficient / 2);
   } else {
-    // Compute 2D circumscribed center via equation system
-    // to find equidistant point to all vertices
-    // solved using Cramer's rule
-    // Compute 3D circumscribed center by projecting 3D
-    // coordinates onto 2D plane, then using 2D equation
-    // system, and finally projecting back to 3D space
-    c_radius.origin_ = circumscribed_center(coords);
+    // General triangle: the circumcenter from the Gram system of the edges
+    c_radius.origin_ = circumscribed_center(coords[0], coords[1], coords[2]);
     c_radius.radius2_ = distance2(c_radius.origin_, sorted_coords[0]);
   }
 
-  assert(!almost_zero(c_radius.radius2_));
+  assert(std::isfinite(c_radius.radius2_) && !almost_zero(c_radius.radius2_));
 
   return c_radius;
 }
@@ -404,10 +579,6 @@ minmax_vertices(const std::vector<CoordT> &coord_vec) {
   return min_max;
 }
 
-Coord2D circumscribed_center(const std::vector<Coord2D> &coords);
-
-Coord3D circumscribed_center(const std::vector<Coord3D> &coords);
-
 // Largest squared distance from the point to the points. The point of a convex
 // polytope farthest from any point is a vertex, so over the vertices it is the
 // polytope's.
@@ -430,6 +601,105 @@ inline space_t max_difference_norm2(const PointRange &a, const PointRange &b,
   return max_d2;
 }
 
+// Smallest ball (disk in 2D) holding at most D + 1 points: the smallest of the
+// balls through 1 to D + 1 of them (each with those points on its boundary)
+// that holds the others within leq_test. Degenerate subsets (collinear,
+// coplanar) give no finite center and are skipped; a smaller subset covers
+// them. The radius is the largest distance to the chosen center, so every
+// point lies in the ball as computed.
+template <Coordinate CoordT, typename PointRange>
+CircumscribedRadius<CoordT> smallest_enclosing_ball(const PointRange &points) {
+  std::array<CoordT, CoordT::D + 1> p{};
+  std::size_t n = 0;
+  for (const auto &point : points) {
+    assert(n < p.size());
+    p[n++] = point;
+  }
+  assert(0 < n);
+
+  CircumscribedRadius<CoordT> best{
+      .radius2_ = std::numeric_limits<space_t>::infinity(), .origin_ = p[0]};
+  for (unsigned subset = 1; subset < (1U << n); ++subset) {
+    std::array<CoordT, CoordT::D + 1> s{};
+    std::size_t k = 0;
+    for (std::size_t i = 0; i < n; ++i)
+      if (subset & (1U << i))
+        s[k++] = p[i];
+
+    CoordT center;
+    switch (k) {
+    case 1:
+      center = s[0];
+      break;
+
+    case 2:
+      center = midpoint(s[0], s[1]);
+      break;
+
+    case 3:
+      center = circumscribed_center(s[0], s[1], s[2]);
+      break;
+
+    default:
+      if constexpr (CoordT::D == 3)
+        center = circumscribed_center(s[0], s[1], s[2], s[3]);
+      break;
+    }
+
+    const space_t radius2 = distance2(center, s[0]);
+    if (!std::isfinite(radius2) || !std::isless(radius2, best.radius2_))
+      continue;
+
+    bool holds_all = true;
+    for (std::size_t i = 0; i < n && holds_all; ++i)
+      holds_all = leq_test(distance2(center, p[i]), radius2);
+    if (holds_all)
+      best = {.radius2_ = radius2, .origin_ = center};
+  }
+
+  best.radius2_ =
+      max_distance2(std::span<const CoordT>(p.data(), n), best.origin_);
+  return best;
+}
+
+// Closest point to coord on the perimeter of a convex polygon, the vertices in
+// perimeter order: every edge is projected and the closest result is kept.
+// Each edge is projected from its nearer endpoint (the lower index on ties); a
+// vertex within almost_zero is returned as is. Out of line: it is too large to
+// inline into the translation units of the per-pair loops.
+Coord2D
+project_point_to_polygon_perimeter(const Coord2D &coord,
+                                   const std::span<const Coord2D> &vertices);
+
+// Squared distance from a point to a convex polygon (0 inside or on it), the
+// vertices in counterclockwise order
+template <typename PointRange>
+space_t convex_polygon_distance2(const Coord2D &point,
+                                 const PointRange &vertices) {
+  auto prev = std::prev(std::end(vertices));
+  for (auto it = std::begin(vertices); it != std::end(vertices); prev = it++)
+    if (std::isless(orientation(*prev, *it, point), 0))
+      return distance2(point,
+                       project_point_to_polygon_perimeter(point, vertices));
+  return 0;
+}
+
+// Squared distance from a point to a right prism, the convex polygon of the
+// face (vertices in counterclockwise order) times the interval [bottom, top]
+// along the axis, from the point in the prism frame (x, y in the face plane, z
+// along the axis): the squared distance to the face polygon plus the squared
+// distance of the axial coordinate to the interval
+template <typename PointRange>
+inline space_t prism_distance2(const Coord3D &point,
+                               const PointRange &face_vertices,
+                               const space_t bottom, const space_t top) {
+  const space_t axial_gap =
+      std::fmax(std::fmax(bottom - point.z_, point.z_ - top), 0);
+  return convex_polygon_distance2(construct_coord_2D(point.x_, point.y_),
+                                  face_vertices) +
+         axial_gap * axial_gap;
+}
+
 // Point of points farthest along direction (the first one on ties): the support
 // point of their convex hull
 template <Coordinate CoordT, typename PointRange>
@@ -446,24 +716,6 @@ inline CoordT farthest_point(const PointRange &points,
     }
   }
   return *best;
-}
-
-// Point a + ab * (t / length2) of an edge, the closest one to the origin.
-// Near touching it is much shorter than a, so in 2D it is taken along the edge
-// normal: its direction then carries the rounding of ab only, which GJK's
-// separating-plane test needs; a + ab * t would cancel it away. Only for the
-// edge interior: the callers classify the endpoint regions, since GJK reduces
-// the simplex to the feature holding the point. projection_coord<clamp> is the
-// clamping, snapping variant for the tile perimeter (plan §7, doxygen note 25).
-template <Coordinate CoordT>
-inline CoordT closest_edge_point(const CoordT &a, const CoordT &ab,
-                                 const space_t t, const space_t length2) {
-  if constexpr (CoordT::D == 2) {
-    const CoordT normal = construct_coord_2D(-ab.y_, ab.x_);
-    return normal * (vector_dot(a, normal) / vector_norm2(normal));
-  } else {
-    return a + ab * (t / length2);
-  }
 }
 
 // Closest points to the origin of the simplex hull. Each reduces the simplex
@@ -488,7 +740,9 @@ inline CoordT closest_point_on_segment_to_origin(Simplex<CoordT> &simplex) {
     simplex.assign(b);
     return simplex.points_[0];
   }
-  return closest_edge_point(a, ab, t, length2);
+  // Interior: the callers classify the endpoint regions, since GJK reduces
+  // the simplex to the feature holding the point
+  return projection_coord<CoordT, false>(CoordT(), a, b);
 }
 
 // Voronoi (feature) regions of the triangle with only dot products, so it
@@ -524,7 +778,7 @@ CoordT closest_point_on_triangle_to_origin(Simplex<CoordT> &simplex) {
   const space_t vc = d1 * d4 - d3 * d2;
   // Edge regions; a degenerate edge (zero length) claims none
   if (vc <= 0 && 0 <= d1 && d3 <= 0 && 0 < d1 - d3) {
-    const CoordT point = closest_edge_point(a, ab, d1, d1 - d3);
+    const CoordT point = projection_coord<CoordT, false>(CoordT(), a, b);
     simplex.assign(a, b);
     return point;
   }
@@ -538,7 +792,7 @@ CoordT closest_point_on_triangle_to_origin(Simplex<CoordT> &simplex) {
 
   const space_t vb = d5 * d2 - d1 * d6;
   if (vb <= 0 && 0 <= d2 && d6 <= 0 && 0 < d2 - d6) {
-    const CoordT point = closest_edge_point(a, ac, d2, d2 - d6);
+    const CoordT point = projection_coord<CoordT, false>(CoordT(), a, c);
     simplex.assign(a, c);
     return point;
   }
@@ -547,14 +801,24 @@ CoordT closest_point_on_triangle_to_origin(Simplex<CoordT> &simplex) {
   const space_t to_c = d4 - d3;
   const space_t from_c = d5 - d6;
   if (va <= 0 && 0 <= to_c && 0 <= from_c && 0 < to_c + from_c) {
-    const CoordT point = closest_edge_point(b, c - b, to_c, to_c + from_c);
+    const CoordT point = projection_coord<CoordT, false>(CoordT(), b, c);
     simplex.assign(b, c);
     return point;
   }
 
-  // Face region; a degenerate (flat) triangle counts as holding the origin
+  // Face region; a degenerate (flat) triangle counts as holding the origin.
+  // In 3D the point is taken along the plane normal, which keeps its
+  // direction near touching (as projection_coord does for edges).
   const space_t area = va + vb + vc;
-  return 0 < area ? a + ab * (vb / area) + ac * (vc / area) : CoordT();
+  if (!(0 < area))
+    return CoordT();
+  if constexpr (CoordT::D == 3) {
+    const CoordT normal = vector_cross(ab, ac);
+    const space_t normal2 = vector_norm2(normal);
+    return 0 < normal2 ? normal * (vector_dot(a, normal) / normal2) : CoordT();
+  } else {
+    return a + ab * (vb / area) + ac * (vc / area);
+  }
 }
 
 // Keeps the full tetrahedron when it holds the origin (also when it is flat),
@@ -582,6 +846,19 @@ inline CoordT closest_point_on_simplex_to_origin(Simplex<CoordT> &simplex) {
       return CoordT();
     }
   }
+}
+
+// Support point of the axis-aligned ellipse (ellipsoid in 3D) centered at
+// the origin with squared semi-axes semi_axes2, along direction:
+// semi_axes2 q / sqrt(sum(semi_axes2 q^2)) (the unit-sphere support under the
+// affine map); the center for a zero direction
+template <Coordinate CoordT>
+inline CoordT ellipsoid_support(const CoordT &semi_axes2,
+                                const CoordT &direction) {
+  const space_t norm = std::sqrt((semi_axes2 * direction * direction).sum());
+  if (!(0 < norm))
+    return CoordT();
+  return semi_axes2 * direction / norm;
 }
 
 // Given ellipse with h, k center, a semi major, b semi minor, @ rotation

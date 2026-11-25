@@ -52,8 +52,17 @@ void initialize_triangular_mask_helpers(
 void initialize_annular_mask_helpers(Mask<Coord2D> &mask,
                                      const std::vector<space_t> &mask_params);
 
+// Node tests, dispatched from coord_in_mask (mask_geometry.h) in the per-pair
+// loops. They are written out without shared helper layers: GCC inlines the
+// whole dispatch into find_minimal_displacement only while it stays under its
+// single-function inlining limit, and helper layers pushed it over (about 30%
+// slower connection generation, measured 2026-11-25).
+
 // Centered shapes (circle, ellipse, parallelogram): the bounding disk is
-// centered on the anchor, so the disk displacement is the anchor displacement
+// centered on the anchor, so the disk displacement is the anchor displacement.
+// The ellipse stores the (cos, sin) of its rotation and turns clockwise like
+// the tiles: inverse_rotate_displacement maps displacements into the frame of
+// its axes.
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
                                                const Mask<Coord2D> &mask) {
   return mask.bounding_disk_.coord_in_radius(coord);
@@ -73,8 +82,8 @@ inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &coord,
   if (od.first)
     od.first = displacement_in_ellipse(
         1 < mask.helper_vectors_.size()
-            ? rotate_displacement(od.second.displacement_,
-                                  mask.helper_vectors_[1])
+            ? inverse_rotate_displacement(od.second.displacement_,
+                                          mask.helper_vectors_[1])
             : od.second.displacement_,
         mask.helper_vectors_[0]);
   return od;
@@ -87,8 +96,8 @@ inline OptDisp<Coord2D> coord_in_elliptical_mask(const Coord2D &a,
   if (leq_test(od.second.distance2_, mask.bounding_disk_.radius2_))
     od.first = displacement_in_ellipse(
         1 < mask.helper_vectors_.size()
-            ? rotate_displacement(od.second.displacement_,
-                                  mask.helper_vectors_[1])
+            ? inverse_rotate_displacement(od.second.displacement_,
+                                          mask.helper_vectors_[1])
             : od.second.displacement_,
         mask.helper_vectors_[0]);
   return od;
@@ -171,28 +180,18 @@ inline OptDisp<Coord2D> coord_in_annular_mask(const Coord2D &a,
   return od;
 }
 
-// Support point of the ellipse centered at the origin: in the frame of its
-// axes, (a^2 q_x, b^2 q_y) / sqrt(a^2 q_x^2 + b^2 q_y^2) for the direction q
-// (the unit-circle support under the affine map), rotated back. The center
-// for a zero direction. helper_vectors_[0] holds the squared semi-axes
-// (a^2, b^2) and, when rotated, helper_vectors_[1] the (cos, sin) of minus
-// the rotation (the ellipse turns clockwise).
+// Support point of the ellipse centered at the origin: the axis-aligned
+// support (helper_vectors_[0] the squared semi-axes) in the frame of its axes,
+// placed back with the rotation (helper_vectors_[1] the (cos, sin) of the
+// rotation, when rotated)
 inline Coord2D ellipse_support(const Mask<Coord2D> &mask,
                                const Coord2D &direction) {
   const bool rotated = 1 < mask.helper_vectors_.size();
-  const Coord2D q =
-      rotated ? rotate_displacement(direction, mask.helper_vectors_[1])
-              : direction;
-  const space_t norm = std::sqrt((mask.helper_vectors_[0] * q * q).sum());
-  if (!(0 < norm))
-    return Coord2D();
-
-  const Coord2D point = mask.helper_vectors_[0] * q / norm;
-  if (!rotated)
-    return point;
-  return rotate_displacement(point,
-                             construct_coord_2D(mask.helper_vectors_[1].x_,
-                                                -mask.helper_vectors_[1].y_));
+  const Coord2D point = ellipsoid_support(
+      mask.helper_vectors_[0],
+      rotated ? inverse_rotate_displacement(direction, mask.helper_vectors_[1])
+              : direction);
+  return rotated ? rotate_displacement(point, mask.helper_vectors_[1]) : point;
 }
 
 // Support point of the mask for GJK: its farthest point along direction, in

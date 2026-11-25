@@ -51,28 +51,19 @@ void initialize_vertices_2D(std::vector<Coord2D> &vertices,
   const vertidx_t total_vertices = triangular_vertices ? 3 : 4;
   vertices.reserve(total_vertices);
 
-  if (angular_offset == 0) {
-    for (vertidx_t vert = 0; vert < total_vertices; ++vert) {
-      const bool sign_width = vert == 1 || vert == 2;
-      const bool sign_height = 1 < vert;
+  // Corners turned clockwise by angular_offset (exact for multiples of 90
+  // degrees, the identity for 0)
+  const auto rotation = create_angular_offset(angular_offset);
+  for (vertidx_t vert = 0; vert < total_vertices; ++vert) {
+    const bool sign_width = vert == 1 || vert == 2;
+    const bool sign_height = 1 < vert;
 
-      vertices.emplace_back(construct_coord_2D(
-          c_radius.origin_.x_ + (sign_width ? -half_width : half_width),
-          c_radius.origin_.y_ + (sign_height ? -half_height : half_height)));
-    }
-  } else {
-    const auto rotation = create_angular_offset(angular_offset);
-    for (vertidx_t vert = 0; vert < total_vertices; ++vert) {
-      const bool sign_width = vert == 1 || vert == 2;
-      const bool sign_height = 1 < vert;
-
-      vertices.emplace_back(
-          c_radius.origin_ +
-          rotate_displacement(
-              construct_coord_2D(sign_width ? -half_width : half_width,
-                                 sign_height ? -half_height : half_height),
-              rotation));
-    }
+    vertices.emplace_back(
+        c_radius.origin_ +
+        rotate_displacement(
+            construct_coord_2D(sign_width ? -half_width : half_width,
+                               sign_height ? -half_height : half_height),
+            rotation));
   }
 
   c_radius.radius2_ = distance2(c_radius.origin_, vertices[0]);
@@ -108,7 +99,8 @@ void initialize_helpers_2D(std::vector<Coord2D> &helper_vectors,
   helper_vectors[0] = vertices[0] - vertices[1];
   helper_vectors[1] = vertices[2] - vertices[1];
 
-  helper_scalars.resize(1, cross_2D(helper_vectors[0], helper_vectors[1]));
+  helper_scalars.resize(1, cell_determinant<Coord2D>(
+                               CellEdges<Coord2D>(helper_vectors.data(), 2)));
 
   assert(!almost_zero(helper_scalars[0]));
 }
@@ -129,7 +121,8 @@ void initialize_hexagon_helpers(std::vector<Coord2D> &helper_vectors,
         vertices[static_cast<std::size_t>((vix + 4) % 6)] - vertices[vix]);
   }
 
-  helper_scalars.resize(1, cross_2D(helper_vectors[0], helper_vectors[1]));
+  helper_scalars.resize(1, cell_determinant<Coord2D>(
+                               CellEdges<Coord2D>(helper_vectors.data(), 2)));
 
   assert(!almost_zero(helper_scalars[0]));
 }
@@ -303,9 +296,9 @@ bool coord_in_rectangle(const Coord2D &coord,
   if (!c_radius.coord_in_radius(coord).first)
     return false;
 
-  // Only works for squares or triangles
-  return algebraic_projection_comparison<false>(
-      coord - vertices[1], helper_vectors[0], helper_vectors[1],
+  // The cell spanned by the edges from vertex 1
+  return displacement_in_cell<false>(
+      coord - vertices[1], CellEdges<Coord2D>(helper_vectors.data(), 2),
       helper_scalars[0]);
 }
 
@@ -317,9 +310,9 @@ bool coord_in_triangle(const Coord2D &coord,
   if (!c_radius.coord_in_radius(coord).first)
     return false;
 
-  // Only works for squares or triangles
-  return algebraic_projection_comparison<true>(
-      coord - vertices[1], helper_vectors[0], helper_vectors[1],
+  // The simplex spanned by the edges from vertex 1
+  return displacement_in_cell<true>(
+      coord - vertices[1], CellEdges<Coord2D>(helper_vectors.data(), 2),
       helper_scalars[0]);
 }
 
@@ -336,9 +329,10 @@ bool coord_in_hexagon(const Coord2D &coord,
   vertidx_t rel_vix;
   for (vertidx_t vix = 0; vix < 3; ++vix) {
     rel_vix = 2 * vix;
-    res = algebraic_projection_comparison<false>(
-        coord - vertices[vix], helper_vectors[rel_vix],
-        helper_vectors[rel_vix + 1], helper_scalars[0]);
+    res = displacement_in_cell<false>(
+        coord - vertices[vix],
+        CellEdges<Coord2D>(helper_vectors.data() + rel_vix, 2),
+        helper_scalars[0]);
     if (res)
       break;
   }
@@ -384,10 +378,10 @@ generate_coords_in_triangle(const nodeidx_t first_index,
   for (nodeidx_t idx = 0; idx < coord_count; ++idx) {
     m0 = static_cast<space_t>(dist(rng));
     m1 = static_cast<space_t>(dist(rng));
-    const bool adjust = std::isless(1., m0 + m1);
-    m0 = adjust * std::fmax(std::fmin(1., 1. - m0), 0.) + !adjust * m0;
-    m1 = adjust * std::fmax(std::fmin(1., 1. - m1), 0.) + !adjust * m1;
-    m2 = std::fmax(std::fmin(1., 1. - m0 - m1), 0.);
+    const auto weights = triangle_sample_weights(m0, m1);
+    m0 = weights[0];
+    m1 = weights[1];
+    m2 = weights[2];
     vec.emplace_back(std::make_pair(
         first_index + idx,
         construct_coord_2D(
@@ -415,10 +409,10 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
   for (nodeidx_t idx = 0; idx < coord_count; ++idx) {
     m0 = static_cast<space_t>(space_dist(rng));
     m1 = static_cast<space_t>(space_dist(rng));
-    const bool adjust = std::isless(1., m0 + m1);
-    m0 = adjust * std::fmax(std::fmin(1., 1. - m0), 0.) + !adjust * m0;
-    m1 = adjust * std::fmax(std::fmin(1., 1. - m1), 0.) + !adjust * m1;
-    m2 = std::fmax(std::fmin(1., 1. - m0 - m1), 0.);
+    const auto weights = triangle_sample_weights(m0, m1);
+    m0 = weights[0];
+    m1 = weights[1];
+    m2 = weights[2];
     hex_idx = static_cast<vertidx_t>(partition_dist(rng));
     vec.emplace_back(std::make_pair(
         first_index + idx,
@@ -431,43 +425,6 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
   }
 
   return vec;
-}
-
-// Exact for convex polygons with vertices in perimeter order: every edge is
-// projected and the closest result is kept. Each edge is projected from its
-// nearer endpoint (the lower index on ties).
-Coord2D
-project_point_to_polygon_perimeter(const Coord2D &coord,
-                                   const std::vector<Coord2D> &vertices) {
-  // 2D tiles have at most 6 vertices (hexagons)
-  std::array<space_t, 6> vertex_d2;
-  assert(2 < vertices.size() && vertices.size() <= vertex_d2.size());
-  const vertidx_t num_vertices = static_cast<vertidx_t>(vertices.size());
-
-  for (vertidx_t index = 0; index < num_vertices; ++index) {
-    vertex_d2[index] = distance2(coord, vertices[index]);
-    if (almost_zero(vertex_d2[index]))
-      return vertices[index];
-  }
-
-  Coord2D closest = vertices[0];
-  space_t closest_d2 = std::numeric_limits<space_t>::max();
-  for (vertidx_t first = 0; first < num_vertices; ++first) {
-    const vertidx_t second = static_cast<vertidx_t>((first + 1) % num_vertices);
-    const bool second_is_base =
-        std::isless(vertex_d2[second], vertex_d2[first]) ||
-        (vertex_d2[second] == vertex_d2[first] && second < first);
-    const auto projected = projection_coord<Coord2D, true>(
-        coord, vertices[second_is_base ? second : first],
-        vertices[second_is_base ? first : second]);
-    const auto d2 = distance2(coord, projected);
-    if (std::isless(d2, closest_d2)) {
-      closest_d2 = d2;
-      closest = projected;
-    }
-  }
-
-  return closest;
 }
 
 Coord2D project_point_to_triangle_perimeter(

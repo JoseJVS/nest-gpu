@@ -89,36 +89,25 @@ int main() {
   const Coord2D coordF = construct_coord_2D(2, 1);
   const Coord2D coordG = construct_coord_2D(2, 2);
 
-  const Coord2D vectorFE = coordE - coordF;
-  const Coord2D vectorFG = coordG - coordF;
-  const Coord2D vectorGE = coordE - coordG;
-  const Coord2D vectorGF = coordF - coordG;
-
   auto assert_true = [](auto boolean) { assert(boolean); };
-  assert_true(projection_coeff<Coord2D, false>(vectorFE, vectorFG) == 1);
-  assert_true(projection_coeff<Coord2D, false>(vectorGE, vectorGF) == 0);
-  assert_true(projection_vector<Coord2D, false>(vectorGE, vectorGF) ==
-              (coordF - coordG) * 0);
-  assert_true(projection_vector<Coord2D, false>(vectorFE, vectorFG) ==
-              coordG - coordF);
   assert_true(projection_coord<Coord2D, false>(coordE, coordG, coordF) ==
               coordG);
   assert_true(projection_coord<Coord2D, false>(coordE, coordF, coordG) ==
               coordG);
 
-  assert(circumscribed_center({coordE, coordF, coordG}) ==
+  assert(circumscribed_center(coordE, coordF, coordG) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordG, coordF, coordE}) ==
+  assert(circumscribed_center(coordG, coordF, coordE) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordF, coordE, coordG}) ==
+  assert(circumscribed_center(coordF, coordE, coordG) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordE, coordG, coordF}) ==
+  assert(circumscribed_center(coordE, coordG, coordF) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordE, coordD, coordF}) ==
+  assert(circumscribed_center(coordE, coordD, coordF) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordE, coordD, coordG}) ==
+  assert(circumscribed_center(coordE, coordD, coordG) ==
          construct_coord_2D(1.5, 1.5));
-  assert(circumscribed_center({coordF, coordD, coordG}) ==
+  assert(circumscribed_center(coordF, coordD, coordG) ==
          construct_coord_2D(1.5, 1.5));
 
   const CircumscribedRadius<Coord2D> c_radius =

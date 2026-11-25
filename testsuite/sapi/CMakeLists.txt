@@ -67,6 +67,8 @@ empty_population_test.cpp
 triangular_mask_bounds_test.cpp
 exact_geometry_test.cpp
 convex_intersection_test.cpp
+coordinate3d_test.cpp
+convex_intersection3d_test.cpp
 )
 
 set( sapi_tests )

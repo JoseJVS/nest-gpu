@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "coordinate_geometry.h"
 #include "coordinates.h"
 #include "enum_store.h"
 #include "numerics.h"
@@ -155,10 +156,6 @@ generate_coords_in_hexagon(const nodeidx_t first_index,
                            const nodeidx_t coord_count, AnyRNG &rng,
                            const std::vector<Coord2D> &vertices,
                            const CircumscribedRadius<Coord2D> &c_radius);
-
-Coord2D
-project_point_to_polygon_perimeter(const Coord2D &coord,
-                                   const std::vector<Coord2D> &vertices);
 
 Coord2D project_point_to_triangle_perimeter(
     const Coord2D &coord, const std::vector<Coord2D> &vertices,

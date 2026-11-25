@@ -81,10 +81,9 @@ void initialize_elliptical_mask_helpers(
   } else {
     mask.helper_vectors_.resize(2);
     mask.helper_vectors_[0] = axes;
-    // The ellipse turns clockwise by rotation, like the tiles and grids:
-    // rotate_displacement with the offset of -rotation maps displacements
-    // into the frame of its axes
-    mask.helper_vectors_[1] = create_angular_offset(-rotation);
+    // The ellipse turns clockwise by rotation, like the tiles and grids
+    // (inverse_rotate_displacement maps into the frame of its axes)
+    mask.helper_vectors_[1] = create_angular_offset(rotation);
   }
 
   mask.bounding_disk_.origin_ = mask.anchor_;
@@ -111,8 +110,8 @@ void initialize_parallelogram_mask_helpers(
   mask.helper_vectors_[2] = axial_vector0 + axial_vector1;
   mask.helper_vectors_[3] = axial_vector1;
 
-  mask.helper_scalars_.resize(
-      1, cross_2D(mask.helper_vectors_[1], mask.helper_vectors_[2]));
+  mask.helper_scalars_.resize(1, cell_determinant<Coord2D>(CellEdges<Coord2D>(
+                                     mask.helper_vectors_.data() + 1, 2)));
 
   if (almost_zero(mask.helper_scalars_[0]))
     throw std::invalid_argument("Invalid parallelogram mask vectors");
@@ -121,37 +120,17 @@ void initialize_parallelogram_mask_helpers(
 }
 
 namespace {
-// Smallest disk containing the triangle {0, a0, a1}: centered at the midpoint
-// of the longest edge when the triangle is obtuse (or right), at the
-// circumcenter otherwise. Its radius reaches the farthest vertex, widened by
-// EXACT_FILTER_REL_TOL so rounding never leaves a vertex outside. Set in the
-// frame of the anchor vertex.
+// Smallest disk containing the triangle {0, a0, a1} (smallest_enclosing_ball:
+// centered at the midpoint of the longest edge when the triangle is obtuse or
+// right, at the circumcenter otherwise). Its radius reaches the farthest
+// vertex, widened by EXACT_FILTER_REL_TOL so rounding never leaves a vertex
+// outside. Set in the frame of the anchor vertex.
 void set_triangle_bounding_disk(Mask<Coord2D> &mask, const Coord2D &a0,
                                 const Coord2D &a1) {
   const std::array<Coord2D, 3> vertices{Coord2D{}, a0, a1};
 
-  // Vertex with an obtuse (or right) angle, if any
-  std::size_t obtuse = vertices.size();
-  for (std::size_t vix = 0; vix < vertices.size(); ++vix) {
-    const auto &v = vertices[vix];
-    const auto &p = vertices[(vix + 1) % vertices.size()];
-    const auto &q = vertices[(vix + 2) % vertices.size()];
-    if (!std::isgreater(((p - v) * (q - v)).sum(), 0.))
-      obtuse = vix;
-  }
-
-  Coord2D center;
-  if (obtuse < vertices.size())
-    center = (vertices[(obtuse + 1) % vertices.size()] +
-              vertices[(obtuse + 2) % vertices.size()]) *
-             0.5;
-  else
-    center = circumscribed_center(
-        std::vector<Coord2D>(vertices.begin(), vertices.end()));
-
-  space_t radius2 = 0.;
-  for (const auto &v : vertices)
-    radius2 = std::fmax(radius2, vector_norm2(v - center));
+  const CircumscribedRadius<Coord2D> disk =
+      smallest_enclosing_ball<Coord2D>(vertices);
 
   // The center lies in the closed triangle: on the same side of every edge as
   // the triangle, up to rounding. The cross products' rounding scales with the
@@ -166,12 +145,12 @@ void set_triangle_bounding_disk(Mask<Coord2D> &mask, const Coord2D &a0,
   for (std::size_t vix = 0; vix < vertices.size(); ++vix) {
     [[maybe_unused]] const space_t side =
         cross_2D(vertices[(vix + 1) % vertices.size()] - vertices[vix],
-                 center - vertices[vix]);
+                 disk.origin_ - vertices[vix]);
     assert(-EXACT_FILTER_REL_TOL * max_edge2 <= (positive ? side : -side));
   }
 
-  mask.bounding_disk_.origin_ = mask.anchor_ + center;
-  mask.bounding_disk_.radius2_ = radius2 * (1 + 2 * EXACT_FILTER_REL_TOL);
+  mask.bounding_disk_.origin_ = mask.anchor_ + disk.origin_;
+  mask.bounding_disk_.radius2_ = disk.radius2_ * (1 + 2 * EXACT_FILTER_REL_TOL);
 }
 } // namespace
 
@@ -190,14 +169,15 @@ void initialize_triangular_mask_helpers(
   if (almost_zero(mask.bounding_disk_.radius2_))
     throw std::invalid_argument("Invalid triangular mask vectors");
 
-  mask.helper_scalars_.resize(1, cross_2D(axial_vector0, axial_vector1));
-
-  if (almost_zero(mask.helper_scalars_[0]))
-    throw std::invalid_argument("Invalid triangular mask vectors");
-
   mask.helper_vectors_.resize(2);
   mask.helper_vectors_[0] = axial_vector0;
   mask.helper_vectors_[1] = axial_vector1;
+
+  mask.helper_scalars_.resize(1, cell_determinant<Coord2D>(CellEdges<Coord2D>(
+                                     mask.helper_vectors_.data(), 2)));
+
+  if (almost_zero(mask.helper_scalars_[0]))
+    throw std::invalid_argument("Invalid triangular mask vectors");
 
   // Bounding disk centered on the triangle {0, a0, a1} (relative to the
   // anchor vertex)
