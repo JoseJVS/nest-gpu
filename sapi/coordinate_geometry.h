@@ -401,6 +401,28 @@ Coord2D circumscribed_center(const std::vector<Coord2D> &coords);
 
 Coord3D circumscribed_center(const std::vector<Coord3D> &coords);
 
+// Largest squared distance from the point to the points. The point of a convex
+// polytope farthest from any point is a vertex, so over the vertices it is the
+// polytope's.
+template <Coordinate CoordT, typename PointRange>
+inline space_t max_distance2(const PointRange &points, const CoordT &point) {
+  space_t max_d2 = 0.;
+  for (const auto &p : points)
+    max_d2 = std::fmax(max_d2, distance2(p, point));
+  return max_d2;
+}
+
+// Largest squared norm of the differences b - a - offset: over the vertices of
+// two convex polytopes A and B, that of the convex set B - A - offset
+template <Coordinate CoordT, typename PointRange>
+inline space_t max_difference_norm2(const PointRange &a, const PointRange &b,
+                                    const CoordT &offset) {
+  space_t max_d2 = 0.;
+  for (const auto &p : a)
+    max_d2 = std::fmax(max_d2, max_distance2(b, p + offset));
+  return max_d2;
+}
+
 // Point of points farthest along direction (the first one on ties): the support
 // point of their convex hull
 template <Coordinate CoordT, typename PointRange>

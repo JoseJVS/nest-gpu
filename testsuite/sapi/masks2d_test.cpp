@@ -1,3 +1,6 @@
+#include <stdexcept>
+#include <string>
+
 #include "coordinate_geometry.h"
 #include "mask2d_geometry.h"
 #include "test_helpers.h"
@@ -174,6 +177,108 @@ void test_triangular_mask() {
   assert(triangular_comparisons == 16);
 }
 
+bool annular_construction_throws(const std::vector<space_t> &params,
+                                 const std::string &message) {
+  try {
+    construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, params, {});
+  } catch (const std::invalid_argument &e) {
+    return message == e.what();
+  }
+  return false;
+}
+
+void test_annular_mask() {
+  // Closed ring 0.5 <= |p - anchor| <= 1 around the anchor (1, 2)
+  const Mask<Coord2D> amask =
+      construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {1, 2}, {0.5, 1}, {});
+  assert(amask.anchor_ == construct_coord_2D(1, 2));
+  assert(amask.bounding_disc_.origin_ == construct_coord_2D(1, 2) &&
+         almost_equal(amask.bounding_disc_.radius2_, 1) &&
+         amask.helper_scalars_.size() == 1 &&
+         almost_equal(annulus_inner_radius2(amask), 0.25));
+
+  // Ring points and both boundary circles are in, the hole and the outside out
+  for (const auto &c :
+       {construct_coord_2D(1.75, 2), construct_coord_2D(1, 1.25),
+        construct_coord_2D(1.5, 2), construct_coord_2D(1, 3),
+        construct_coord_2D(0, 2), construct_coord_2D(1, 1.5)})
+    assert(amask.coord_in_mask(c).first);
+  for (const auto &c :
+       {construct_coord_2D(1, 2), construct_coord_2D(1.25, 2),
+        construct_coord_2D(1.2, 2.2), construct_coord_2D(2.5, 2),
+        construct_coord_2D(1, 3.5), construct_coord_2D(2, 3)})
+    assert(!amask.coord_in_mask(c).first);
+
+  // Same queries as a blueprint, the offset being the anchor
+  const Mask<Coord2D> ablueprint =
+      construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {}, {0.5, 1}, {1, 2});
+  assert(
+      ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(1.75, 2)).first &&
+      ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(2, 2)).first &&
+      ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(1.5, 2)).first &&
+      !ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(1, 2)).first &&
+      !ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(1.25, 2)).first &&
+      !ablueprint.coord_in_mask(Coord2D(), construct_coord_2D(3, 2)).first);
+  // Displacement b - a - anchor
+  assert(
+      ablueprint
+          .coord_in_mask(construct_coord_2D(1, 1), construct_coord_2D(2.75, 3))
+          .first &&
+      !ablueprint
+           .coord_in_mask(construct_coord_2D(1, 1), construct_coord_2D(2, 3))
+           .first);
+
+  // r_in = 0 is the circle of radius r_out
+  const Mask<Coord2D> dmask =
+      construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, {0, 1}, {});
+  const Mask<Coord2D> cmask =
+      construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {0, 0}, {1}, {});
+  for (const auto &x : {-1.5, -1., -0.5, 0., 0.5, 1., 1.5})
+    for (const auto &y : {-1.5, -1., -0.5, 0., 0.5, 1., 1.5}) {
+      const Coord2D c = construct_coord_2D(x, y);
+      assert(dmask.coord_in_mask(c).first == cmask.coord_in_mask(c).first);
+    }
+
+  // Invalid parameters
+  const std::string radii = "Invalid annular mask radii";
+  assert(
+      // construct_mask rejects empty params before the shape initializer
+      annular_construction_throws({}, "Invalid mask params vector") &&
+      annular_construction_throws({1}, "Invalid annular mask params vector") &&
+      annular_construction_throws({0, 1, 2},
+                                  "Invalid annular mask params vector") &&
+      annular_construction_throws({1, 1}, radii) &&
+      annular_construction_throws({2, 1}, radii) &&
+      annular_construction_throws({-0.5, 1}, radii) &&
+      annular_construction_throws({0, 0}, radii) &&
+      annular_construction_throws({0, 1e-12}, radii));
+}
+
+void test_annular_tiles() {
+  const Mask<Coord2D> amask =
+      construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, {0.5, 1}, {});
+
+  // Small annulus inside a big tile: the tile holds the centre and meets the
+  // ring
+  const Mask<Coord2D> small =
+      construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, {0.1, 0.2}, {});
+  Tile<Coord2D> big(TILE_SHAPE::RECTANGLE, Coord2D(), {10}, {});
+  assert(small.tile_overlap(big) == OVERLAP_LEVEL::PARTIAL);
+
+  // Small tile wholly inside the hole
+  Tile<Coord2D> in_hole(TILE_SHAPE::RECTANGLE, Coord2D(), {0.1}, {});
+  assert(amask.tile_overlap(in_hole) == OVERLAP_LEVEL::NONE);
+  assert(amask.get_overlapping_leaf_sub_tiles(in_hole).empty());
+
+  // Small tile wholly inside the ring, and wholly outside
+  Tile<Coord2D> in_ring(TILE_SHAPE::RECTANGLE, construct_coord_2D(0.75, 0),
+                        {0.1}, {});
+  assert(amask.tile_overlap(in_ring) == OVERLAP_LEVEL::FULL);
+  Tile<Coord2D> outside(TILE_SHAPE::RECTANGLE, construct_coord_2D(3, 0), {0.1},
+                        {});
+  assert(amask.tile_overlap(outside) == OVERLAP_LEVEL::NONE);
+}
+
 int main() {
   test_square();
   test_triangle();
@@ -181,5 +286,7 @@ int main() {
   test_updated_dist_check();
   test_offset();
   test_triangular_mask();
+  test_annular_mask();
+  test_annular_tiles();
   return 0;
 }

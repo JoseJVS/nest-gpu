@@ -122,14 +122,55 @@ def main() -> None:
         },
     )
 
+    # Annular mask: closed ring r_in <= distance <= r_out, disjoint from the
+    # circular mask above (radius 0.1) so that the GPU check below can tell
+    # the two sets apart by their weight. The delay is the distance (no offset).
+    assert "annular" in nestgpu.get_parameter_names()["mask_shapes"]
+    r_in, r_out = 0.12, 0.2
+    LOG.info("RANK %i: computing annular spatial connections", local_rank)
+    ring_index = nestgpu.compute_spatial_connections(
+        sp_ns,
+        sp_ns,
+        {
+            "mask_blueprint_name": "annular",
+            "mask_blueprint_params": (r_in, r_out),
+        },
+        {
+            "edge_wrap": True,
+            "only_neighborhood": False,
+            "allow_self_connections": False,
+            "allow_multiplicity": False,
+            "partition_connections": True,
+            "rule": "pairwise_bernoulli",
+            "weight_df_name": "constant",
+            "weight_df_params": [43],
+            "delay_df_name": "distance",
+            "prob_df_name": "constant",
+            "prob_df_params": [0.2],
+        },
+    )
+
     LOG.info("RANK %i: calibrating network", local_rank)
     nestgpu.Calibrate()
 
     LOG.info("RANK %i: checking local connections", local_rank)
     if sp_ns.local_index is not None and sp_ns.local_length is not None:
-        incoming_conns, _ = nestgpu.get_spatial_connections(conn_index)
-        # Ranks without local connections have no entry
-        local_conns = incoming_conns.get(local_rank, [])
+        local_conns = []
+        for index in (conn_index, ring_index):
+            incoming_conns, _ = nestgpu.get_spatial_connections(index)
+            # Ranks without local connections have no entry
+            local_conns.extend(incoming_conns.get(local_rank, []))
+        # Every annular connection (weight 43) lies within the closed ring; the
+        # delay is the (wrapped) distance
+        eps = 1e-5
+        ring_conns = 0
+        for _, _, weights, delays in local_conns:
+            for weight, delay in zip(weights, delays):
+                if weight == 43:
+                    ring_conns += 1
+                    assert r_in - eps <= delay <= r_out + eps, delay
+        # The ring check must not pass without checking anything
+        assert not local_conns or 0 < ring_conns, "no annular connections"
         print(json.dumps(local_conns, indent=4))
         total_cons = 0
         spatial_conn_map = {}

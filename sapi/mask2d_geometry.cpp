@@ -41,6 +41,24 @@ void initialize_circular_mask_helpers(Mask<Coord2D> &mask,
   mask.bounding_disc_.origin_ = mask.anchor_;
 }
 
+// Closed ring r_in <= |p - anchor| <= r_out, r_in may be 0 (a disc); the
+// bounding disc is the outer one
+void initialize_annular_mask_helpers(Mask<Coord2D> &mask,
+                                     const std::vector<space_t> &mask_params) {
+  if (mask_params.size() != 2)
+    throw std::invalid_argument("Invalid annular mask params vector");
+
+  const space_t inner_radius = mask_params[0];
+  const space_t outer_radius = mask_params[1];
+  if (std::signbit(inner_radius) || !(inner_radius < outer_radius) ||
+      almost_zero(outer_radius * outer_radius))
+    throw std::invalid_argument("Invalid annular mask radii");
+
+  mask.bounding_disc_.radius2_ = outer_radius * outer_radius;
+  mask.bounding_disc_.origin_ = mask.anchor_;
+  mask.helper_scalars_.resize(1, inner_radius * inner_radius);
+}
+
 void initialize_elliptical_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params) {
   if (mask_params.size() < 2 || 3 < mask_params.size())

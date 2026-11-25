@@ -42,7 +42,8 @@ template <Coordinate CoordT> struct Mask {
   // driver node (the offset), used by the two-argument methods.
   CoordT anchor_;
   // Disc containing the whole shape, in the frame of anchor_: centred on the
-  // anchor for centred shapes (circle, ellipse, parallelogram), on the shape
+  // anchor for centred shapes (circle, ellipse, parallelogram, annulus, whose
+  // anchor is the centre and lies outside the ring), on the shape
   // otherwise (smallest enclosing disc of a triangle)
   CircumscribedRadius<CoordT> bounding_disc_;
   std::vector<CoordT> helper_vectors_;

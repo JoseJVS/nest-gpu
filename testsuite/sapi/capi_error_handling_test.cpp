@@ -154,7 +154,8 @@ void registry_messages_test(ApiTest &t) {
       "pairwise_bernoulli, pairwise_poisson");
   registry_message_test<Mask<Coord2D>>(
       t, "2D masks", [](auto &r) { initialize_mk_registry(r); },
-      "registered names: circular, elliptical, parallelogram, triangular");
+      "registered names: annular, circular, elliptical, parallelogram, "
+      "triangular");
   registry_message_test<AnyRNG>(
       t, "random generators", [](auto &r) { initialize_rng_registry(r); },
       "registered names: fake, ");

@@ -35,6 +35,7 @@
 #include <deque>
 #include <map>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -77,9 +78,13 @@ const std::vector<MaskDef> MASKS{
     {MASK_SHAPE::PARALLELOGRAM, {0.8, 0., 0.2, 0.4}},
     {MASK_SHAPE::PARALLELOGRAM, {1., 0., 1., 1e-2}}, // thin
     {MASK_SHAPE::TRIANGULAR, {1.2, 0., 0., 1.2}},
-    {MASK_SHAPE::TRIANGULAR, {0., 0.9, 0.9, 0.}},     // clockwise
-    {MASK_SHAPE::TRIANGULAR, {1.5, 0.1, -0.4, 0.3}},  // obtuse
-    {MASK_SHAPE::TRIANGULAR, {2., 0.01, 1.9, 0.05}}}; // sliver
+    {MASK_SHAPE::TRIANGULAR, {0., 0.9, 0.9, 0.}},    // clockwise
+    {MASK_SHAPE::TRIANGULAR, {1.5, 0.1, -0.4, 0.3}}, // obtuse
+    {MASK_SHAPE::TRIANGULAR, {2., 0.01, 1.9, 0.05}}, // sliver
+    {MASK_SHAPE::ANNULAR, {0.3, 0.8}},
+    {MASK_SHAPE::ANNULAR, {0.9, 1.5}}, // hole larger than the small tiles
+    {MASK_SHAPE::ANNULAR, {1., 1.1}},  // thin
+    {MASK_SHAPE::ANNULAR, {0., 0.7}}}; // r_in = 0, a disc
 
 std::string shape_name(const MASK_SHAPE shape) {
   switch (shape) {
@@ -89,6 +94,8 @@ std::string shape_name(const MASK_SHAPE shape) {
     return "elliptical";
   case MASK_SHAPE::PARALLELOGRAM:
     return "parallelogram";
+  case MASK_SHAPE::ANNULAR:
+    return "annular";
   default:
     return "triangular";
   }
@@ -189,7 +196,8 @@ void check_subset(const Mask<Coord2D> &bp, const Tile<Coord2D> &a,
 
 // A point strictly inside the shape, relative to the anchor
 P interior_point(const Shape2D &shape) {
-  if (shape.is_round())
+  // For the annulus the centre only serves as the origin of radial rays
+  if (shape.is_round() || shape.is_annulus())
     return {0, 0};
   P sum{0, 0};
   for (const auto &v : shape.vertices)
@@ -435,8 +443,8 @@ void test_wrap_images() {
                                    {"rectangle", {3, 4}, {2., 1.}},
                                    {"triangle", {4, 4}, {1.}},
                                    {"hexagon", {4, 4}, {1.}}};
-  const std::vector<MaskDef> defs{MASKS[1], MASKS[3], MASKS[5], MASKS[6],
-                                  MASKS[11]};
+  const std::vector<MaskDef> defs{MASKS[1], MASKS[3],  MASKS[5],
+                                  MASKS[6], MASKS[11], MASKS[14]};
   std::mt19937_64 rng(2026);
   std::uniform_real_distribution<double> unit(-1, 1);
   long images = 0;
@@ -547,6 +555,9 @@ void test_analytic() {
   // Blueprints: A = B, shared edge and shared vertex hold the zero
   // displacement, which every shape holds
   for (const auto &def : MASKS) {
+    // The hole of an annulus excludes the zero displacement
+    if (def.shape == MASK_SHAPE::ANNULAR && def.params[0] > 0)
+      continue;
     require(blueprint(def, {0, 0}).tiles_within_mask_range(a, a), "A = B");
     require(blueprint(def, {0, 0}).tiles_within_mask_range(a, b),
             "shared edge");
@@ -580,6 +591,124 @@ void test_analytic() {
       Oracle::pair_region(a, c, construct_coord_2D(3., 1.5)));
   require(!v.possible, "analytic gap");
 }
+
+bool constructs(const std::vector<space_t> &params) {
+  try {
+    (void)construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0., 0.}, params,
+                                  {0., 0.});
+  } catch (const std::invalid_argument &) {
+    return false;
+  }
+  return true;
+}
+
+// Annular masks with known answers: the closed ring, the hole, small annuli
+// inside big tiles (the centre lies in the tile, which the outer disc alone
+// decides) and small tiles inside the hole
+void test_annulus() {
+  const auto rect = [](const double x, const double y, const double side) {
+    return Tile<Coord2D>(TILE_SHAPE::RECTANGLE, construct_coord_2D(x, y),
+                         {side}, {});
+  };
+  const auto a = rect(0.5, 0.5, 1.); // [0, 1]^2
+  const auto big = rect(2., 2., 4.); // [0, 4]^2
+  const auto level = [](const Mask<Coord2D> &m, const Tile<Coord2D> &t) {
+    return m.tile_overlap(t);
+  };
+  const auto ring = [](const double r_in, const double r_out) {
+    return MaskDef{MASK_SHAPE::ANNULAR, {r_in, r_out}};
+  };
+
+  // Points: both circles belong to the mask, the hole and the outside do not
+  const auto m = source_mask(ring(3., 5.), {0., 0.});
+  const auto in = [&m](const double x, const double y) {
+    return m.coord_in_mask(construct_coord_2D(x, y)).first;
+  };
+  require(in(3., 4.) && in(0., 5.) && in(-5., 0.), "ring point (outer)");
+  require(in(3., 0.) && in(0., -3.), "ring point (inner)");
+  require(in(4., 0.), "ring point");
+  require(!in(0., 0.) && !in(2.9, 0.) && !in(1.8, 2.4 - 1e-3), "hole point");
+  require(!in(5.0001, 0.) && !in(3.5, 3.6), "point outside");
+
+  // Tile on the outer circle, short of it, and on the inner circle (the
+  // farthest vertex (1, 1) of the square is at distance 5 from (-2, -3))
+  require(level(source_mask(ring(0.5, 1.), {2., 0.5}), a) !=
+              OVERLAP_LEVEL::NONE,
+          "ring touches the tile");
+  require(level(source_mask(ring(0.5, 1. - 1e-6), {2., 0.5}), a) ==
+              OVERLAP_LEVEL::NONE,
+          "ring short of the tile");
+  require(level(source_mask(ring(5., 6.), {-2., -3.}), a) !=
+              OVERLAP_LEVEL::NONE,
+          "tile vertex on the inner circle");
+  require(level(source_mask(ring(5. + 1e-3, 6.), {-2., -3.}), a) ==
+              OVERLAP_LEVEL::NONE,
+          "tile inside the hole, short of the inner circle");
+  require(level(source_mask(ring(3., 6.), {-2., -3.}), a) ==
+              OVERLAP_LEVEL::FULL,
+          "tile inside the ring");
+
+  // Small annulus inside a big tile: the ring meets the tile
+  for (const P at : {P{2., 2.}, P{0.5, 3.}, P{3.9, 0.1}})
+    require(level(source_mask(ring(0.1, 0.3), at), big) ==
+                OVERLAP_LEVEL::PARTIAL,
+            "small annulus inside a big tile");
+  // The centre in the tile, all its vertices in the ring: still partial
+  require(level(source_mask(ring(0.1, 0.9), {0.5, 0.5}), a) ==
+              OVERLAP_LEVEL::PARTIAL,
+          "tile holding the centre");
+
+  // Small tile inside the hole
+  require(level(source_mask(ring(1.5, 2.5), {0.5, 0.5}), a) ==
+              OVERLAP_LEVEL::NONE,
+          "tile inside the hole");
+  require(level(source_mask(ring(1.5, 2.5), {0.5, 0.5}), big) ==
+              OVERLAP_LEVEL::PARTIAL,
+          "big tile around the hole");
+
+  // Blueprints and node/tile, which use the displacements B - A - anchor
+  require(blueprint(ring(0.1, 0.3), {0., 0.}).tiles_within_mask_range(big, big),
+          "small annulus, big tile pair");
+  require(blueprint(ring(0.1, 0.3), {0., 0.})
+              .overlap_with_tile_surface(construct_coord_2D(2., 2.), big),
+          "small annulus, node in a big tile");
+  require(!blueprint(ring(1.5, 2.5), {0., 0.}).tiles_within_mask_range(a, a),
+          "tile pair inside the hole");
+  require(!blueprint(ring(1.5, 2.5), {0., 0.})
+               .overlap_with_tile_surface(construct_coord_2D(0.5, 0.5), a),
+          "node and tile inside the hole");
+  // a - a = [-1, 1]^2 reaches distance sqrt(2) from the origin
+  require(blueprint(ring(std::sqrt(2.), 2.), {0., 0.})
+              .tiles_within_mask_range(a, a),
+          "pair vertex on the inner circle");
+
+  // r_in = 0 behaves like the circle of the outer radius
+  const MaskDef disc = ring(0., 0.7), circle{MASK_SHAPE::CIRCULAR, {0.7}};
+  for (const double x : {-0.9, 0., 0.4, 1., 1.5, 1.7, 3.})
+    for (const double y : {-0.5, 0.5, 1.2, 1.7, 2.5}) {
+      for (const auto *t : {&a, &big}) {
+        require(level(source_mask(disc, {x, y}), *t) ==
+                    level(source_mask(circle, {x, y}), *t),
+                "r_in = 0 tile_overlap");
+        require(blueprint(disc, {x, y}).tiles_within_mask_range(a, *t) ==
+                    blueprint(circle, {x, y}).tiles_within_mask_range(a, *t),
+                "r_in = 0 tiles_within_mask_range");
+      }
+      const auto c = construct_coord_2D(x * 0.3, y * 0.3);
+      require(source_mask(disc, {0., 0.}).coord_in_mask(c).first ==
+                  source_mask(circle, {0., 0.}).coord_in_mask(c).first,
+              "r_in = 0 coord_in_mask");
+    }
+
+  // Invalid parameters
+  require(constructs({0.3, 0.8}) && constructs({0., 0.8}), "valid annulus");
+  for (const auto &bad : std::vector<std::vector<space_t>>{
+           {1., 1.}, {1.5, 1.}, {-0.1, 1.}, {0., 0.}, {0., -1.}})
+    require(!constructs(bad), "invalid annulus radii");
+  for (const auto &bad :
+       std::vector<std::vector<space_t>>{{}, {1.}, {0.1, 1., 2.}})
+    require(!constructs(bad), "invalid annulus params vector");
+}
 } // namespace
 
 int main() {
@@ -589,6 +718,7 @@ int main() {
 
   test_oracle();
   test_analytic();
+  test_annulus();
   test_source_target(catalog);
   test_blueprints(catalog);
   test_wrap_images();
@@ -596,8 +726,8 @@ int main() {
   // Tightness counters (the over-accepted share is what the exact filters
   // of Q7.16d/e remove). Every tally sees robust overlaps and rejections, and
   // the conservative ones over-accept, so no check above holds vacuously.
-  // B2 and the four B1 kinds, each for the four mask shapes
-  require(tallies.size() == 20, "a filter tally is missing");
+  // B2 and the four B1 kinds, each for the five mask shapes
+  require(tallies.size() == 25, "a filter tally is missing");
   for (const auto &[key, t] : tallies) {
     t.report();
     require(0 < t.robust && t.accepted < t.cases, key + " is one-sided");

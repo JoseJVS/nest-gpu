@@ -203,7 +203,11 @@ int main(int argc, char **argv) {
       {"parallelogram",
        MASK_SHAPE::PARALLELOGRAM,
        {2.5, 1.5},
-       {1., 0.2, -0.3, 0.8}}};
+       {1., 0.2, -0.3, 0.8}},
+      // A small ring inside a tile, a wide ring with a hole, and a disc
+      {"annular", MASK_SHAPE::ANNULAR, {1.3, 1.1}, {0.2, 0.4}},
+      {"annular", MASK_SHAPE::ANNULAR, {2., 2.}, {1., 1.8}},
+      {"annular", MASK_SHAPE::ANNULAR, {0.5, 1.}, {0., 0.9}}};
   const MaskDef none{"", MASK_SHAPE::NULL_MS, {}, {}};
 
   for (const auto &g : grids) {

@@ -44,6 +44,8 @@ void initialize_mk_registry(CreatorRegistry<Mask<Coord2D>> &mkr) {
       MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::PARALLELOGRAM)]);
   mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::TRIANGULAR>>(
       MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::TRIANGULAR)]);
+  mkr.register_creator<MaskCreator<Coord2D, MASK_SHAPE::ANNULAR>>(
+      MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::ANNULAR)]);
 }
 
 void initialize_mk_registry(CreatorRegistry<Mask<Coord3D>> &) {

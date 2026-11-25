@@ -47,12 +47,13 @@ enum class MASK_SHAPE : uint8_t {
   ELLIPTICAL,
   PARALLELOGRAM,
   TRIANGULAR,
+  ANNULAR,
   NULL_MS
 };
 
 constexpr static const char *const
     MASK_SHAPE_NAMES[uint8_t(MASK_SHAPE::NULL_MS)] = {
-        "circular", "elliptical", "parallelogram", "triangular"};
+        "circular", "elliptical", "parallelogram", "triangular", "annular"};
 
 enum class OVERLAP_LEVEL : uint8_t { NONE, PARTIAL, FULL };
 

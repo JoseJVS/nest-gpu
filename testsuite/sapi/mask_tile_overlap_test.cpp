@@ -22,7 +22,9 @@
 
 // Mask::tile_overlap never reports NONE for a tile that holds a point of the
 // mask, never reports FULL for a tile with a point outside it, and for
-// circular masks only reports PARTIAL for tiles within the radius.
+// circular masks only reports PARTIAL for tiles within the radius. Annular
+// masks are not convex: their FULL checks use radial perturbations and the
+// regression cases cover the hole.
 
 #include <random>
 
@@ -46,7 +48,10 @@ const std::vector<MaskDef> MASKS{
     {MASK_SHAPE::ELLIPTICAL, {2., 0.2}},
     {MASK_SHAPE::ELLIPTICAL, {2., 0.2, 45.}},
     {MASK_SHAPE::PARALLELOGRAM, {1., 0.2, -0.3, 0.8}},
-    {MASK_SHAPE::TRIANGULAR, {1.2, 0., 0., 1.2}}};
+    {MASK_SHAPE::TRIANGULAR, {1.2, 0., 0., 1.2}},
+    {MASK_SHAPE::ANNULAR, {0.3, 0.8}},
+    {MASK_SHAPE::ANNULAR, {1., 1.5}},
+    {MASK_SHAPE::ANNULAR, {0., 1.5}}};
 
 // Outside with a margin: moving 1e-5 of the way to the mask anchor keeps it
 // outside (all mask shapes are convex and contain their anchor)
@@ -55,6 +60,16 @@ bool robustly_outside(const Mask<Coord2D> &mask, const Coord2D &coord) {
   const P closer = o + (from(coord) - o) * (1 - 1e-5);
   return !mask.coord_in_mask(coord).first &&
          !mask.coord_in_mask(to_coord(closer)).first;
+}
+
+// The ring is not convex: outside with a margin is outside at the point and at
+// radial perturbations of it around the anchor
+bool robustly_outside_ring(const Mask<Coord2D> &mask, const Coord2D &coord) {
+  const P o = from(mask.anchor_);
+  for (const double scale : {1., 1 - 1e-5, 1 + 1e-5})
+    if (mask.coord_in_mask(to_coord(o + (from(coord) - o) * scale)).first)
+      return false;
+  return true;
 }
 
 void check_overlap(const Mask<Coord2D> &mask, const MaskDef &def,
@@ -71,7 +86,8 @@ void check_overlap(const Mask<Coord2D> &mask, const MaskDef &def,
 
   case OVERLAP_LEVEL::FULL:
     assert(std::none_of(samples.begin(), samples.end(), [&](const auto &c) {
-      return robustly_outside(mask, c);
+      return def.shape == MASK_SHAPE::ANNULAR ? robustly_outside_ring(mask, c)
+                                              : robustly_outside(mask, c);
     }));
     break;
 
@@ -80,6 +96,10 @@ void check_overlap(const Mask<Coord2D> &mask, const MaskDef &def,
       assert(
           region_distance(from(mask.bounding_disc_.origin_), polygon(tile)) <=
           def.params[0] * (1 + 1e-5) + 1e-6);
+    else if (def.shape == MASK_SHAPE::ANNULAR)
+      assert(
+          region_distance(from(mask.bounding_disc_.origin_), polygon(tile)) <=
+          def.params[1] * (1 + 1e-5) + 1e-6);
     break;
   }
 }
@@ -135,8 +155,110 @@ void test_regressions() {
   assert(small_circle.tile_overlap(rectangle) == OVERLAP_LEVEL::PARTIAL);
 }
 
+Mask<Coord2D> annulus(const double r_in, const double r_out, const double x,
+                      const double y) {
+  return construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {x, y}, {r_in, r_out},
+                                 {});
+}
+
+Tile<Coord2D> rectangle_tile(const double x, const double y, const double w,
+                             const double h) {
+  return Tile<Coord2D>(TILE_SHAPE::RECTANGLE, construct_coord_2D(x, y), {w, h},
+                       {});
+}
+
+bool throws_invalid(const std::vector<space_t> &params) {
+  try {
+    construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0., 0.}, params, {});
+  } catch (const std::invalid_argument &) {
+    return true;
+  }
+  return false;
+}
+
+// Tiles against rings, including the ones where a vertex test alone is wrong
+void test_annulus() {
+  // Hole at the origin, ring 0.5 <= r <= 1.6
+  const auto ring = annulus(0.5, 1.6, 0., 0.);
+
+  // All vertices in the ring (0.58 and 1.58 away) but the tile crosses the
+  // hole: not FULL
+  assert(ring.tile_overlap(rectangle_tile(0.9, 0., 1.2, 1.)) ==
+         OVERLAP_LEVEL::PARTIAL);
+  // All vertices and the whole tile in the ring
+  assert(ring.tile_overlap(rectangle_tile(1.1, 0., 0.4, 0.4)) ==
+         OVERLAP_LEVEL::FULL);
+  // Holding the centre
+  assert(ring.tile_overlap(rectangle_tile(0., 0., 4., 4.)) ==
+         OVERLAP_LEVEL::PARTIAL);
+  assert(ring.tile_overlap(rectangle_tile(0.1, 0., 0.5, 0.5)) !=
+         OVERLAP_LEVEL::FULL);
+  // Straddling the outer circle
+  assert(ring.tile_overlap(rectangle_tile(1.6, 0., 1., 1.)) ==
+         OVERLAP_LEVEL::PARTIAL);
+  // Wholly inside the hole, and wholly outside the outer disc
+  assert(ring.tile_overlap(rectangle_tile(0.1, 0.05, 0.2, 0.2)) ==
+         OVERLAP_LEVEL::NONE);
+  assert(ring.tile_overlap(rectangle_tile(3., 0., 1., 1.)) ==
+         OVERLAP_LEVEL::NONE);
+
+  // Small annulus inside a big tile: the ring meets the tile
+  const auto big = rectangle_tile(0., 0., 10., 10.);
+  assert(annulus(0.3, 0.5, 1., 1.).tile_overlap(big) == OVERLAP_LEVEL::PARTIAL);
+  assert(annulus(0.3, 0.5, 0., 0.).tile_overlap(big) == OVERLAP_LEVEL::PARTIAL);
+  // A small tile inside the hole of a larger ring is rejected
+  assert(annulus(1., 2., 0.3, 0.2)
+             .tile_overlap(rectangle_tile(0.3, 0.2, 0.2, 0.2)) ==
+         OVERLAP_LEVEL::NONE);
+
+  // Closed ring: points on both circles in, the hole and the outside out
+  assert(ring.coord_in_mask(construct_coord_2D(1.6, 0.)).first == true);
+  const auto exact = annulus(0.5, 1., 0., 0.);
+  assert(exact.coord_in_mask(construct_coord_2D(1., 0.)).first);
+  assert(exact.coord_in_mask(construct_coord_2D(0., -1.)).first);
+  assert(exact.coord_in_mask(construct_coord_2D(0.5, 0.)).first);
+  assert(exact.coord_in_mask(construct_coord_2D(0., 0.5)).first);
+  assert(exact.coord_in_mask(construct_coord_2D(0.75, 0.)).first);
+  assert(!exact.coord_in_mask(construct_coord_2D(0.49, 0.)).first);
+  assert(!exact.coord_in_mask(construct_coord_2D(0., 0.)).first);
+  assert(!exact.coord_in_mask(construct_coord_2D(1.01, 0.)).first);
+  assert(!exact.coord_in_mask(construct_coord_2D(0., 1.01)).first);
+
+  // r_in = 0 behaves like the circle of radius r_out
+  // Tile is move-only, so no initializer list
+  std::vector<Tile<Coord2D>> tiles;
+  tiles.emplace_back(rectangle_tile(0., 0., 1., 1.));
+  tiles.emplace_back(rectangle_tile(1.1, 1.5, 1., 1.));
+  tiles.emplace_back(rectangle_tile(1., 0.5, 2., 1.));
+  tiles.emplace_back(rectangle_tile(3., 0., 1., 1.));
+  tiles.emplace_back(rectangle_tile(0.2, 0.1, 6., 6.));
+  tiles.emplace_back(rectangle_tile(-0.8, 0.4, 0.3, 0.3));
+  for (const auto &tile : tiles)
+    for (const double r : {0.35, 1., 1.5})
+      for (const P &c : {P{0., 0.}, P{0.5, -0.3}, P{1.3, 1.1}}) {
+        const auto disc = annulus(0., r, c.x, c.y);
+        const auto circle =
+            construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {c.x, c.y}, {r}, {});
+        assert(disc.tile_overlap(tile) == circle.tile_overlap(tile));
+        assert(disc.coord_in_mask(tile.c_radius_.origin_).first ==
+               circle.coord_in_mask(tile.c_radius_.origin_).first);
+      }
+
+  // Invalid parameters
+  assert(throws_invalid({}));
+  assert(throws_invalid({1.}));
+  assert(throws_invalid({0.1, 0.5, 0.2}));
+  assert(throws_invalid({1., 1.}));
+  assert(throws_invalid({2., 1.}));
+  assert(throws_invalid({-0.1, 1.}));
+  assert(throws_invalid({0., 0.}));
+  assert(!throws_invalid({0., 1.}));
+  assert(!throws_invalid({0.5, 1.}));
+}
+
 int main() {
   test_catalog();
   test_regressions();
+  test_annulus();
   return 0;
 }

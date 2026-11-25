@@ -58,7 +58,10 @@ const std::vector<BlueprintDef> BLUEPRINTS{
     {MASK_SHAPE::ELLIPTICAL, {2., 0.2}},
     {MASK_SHAPE::ELLIPTICAL, {2., 0.2, 45.}},
     {MASK_SHAPE::PARALLELOGRAM, {0.8, 0., 0.2, 0.4}},
-    {MASK_SHAPE::TRIANGULAR, {0.9, 0., 0., 0.9}}};
+    {MASK_SHAPE::TRIANGULAR, {0.9, 0., 0., 0.9}},
+    {MASK_SHAPE::ANNULAR, {0.3, 0.9}},
+    {MASK_SHAPE::ANNULAR, {1.5, 2.2}},
+    {MASK_SHAPE::ANNULAR, {0., 1.2}}};
 
 // Whether the blueprint holds for some displacement in the polygon region
 bool region_meets_blueprint(const Mask<Coord2D> &blueprint,
@@ -86,6 +89,24 @@ void check_verdict(const bool verdict, const double distance,
       assert(distance <= radius * (1 + 1e-5) + 1e-6);
     else
       assert(distance >= radius * (1 - 1e-5) - 1e-6);
+  } else if (def.shape == MASK_SHAPE::ANNULAR) {
+    // Exact up to the margins: the region meets the outer disc and is not
+    // inside the inner one. Its farthest point from the centre is a vertex.
+    const P centre = disc_centre(blueprint);
+    double farthest = 0.;
+    for (const auto &v : region)
+      farthest =
+          std::fmax(farthest, std::hypot(v.x - centre.x, v.y - centre.y));
+    const double inner = def.params[0];
+    if (verdict) {
+      assert(distance <= radius * (1 + 1e-5) + 1e-6);
+      assert(farthest >= inner * (1 - 1e-5) - 1e-6);
+    } else {
+      assert(distance >= radius * (1 - 1e-5) - 1e-6 ||
+             farthest <= inner * (1 + 1e-5) + 1e-6);
+      if (distance <= radius)
+        assert(!region_meets_blueprint(blueprint, region));
+    }
   } else if (!verdict && distance <= radius) {
     assert(!region_meets_blueprint(blueprint, region));
   }
@@ -212,9 +233,69 @@ void test_regressions() {
   assert(circle(0.21, -0.2, -0.9).tiles_within_mask_range(a, b));
 }
 
+// Rings: displacements all in the hole, a pair that straddles the ring, a small
+// ring inside a big tile, and r_in = 0 against the circle
+void test_annulus() {
+  const auto square = [](const double x, const double y, const double side) {
+    return Tile<Coord2D>(TILE_SHAPE::RECTANGLE, construct_coord_2D(x, y),
+                         {side}, {});
+  };
+  const auto a = square(0.5, 0.5, 1.), b = square(1.5, 0.5, 1.),
+             c = square(2.5, 0.5, 1.);
+  const auto ring = [](const double r_in, const double r_out, const double x,
+                       const double y) {
+    return construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {}, {r_in, r_out},
+                                   {x, y});
+  };
+
+  // Displacements of (a, a) lie in [-1, 1]^2, within 1.42 of the centre
+  assert(!ring(1.5, 2., 0., 0.).tiles_within_mask_range(a, a));
+  assert(ring(1., 2., 0., 0.).tiles_within_mask_range(a, a));
+  assert(ring(0.3, 0.9, 0., 0.).tiles_within_mask_range(a, a));
+  // (a, c): x in [1, 3]; the ring at distance 2 is crossed, 0.5 is too short,
+  // and with the offset (2, 0) the displacements are in [-1, 1]^2 again
+  assert(ring(1.5, 2.5, 0., 0.).tiles_within_mask_range(a, c));
+  assert(!ring(0.2, 0.5, 0., 0.).tiles_within_mask_range(a, c));
+  assert(!ring(1.5, 2., 2., 0.).tiles_within_mask_range(a, c));
+  assert(ring(0.3, 0.9, 2., 0.).tiles_within_mask_range(a, c));
+
+  // Point at (0.5, 0.5) against b: displacements x in [0.5, 1.5], y in
+  // [-0.5, 0.5]
+  const Coord2D p = construct_coord_2D(0.5, 0.5);
+  assert(!ring(2., 3., 0., 0.).overlap_with_tile_surface(p, b));
+  assert(ring(1., 1.2, 0., 0.).overlap_with_tile_surface(p, b));
+  assert(ring(0.2, 0.6, 0., 0.).overlap_with_tile_surface(p, b));
+  assert(!ring(0.2, 0.4, 0., 0.).overlap_with_tile_surface(p, b));
+
+  // A small ring inside a big tile meets it; a small tile in the hole does not
+  const auto big = square(0., 0., 10.);
+  const auto small = square(0.1, 0., 0.2);
+  assert(ring(0.1, 0.2, 1., 1.).tiles_within_mask_range(big, big));
+  assert(ring(0.1, 0.2, 0., 0.).tiles_within_mask_range(big, big));
+  assert(ring(0.1, 0.2, 0., 0.)
+             .overlap_with_tile_surface(construct_coord_2D(1., 1.), big));
+  assert(!ring(1., 2., 0., 0.).tiles_within_mask_range(small, small));
+  assert(!ring(1., 2., 0., 0.)
+              .overlap_with_tile_surface(construct_coord_2D(0., 0.), small));
+
+  // r_in = 0 is the circle
+  for (const auto *x : {&a, &b, &c, &big, &small})
+    for (const auto *y : {&a, &b, &c, &big, &small})
+      for (const P &o : {P{0., 0.}, P{1., 0.}, P{-0.5, 2.}}) {
+        const auto disc = ring(0., 1.2, o.x, o.y);
+        const auto circle = construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {},
+                                                    {1.2}, {o.x, o.y});
+        assert(disc.tiles_within_mask_range(*x, *y) ==
+               circle.tiles_within_mask_range(*x, *y));
+        assert(disc.overlap_with_tile_surface(x->c_radius_.origin_, *y) ==
+               circle.overlap_with_tile_surface(x->c_radius_.origin_, *y));
+      }
+}
+
 int main() {
   init_omp();
   test_grids();
   test_regressions();
+  test_annulus();
   return 0;
 }

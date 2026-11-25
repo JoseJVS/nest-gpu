@@ -57,11 +57,44 @@ void initialize_mask_helpers(Mask<CoordT> &mask,
       initialize_triangular_mask_helpers(mask, mask_params);
       break;
 
+    case MASK_SHAPE::ANNULAR:
+      initialize_annular_mask_helpers(mask, mask_params);
+      break;
+
     default:
       throw std::invalid_argument("Invalid mask shape");
     }
   } else {
     throw std::runtime_error("3D implementation not available yet");
+  }
+}
+
+// Non-convex shapes, reached through the default case of coord_in_mask: its
+// switch keeps one case per convex shape, which GCC compiles to a compare
+// chain instead of a jump table in the per-pair loops
+template <Coordinate CoordT>
+OptDisp<CoordT> coord_in_nonconvex_mask(const CoordT &coord,
+                                        const Mask<CoordT> &mask) {
+  switch (mask.shape_) {
+  case MASK_SHAPE::ANNULAR:
+    return coord_in_annular_mask(coord, mask);
+
+  default:
+    assert(false && "Invalid mask shape");
+    return {};
+  }
+}
+
+template <Coordinate CoordT>
+OptDisp<CoordT> coord_in_nonconvex_mask(const CoordT &a, const CoordT &b,
+                                        const Mask<CoordT> &mask) {
+  switch (mask.shape_) {
+  case MASK_SHAPE::ANNULAR:
+    return coord_in_annular_mask(a, b, mask);
+
+  default:
+    assert(false && "Invalid mask shape");
+    return {};
   }
 }
 
@@ -86,8 +119,7 @@ OptDisp<CoordT> coord_in_mask(const CoordT &coord, const Mask<CoordT> &mask) {
       return coord_in_triangular_mask(coord, mask);
 
     default:
-      assert(false && "Invalid mask shape");
-      return {};
+      return coord_in_nonconvex_mask(coord, mask);
     }
   } else {
     assert(false && "3D implementation not available yet");
@@ -113,8 +145,7 @@ OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,
       return coord_in_triangular_mask(a, b, mask);
 
     default:
-      assert(false && "Invalid mask shape");
-      return {};
+      return coord_in_nonconvex_mask(a, b, mask);
     }
   } else {
     assert(false && "3D implementation not available yet");
@@ -146,6 +177,9 @@ overlap_with_all_vertices_in_mask(const Mask<CoordT> &mask,
     case MASK_SHAPE::TRIANGULAR:
       return overlap_with_all_vertices_in_convex_mask(mask, tile);
 
+    case MASK_SHAPE::ANNULAR:
+      return overlap_with_all_vertices_in_annular_mask(mask, tile);
+
     default:
       assert(false && "Invalid mask shape");
       return OVERLAP_LEVEL::PARTIAL;
@@ -169,6 +203,9 @@ bool mask_meets_tile(const Mask<CoordT> &mask, const Tile<CoordT> &tile) {
     case MASK_SHAPE::PARALLELOGRAM:
     case MASK_SHAPE::TRIANGULAR:
       return mask_support_meets_tile(mask, tile);
+
+    case MASK_SHAPE::ANNULAR:
+      return annular_mask_meets_tile(mask, tile);
 
     default:
       assert(false && "Invalid mask shape");
@@ -194,6 +231,9 @@ bool coord_tile_in_blueprint(const Mask<CoordT> &mask, const CoordT &coord,
     case MASK_SHAPE::TRIANGULAR:
       return coord_tile_in_blueprint_support(mask, coord, tile);
 
+    case MASK_SHAPE::ANNULAR:
+      return coord_tile_in_annular_blueprint(mask, coord, tile);
+
     default:
       assert(false && "Invalid mask shape");
       return true;
@@ -217,6 +257,9 @@ bool tile_pair_in_blueprint(const Mask<CoordT> &mask, const Tile<CoordT> &a,
     case MASK_SHAPE::PARALLELOGRAM:
     case MASK_SHAPE::TRIANGULAR:
       return tile_pair_in_blueprint_support(mask, a, b);
+
+    case MASK_SHAPE::ANNULAR:
+      return tile_pair_in_annular_blueprint(mask, a, b);
 
     default:
       assert(false && "Invalid mask shape");

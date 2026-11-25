@@ -27,7 +27,11 @@
 // parameters with the documented conventions only (no SAPI geometry code):
 //   circle {r}; ellipse {a, b[, degrees]}, semi-axis a along the rotated x
 //   axis; parallelogram {a0, a1}, vertices -a0, -a1, a0, a1; triangle {a0, a1},
-//   vertices 0, a0, a1, all relative to the anchor.
+//   vertices 0, a0, a1, all relative to the anchor; annulus {r_in, r_out}, the
+//   closed ring r_in <= |d| <= r_out (not convex, so never tested as a convex
+//   set: a convex polygon meets it iff its farthest vertex is at least r_in
+//   from the anchor and its nearest point at most r_out, since the distance
+//   to the anchor takes every value in between on the connected polygon).
 // Two independent deciders:
 //   analytic: an ellipse maps to the unit disc by its inverse affine map, which
 //             keeps the region convex, so it meets the region iff the mapped
@@ -52,6 +56,10 @@ struct Shape2D {
   double a = 0, b = 0, cos = 1, sin = 0;
   // Parallelogram and triangle: counter-clockwise vertices
   std::vector<P> vertices;
+  // Annulus: a = b = r_out
+  double r_in = 0;
+
+  bool is_annulus() const { return kind == sapi::MASK_SHAPE::ANNULAR; }
 
   bool is_round() const {
     return kind == sapi::MASK_SHAPE::CIRCULAR ||
@@ -67,7 +75,7 @@ struct Shape2D {
 
 // Largest distance from the anchor to the shape
 inline double shape_extent(const Shape2D &s) {
-  if (s.is_round())
+  if (s.is_round() || s.is_annulus())
     return std::max(s.a, s.b);
   double size = 0;
   for (const auto &p : s.vertices)
@@ -84,6 +92,10 @@ inline std::vector<P> scaled_vertices(const Shape2D &s, const double scale) {
 }
 
 inline bool contains(const Shape2D &s, const double scale, const P d) {
+  if (s.is_annulus()) {
+    const double n = norm(d);
+    return n <= s.b * scale && n >= s.r_in * scale;
+  }
   if (s.is_round()) {
     const P u = s.to_unit(d, scale);
     return dot(u, u) <= 1;
@@ -96,6 +108,13 @@ inline bool contains(const Shape2D &s, const double scale, const P d) {
 // boundary. Scaling about the anchor would not move the polygon edges through
 // the anchor (triangle), so polygons use the distance to the perimeter.
 inline int classify(const Shape2D &s, const P d) {
+  if (s.is_annulus()) {
+    const double n = norm(d), band = ORACLE_MARGIN * shape_extent(s);
+    if (std::abs(n - s.b) <= band ||
+        (s.r_in > 0 && std::abs(n - s.r_in) <= band))
+      return 0;
+    return contains(s, 1, d) ? 1 : -1;
+  }
   if (s.is_round())
     return contains(s, 1 - ORACLE_MARGIN, d)    ? 1
            : !contains(s, 1 + ORACLE_MARGIN, d) ? -1
@@ -166,6 +185,19 @@ inline bool ellipse_meets(const Shape2D &s, const double scale,
 // anchor would not move the triangle edges through its anchor vertex.
 inline OracleVerdict shape_verdict(const Shape2D &s,
                                    const std::vector<P> &region) {
+  if (s.is_annulus()) {
+    // The ring shrunk or grown by an absolute margin on both circles
+    const double delta = ORACLE_MARGIN * shape_extent(s);
+    double farthest = 0;
+    for (const auto &p : region)
+      farthest = std::max(farthest, norm(p));
+    const double nearest = region_distance({0, 0}, region);
+    const double inner_shrunk = s.r_in > 0 ? s.r_in + delta : 0;
+    const double inner_grown = s.r_in > 0 ? s.r_in - delta : 0;
+    return {inner_shrunk <= s.b - delta && farthest >= inner_shrunk &&
+                nearest <= s.b - delta,
+            farthest >= inner_grown && nearest <= s.b + delta};
+  }
   if (s.is_round())
     return {ellipse_meets(s, 1 - ORACLE_MARGIN, region),
             ellipse_meets(s, 1 + ORACLE_MARGIN, region)};
@@ -179,6 +211,17 @@ inline OracleVerdict shape_verdict(const Shape2D &s,
 // ellipse angle or in polygon perimeter length
 inline std::vector<P> boundary_points(const Shape2D &s, const int count) {
   std::vector<P> points;
+  if (s.is_annulus()) {
+    for (const double r : {s.b, s.r_in}) {
+      if (r <= 0)
+        continue;
+      for (int k = 0; k < count; ++k) {
+        const double t = 2 * std::numbers::pi * k / count;
+        points.emplace_back(P{r * std::cos(t), r * std::sin(t)});
+      }
+    }
+    return points;
+  }
   if (s.is_round()) {
     for (int k = 0; k < count; ++k) {
       const double t = 2 * std::numbers::pi * k / count;
@@ -227,6 +270,10 @@ template <> struct GeometryOracle<sapi::Coord2D> {
       s.sin = std::sin(angle);
       break;
     }
+    case sapi::MASK_SHAPE::ANNULAR:
+      s.r_in = p[0];
+      s.a = s.b = p[1];
+      break;
     case sapi::MASK_SHAPE::PARALLELOGRAM:
       s.vertices = convex_hull(
           {{-p[0], -p[1]}, {-p[2], -p[3]}, {p[0], p[1]}, {p[2], p[3]}});

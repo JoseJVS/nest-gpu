@@ -49,6 +49,9 @@ void initialize_parallelogram_mask_helpers(
 void initialize_triangular_mask_helpers(
     Mask<Coord2D> &mask, const std::vector<space_t> &mask_params);
 
+void initialize_annular_mask_helpers(Mask<Coord2D> &mask,
+                                     const std::vector<space_t> &mask_params);
+
 // Centred shapes (circle, ellipse, parallelogram): the bounding disc is centred
 // on the anchor, so the disc displacement is the anchor displacement
 inline OptDisp<Coord2D> coord_in_circular_mask(const Coord2D &coord,
@@ -143,6 +146,35 @@ inline OptDisp<Coord2D> coord_in_triangular_mask(const Coord2D &a,
   return od;
 }
 
+// Annulus: helper_scalars_[0] holds the squared inner radius; the outer
+// circle is the bounding disc, centred on the anchor. The inner test is exact
+// (no leq_test tolerance); the tile filters only reject with a margin
+inline space_t annulus_inner_radius2(const Mask<Coord2D> &mask) {
+  return mask.helper_scalars_[0];
+}
+
+// Closed ring: within the outer radius and not inside the inner one
+inline bool displacement_in_annulus(const space_t distance2,
+                                    const Mask<Coord2D> &mask) {
+  return leq_test(distance2, mask.bounding_disc_.radius2_) &&
+         !(distance2 < annulus_inner_radius2(mask));
+}
+
+inline OptDisp<Coord2D> coord_in_annular_mask(const Coord2D &coord,
+                                              const Mask<Coord2D> &mask) {
+  auto od = mask.bounding_disc_.coord_in_radius(coord);
+  od.first = od.first && !(od.second.distance2_ < annulus_inner_radius2(mask));
+  return od;
+}
+
+inline OptDisp<Coord2D> coord_in_annular_mask(const Coord2D &a,
+                                              const Coord2D &b,
+                                              const Mask<Coord2D> &mask) {
+  OptDisp<Coord2D> od(false, construct_displacement(b - (a + mask.anchor_)));
+  od.first = displacement_in_annulus(od.second.distance2_, mask);
+  return od;
+}
+
 // Named views of the helper layout set by the initializers in
 // mask2d_geometry.cpp, relative to the anchor.
 // Ellipse: helper_vectors_[0] holds the squared semi-axes (a^2, b^2) and, when
@@ -231,7 +263,9 @@ overlap_with_all_vertices_in_convex_mask(const Mask<Coord2D> &,
 }
 
 // A convex mask contains its anchor, so a tile holding the anchor meets the
-// mask (the cheap accept the tests below start with)
+// mask (the cheap accept the tests below start with). The annulus does not
+// contain its anchor (the centre): it reaches this accept through the circle
+// tests only after its hole reject, which makes it valid there too.
 inline bool anchor_in_tile(const Mask<Coord2D> &mask,
                            const Tile<Coord2D> &tile) {
   return tile.coord_in_tile(mask.anchor_);
@@ -328,6 +362,90 @@ inline bool tile_pair_in_blueprint_support(const Mask<Coord2D> &mask,
       },
       mask.bounding_disc_.origin_ - (b.c_radius_.origin_ - a.c_radius_.origin_),
       exact_filter_margin(mask.bounding_disc_, a.c_radius_, b.c_radius_));
+}
+
+// Annulus tile tests. The ring is not convex and its anchor (the centre) is
+// not in it, so it has none of the convex shortcuts. A tile (or, for blueprint
+// pairs, the displacement set B - A - anchor) is convex and connected: it
+// meets the closed ring iff it is not inside the open inner disc and meets the
+// outer disc (it then holds points at distance <= r_out and >= r_in, hence one
+// in between). It is inside the inner disc iff its farthest vertex is, so that
+// reject is exact; it applies only below r_in - margin, which keeps it sound.
+// After it, the outer disc decides through the circle's tests. Those start
+// with the anchor (here the centre) in the tile, which the perimeter distance
+// would miss and which, after the reject, means the tile meets the ring.
+
+// Whether a convex set whose farthest vertex lies farthest_distance2 away from
+// the centre is inside the inner disc, by more than margin
+inline bool inside_annulus_hole(const Mask<Coord2D> &mask,
+                                const space_t farthest_distance2,
+                                const space_t margin) {
+  const space_t reach = std::sqrt(annulus_inner_radius2(mask)) - margin;
+  return 0. < reach && farthest_distance2 < reach * reach;
+}
+
+// FULL only if the tile also misses the open inner disc (by more than the
+// margin): its point closest to the centre lies at r_in or beyond. With
+// r_in = 0 that disc is empty and the annulus is the closed disc, which is
+// convex.
+inline OVERLAP_LEVEL
+overlap_with_all_vertices_in_annular_mask(const Mask<Coord2D> &mask,
+                                          const Tile<Coord2D> &tile) {
+  if (!(0. < annulus_inner_radius2(mask)))
+    return OVERLAP_LEVEL::FULL;
+
+  const Coord2D &centre = mask.bounding_disc_.origin_;
+  if (tile.coord_in_tile(centre))
+    return OVERLAP_LEVEL::PARTIAL;
+
+  const space_t reach =
+      std::sqrt(annulus_inner_radius2(mask)) +
+      exact_filter_margin(mask.bounding_disc_, tile.c_radius_);
+  return leq_test(reach * reach,
+                  distance2(centre, tile.project_point_to_surface(centre)))
+             ? OVERLAP_LEVEL::FULL
+             : OVERLAP_LEVEL::PARTIAL;
+}
+
+inline bool annular_mask_meets_tile(const Mask<Coord2D> &mask,
+                                    const Tile<Coord2D> &tile) {
+  const Coord2D &centre = mask.bounding_disc_.origin_;
+  if (inside_annulus_hole(
+          mask, max_distance2(tile.vertices_, centre),
+          exact_filter_margin(mask.bounding_disc_, tile.c_radius_)))
+    return false;
+
+  return circular_mask_meets_tile(mask, tile);
+}
+
+// Blueprint placed at the node coord
+inline bool coord_tile_in_annular_blueprint(const Mask<Coord2D> &mask,
+                                            const Coord2D &coord,
+                                            const Tile<Coord2D> &tile) {
+  const Coord2D centre = coord + mask.bounding_disc_.origin_;
+  if (inside_annulus_hole(
+          mask, max_distance2(tile.vertices_, centre),
+          exact_filter_margin(
+              mask.bounding_disc_,
+              CircumscribedRadius<Coord2D>{.radius2_ = 0., .origin_ = coord},
+              tile.c_radius_)))
+    return false;
+
+  return coord_tile_in_circular_blueprint(mask, coord, tile);
+}
+
+// Blueprint tile pairs: the displacements B - A - anchor
+inline bool tile_pair_in_annular_blueprint(const Mask<Coord2D> &mask,
+                                           const Tile<Coord2D> &a,
+                                           const Tile<Coord2D> &b) {
+  if (inside_annulus_hole(
+          mask,
+          max_difference_norm2(a.vertices_, b.vertices_,
+                               mask.bounding_disc_.origin_),
+          exact_filter_margin(mask.bounding_disc_, a.c_radius_, b.c_radius_)))
+    return false;
+
+  return tile_pair_in_circular_blueprint(mask, a, b);
 }
 } // namespace sapi
 
