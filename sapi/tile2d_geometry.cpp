@@ -302,7 +302,7 @@ bool coord_in_rectangle(const Coord2D &coord,
     return false;
 
   // Only works for squares or triangles
-  return algebraic_projection_comparison<Coord2D, false>(
+  return algebraic_projection_comparison<false>(
       coord - vertices[1], helper_vectors[0], helper_vectors[1],
       helper_scalars[0]);
 }
@@ -316,7 +316,7 @@ bool coord_in_triangle(const Coord2D &coord,
     return false;
 
   // Only works for squares or triangles
-  return algebraic_projection_comparison<Coord2D, true>(
+  return algebraic_projection_comparison<true>(
       coord - vertices[1], helper_vectors[0], helper_vectors[1],
       helper_scalars[0]);
 }
@@ -334,7 +334,7 @@ bool coord_in_hexagon(const Coord2D &coord,
   vertidx_t rel_vix;
   for (vertidx_t vix = 0; vix < 3; ++vix) {
     rel_vix = 2 * vix;
-    res = algebraic_projection_comparison<Coord2D, false>(
+    res = algebraic_projection_comparison<false>(
         coord - vertices[vix], helper_vectors[rel_vix],
         helper_vectors[rel_vix + 1], helper_scalars[0]);
     if (res)

@@ -25,7 +25,7 @@
 #include "gf_creators.h"
 #include "type_erasure_helpers.h"
 
-// 2D grid functor creators: the neighbour shift tables of each 2D tile shape
+// 2D grid functor creators: the neighbor shift tables of each 2D tile shape
 // and the 2D registries
 namespace sapi {
 struct RectangleGSCreator final

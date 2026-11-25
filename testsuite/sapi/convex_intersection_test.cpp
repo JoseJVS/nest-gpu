@@ -22,7 +22,7 @@
 
 // The exact intersection primitives behind the mask/tile filters:
 //   Tile::support, farthest_point    vertex supports, in any vertex order
-//   mask_support                     2D mask shapes against their boundary
+//   mask_support (gjk_support)       2D mask shapes against their boundary
 //   closest_point_on_simplex_to_origin  against the optimality condition of
 //                                    the closest point (2D and 3D)
 //   convex_sets_intersect            GJK against the independent oracle of
@@ -72,6 +72,21 @@ bool finite(const Coord2D &c) {
 
 bool finite(const Coord3D &c) {
   return std::isfinite(c.x_) && std::isfinite(c.y_) && std::isfinite(c.z_);
+}
+
+// Support point for the GJK checks: mask_support for the shapes that reach
+// GJK, and the disk support for circles, which keep GJK covered on a round
+// shape although the circle filters are closed form and never call GJK. No
+// absolute threshold on the direction: GJK directions shrink towards zero
+// near touching.
+Coord2D gjk_support(const Mask<Coord2D> &mask, const Coord2D &direction) {
+  if (mask.shape_ != MASK_SHAPE::CIRCULAR)
+    return mask_support(mask, direction);
+  const space_t norm = vector_norm(direction);
+  return 0 < norm
+             ? mask.anchor_ +
+                   direction * (std::sqrt(mask.bounding_disk_.radius2_) / norm)
+             : mask.anchor_;
 }
 
 // Circles, ellipses rotated every 15 degrees with aspect ratios up to 1:100,
@@ -179,7 +194,7 @@ void test_mask_support() {
       const P anchor = from(mask.anchor_);
 
       for (const auto &u : directions()) {
-        const P s = from(mask_support(mask, to_coord(u))) - anchor;
+        const P s = from(gjk_support(mask, to_coord(u))) - anchor;
         double sampled = -std::numeric_limits<double>::infinity();
         for (const auto &b : boundary)
           sampled = std::max(sampled, dot(b, u));
@@ -193,7 +208,7 @@ void test_mask_support() {
                 "support outside the shape: " + describe(def));
 
         for (const double length : {1e-12, 1e9}) {
-          const P scaled = from(mask_support(mask, to_coord(u * length)));
+          const P scaled = from(gjk_support(mask, to_coord(u * length)));
           require(std::fabs(dot(scaled - anchor, u) - reach) <= 1e-12 * extent,
                   "support depends on the direction length: " + describe(def));
         }
@@ -386,18 +401,18 @@ void test_masks_and_tiles(const std::vector<NamedTile> &catalog) {
       if (std::count(nt.name.begin(), nt.name.end(), '.') > 1)
         continue; // roots and their first sub-tiles only
       const auto &tile = *nt.tile;
-      const P centre = from(tile.c_radius_.origin_);
+      const P center = from(tile.c_radius_.origin_);
       const double reach = std::sqrt(tile.c_radius_.radius2_) + extent;
       for (int k = 0; k < 6; ++k) {
-        const P origin = centre + random_point(rng, reach);
+        const P origin = center + random_point(rng, reach);
         const auto mask = construct_mask<Coord2D>(
             def.shape, {origin.x, origin.y}, def.params, {});
         const auto v = oracle_verdict<Coord2D>(
             shape, Oracle::tile_region(tile, mask.anchor_));
         const bool got = convex_sets_intersect(
-            [&](const Coord2D &u) { return mask_support(mask, u); },
+            [&](const Coord2D &u) { return gjk_support(mask, u); },
             [&](const Coord2D &u) { return tile.support(u); },
-            mask.bounding_disc_.origin_ - tile.c_radius_.origin_, 0.);
+            mask.bounding_disk_.origin_ - tile.c_radius_.origin_, 0.);
         require(!v.robust || got, "GJK misses a mask/tile overlap: " +
                                       describe(def) + " " + nt.name);
         require(v.possible || !got, "GJK accepts a mask/tile gap: " +
@@ -428,11 +443,11 @@ void test_masks_and_tiles(const std::vector<NamedTile> &catalog) {
           const auto v = oracle_verdict<Coord2D>(
               shape, Oracle::pair_region(*a, *b, bp.anchor_));
           const bool got = convex_sets_intersect(
-              [&](const Coord2D &u) { return mask_support(bp, u); },
+              [&](const Coord2D &u) { return gjk_support(bp, u); },
               [&](const Coord2D &u) {
                 return b->support(u) - a->support(u.negative());
               },
-              bp.bounding_disc_.origin_ -
+              bp.bounding_disk_.origin_ -
                   (b->c_radius_.origin_ - a->c_radius_.origin_),
               0.);
           require(!v.robust || got,
@@ -465,9 +480,9 @@ bool mask_meets(const MaskDef &def, const P origin, const Tile<Coord2D> &tile,
   const auto mask =
       construct_mask<Coord2D>(def.shape, {origin.x, origin.y}, def.params, {});
   return convex_sets_intersect(
-      [&](const Coord2D &u) { return mask_support(mask, u); },
+      [&](const Coord2D &u) { return gjk_support(mask, u); },
       [&](const Coord2D &u) { return tile.support(u); },
-      mask.bounding_disc_.origin_ - tile.c_radius_.origin_, margin);
+      mask.bounding_disk_.origin_ - tile.c_radius_.origin_, margin);
 }
 
 // Touching sets and gaps just below and above the margin delta
@@ -561,25 +576,25 @@ void test_uncertain_paths() {
 }
 
 struct Sphere {
-  Coord3D centre;
+  Coord3D center;
   double radius;
   Coord3D operator()(const Coord3D &u) const {
     const double n = vector_norm(u);
-    return 0 < n ? centre + u * (radius / n) : centre;
+    return 0 < n ? center + u * (radius / n) : center;
   }
 };
 
 struct Box {
-  Coord3D centre, half;
+  Coord3D center, half;
   Coord3D operator()(const Coord3D &u) const {
-    return centre + construct_coord_3D(std::signbit(u.x_) ? -half.x_ : half.x_,
+    return center + construct_coord_3D(std::signbit(u.x_) ? -half.x_ : half.x_,
                                        std::signbit(u.y_) ? -half.y_ : half.y_,
                                        std::signbit(u.z_) ? -half.z_ : half.z_);
   }
 };
 
 double box_gap(const Box &a, const Box &b) {
-  const Coord3D d = a.centre - b.centre;
+  const Coord3D d = a.center - b.center;
   const double g[3] = {std::fabs(d.x_) - a.half.x_ - b.half.x_,
                        std::fabs(d.y_) - a.half.y_ - b.half.y_,
                        std::fabs(d.z_) - a.half.z_ - b.half.z_};
@@ -592,7 +607,7 @@ double box_gap(const Box &a, const Box &b) {
 }
 
 double sphere_box_gap(const Sphere &s, const Box &b) {
-  const Coord3D d = s.centre - b.centre;
+  const Coord3D d = s.center - b.center;
   const Coord3D clamped =
       construct_coord_3D(std::clamp(d.x_, -b.half.x_, b.half.x_),
                          std::clamp(d.y_, -b.half.y_, b.half.y_),
@@ -629,16 +644,16 @@ void test_3d() {
     const double margin = k % 2 ? 0. : 0.1;
     const Sphere s1{point(1.), uniform(rng, 0.1, 1.)};
     const Sphere s2{point(1.5), uniform(rng, 0.1, 1.)};
-    judge(convex_sets_intersect(s1, s2, s1.centre - s2.centre, margin),
-          vector_norm(s1.centre - s2.centre) - s1.radius - s2.radius, margin,
+    judge(convex_sets_intersect(s1, s2, s1.center - s2.center, margin),
+          vector_norm(s1.center - s2.center) - s1.radius - s2.radius, margin,
           "spheres");
 
     const Box b1{point(1.), positive()};
     const Box b2{point(1.5), positive()};
-    judge(convex_sets_intersect(b1, b2, b1.centre - b2.centre, margin),
+    judge(convex_sets_intersect(b1, b2, b1.center - b2.center, margin),
           box_gap(b1, b2), margin, "boxes");
 
-    judge(convex_sets_intersect(s2, b1, s2.centre - b1.centre, margin),
+    judge(convex_sets_intersect(s2, b1, s2.center - b1.center, margin),
           sphere_box_gap(s2, b1), margin, "sphere and box");
   }
   require(intersecting > 1000 && separated > 1000,

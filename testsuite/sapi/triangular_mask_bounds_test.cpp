@@ -20,12 +20,12 @@
  *
  */
 
-// Bounding discs of the masks (plan Q7.16a5). Every mask shape's bounding
-// disc contains the whole shape and is centred on a point of the shape. For
-// triangular masks the disc is the smallest enclosing disc (circumcentre, or
+// Bounding disks of the masks (plan Q7.16a5). Every mask shape's bounding
+// disk contains the whole shape and is centered on a point of the shape. For
+// triangular masks the disk is the smallest enclosing disk (circumcenter, or
 // the longest-edge midpoint for obtuse triangles), no larger than the old
-// disc centred on the anchor vertex, and the node-level tests give the same
-// verdicts and the same displacements as with the old disc. The tile filters
+// disk centered on the anchor vertex, and the node-level tests give the same
+// verdicts and the same displacements as with the old disk. The tile filters
 // never reject a tile (or tile pair) holding a point (or node pair) in the
 // mask.
 
@@ -66,7 +66,7 @@ struct MaskDef {
 };
 
 // Triangles {0, a0, a1}: acute, right, obtuse, slivers, both orientations,
-// tiny and large; the centred shapes for the containment checks
+// tiny and large; the centered shapes for the containment checks
 std::vector<MaskDef> triangle_defs() {
   return {{"acute", MASK_SHAPE::TRIANGULAR, {1., 0., 0.4, 0.9}},
           {"acute_cw", MASK_SHAPE::TRIANGULAR, {0.4, 0.9, 1., 0.}},
@@ -76,7 +76,7 @@ std::vector<MaskDef> triangle_defs() {
           {"sliver", MASK_SHAPE::TRIANGULAR, {0.25, 0.02, 0.25, -0.02}},
           {"sliver_long", MASK_SHAPE::TRIANGULAR, {2., 0.01, 1.9, -0.012}},
           {"sliver_extreme", MASK_SHAPE::TRIANGULAR, {1., 0., 0.5, 1e-9}},
-          // Obtuse sliver whose centre check needs an edge-length tolerance
+          // Obtuse sliver whose center check needs an edge-length tolerance
           // (an area-relative one rejects it)
           {"sliver_rounding",
            MASK_SHAPE::TRIANGULAR,
@@ -86,7 +86,7 @@ std::vector<MaskDef> triangle_defs() {
           {"large", MASK_SHAPE::TRIANGULAR, {800., 100., 200., 900.}}};
 }
 
-std::vector<MaskDef> centred_defs() {
+std::vector<MaskDef> centered_defs() {
   return {{"circle", MASK_SHAPE::CIRCULAR, {0.35}},
           {"ellipse", MASK_SHAPE::ELLIPTICAL, {2., 0.2, 30.}},
           {"parallelogram", MASK_SHAPE::PARALLELOGRAM, {1., 0.2, -0.3, 0.8}}};
@@ -138,7 +138,7 @@ std::vector<Coord2D> shape_samples(const MaskDef &def, const P anchor) {
   }
 }
 
-// Radius of the smallest disc enclosing the triangle {0, a0, a1}, computed
+// Radius of the smallest disk enclosing the triangle {0, a0, a1}, computed
 // independently of SAPI: half the longest edge when the triangle is obtuse or
 // right, the circumradius abc / (4 area) otherwise
 double minimal_enclosing_radius(const P a0, const P a1) {
@@ -155,7 +155,7 @@ bool same_bits(const Coord2D &a, const Coord2D &b) {
          std::bit_cast<uint64_t>(a.y_) == std::bit_cast<uint64_t>(b.y_);
 }
 
-// The old triangular test: disc centred on the anchor with radius
+// The old triangular test: disk centered on the anchor with radius
 // max(|a0|, |a1|), then the same exact test with the mask's stored vectors and
 // determinant (as computed by the library), so only the prefilter differs
 OptDisp<Coord2D> old_triangular(const Coord2D &d, const Mask<Coord2D> &mask) {
@@ -164,39 +164,39 @@ OptDisp<Coord2D> old_triangular(const Coord2D &d, const Mask<Coord2D> &mask) {
   OptDisp<Coord2D> od(false, construct_displacement(Coord2D(d)));
   if (leq_test(od.second.distance2_,
                std::fmax(vector_norm2(a0), vector_norm2(a1))))
-    od.first = algebraic_projection_comparison<Coord2D, true>(
+    od.first = algebraic_projection_comparison<true>(
         od.second.displacement_, a0, a1, mask.helper_scalars_[0]);
   return od;
 }
 
-// 1. The bounding disc contains the shape and is centred on it
-void test_disc_contains_shape() {
+// 1. The bounding disk contains the shape and is centered on it
+void test_disk_contains_shape() {
   std::vector<MaskDef> defs = triangle_defs();
-  for (const auto &def : centred_defs())
+  for (const auto &def : centered_defs())
     defs.push_back(def);
 
   const P anchor{0.7, -1.3};
   for (const auto &def : defs) {
     const auto mask = construct_mask<Coord2D>(def.shape, {anchor.x, anchor.y},
                                               def.params, {});
-    const auto &disc = mask.bounding_disc_;
+    const auto &disk = mask.bounding_disk_;
 
     for (const auto &s : shape_samples(def, anchor))
-      require(disc.coord_in_radius(s).first,
-              "disc does not contain " + def.name + " at " + s.to_string());
+      require(disk.coord_in_radius(s).first,
+              "disk does not contain " + def.name + " at " + s.to_string());
 
-    require(mask.coord_in_mask(disc.origin_).first,
-            "disc centre outside the " + def.name + " mask");
+    require(mask.coord_in_mask(disk.origin_).first,
+            "disk center outside the " + def.name + " mask");
   }
 }
 
-// 2. Triangles: the smallest enclosing disc, never larger than the old one
+// 2. Triangles: the smallest enclosing disk, never larger than the old one
 void test_triangle_radius() {
   for (const auto &def : triangle_defs()) {
     const P a0{def.params[0], def.params[1]}, a1{def.params[2], def.params[3]};
     const auto mask =
         construct_mask<Coord2D>(def.shape, {0., 0.}, def.params, {});
-    const double radius = std::sqrt(mask.bounding_disc_.radius2_);
+    const double radius = std::sqrt(mask.bounding_disk_.radius2_);
     const double expected = minimal_enclosing_radius(a0, a1);
     const double old_radius = std::max(norm(a0), norm(a1));
 
@@ -205,12 +205,12 @@ void test_triangle_radius() {
                 " is not the minimal enclosing radius " +
                 std::to_string(expected));
     require(radius <= old_radius * (1 + 1e-9),
-            def.name + ": radius larger than the old disc");
+            def.name + ": radius larger than the old disk");
   }
 }
 
 // 3. Node-level tests: same verdicts and bit-identical displacements as the
-// old disc, inside, on edges and vertices, and around the triangle
+// old disk, inside, on edges and vertices, and around the triangle
 void test_node_tests_unchanged() {
   std::mt19937_64 rng(2026);
   const P anchor{-0.4, 2.1}, offset{0.3, -0.2};
@@ -312,7 +312,7 @@ void test_tile_filters_sound() {
 
 int main() {
   init_omp();
-  test_disc_contains_shape();
+  test_disk_contains_shape();
   test_triangle_radius();
   test_node_tests_unchanged();
   test_tile_filters_sound();

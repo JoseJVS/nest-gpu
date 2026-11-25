@@ -28,7 +28,7 @@
 // (pair) the mask accepts, also within 1e-9 of the mask boundary. Rejecting
 // gaps (tightness) is required for every filter and shape since Q7.16d, when
 // the non-circular filters became exact (EXACT_NONCIRCULAR_B1/B2). They also
-// accept a subset of what the conservative disc filters accepted, and the
+// accept a subset of what the conservative disk filters accepted, and the
 // same for circular masks.
 
 #include <cstdio>
@@ -84,7 +84,7 @@ const std::vector<MaskDef> MASKS{
     {MASK_SHAPE::ANNULAR, {0.3, 0.8}},
     {MASK_SHAPE::ANNULAR, {0.9, 1.5}}, // hole larger than the small tiles
     {MASK_SHAPE::ANNULAR, {1., 1.1}},  // thin
-    {MASK_SHAPE::ANNULAR, {0., 0.7}}}; // r_in = 0, a disc
+    {MASK_SHAPE::ANNULAR, {0., 0.7}}}; // r_in = 0, a disk
 
 std::string shape_name(const MASK_SHAPE shape) {
   switch (shape) {
@@ -147,36 +147,36 @@ Mask<Coord2D> blueprint(const MaskDef &def, const P offset) {
 // Reach of the shape from its anchor, from the oracle (not the code under test)
 double extent(const MaskDef &def) { return Oracle::extent(Oracle::shape(def)); }
 
-// The last stage of B2 before Q7.16d, which stands the bounding disc in for
+// The last stage of B2 before Q7.16d, which stands the bounding disk in for
 // the shape, with the anchor accept that now lives in the per-shape tests
 bool conservative_surface(const Mask<Coord2D> &mask,
                           const Tile<Coord2D> &tile) {
   return tile.coord_in_tile(mask.anchor_) ||
-         mask.bounding_disc_
+         mask.bounding_disk_
              .coord_in_radius(
-                 tile.project_point_to_surface(mask.bounding_disc_.origin_))
+                 tile.project_point_to_surface(mask.bounding_disk_.origin_))
              .first;
 }
 
-// The B1 filters before Q7.16d, which stand the bounding disc in for the shape
+// The B1 filters before Q7.16d, which stand the bounding disk in for the shape
 bool conservative_pair(const Mask<Coord2D> &bp, const Tile<Coord2D> &a,
                        const Tile<Coord2D> &b) {
-  const auto &disc = bp.bounding_disc_;
+  const auto &disk = bp.bounding_disk_;
   if (!a.c_radius_
-           .coord_in_radius(b.c_radius_.origin_ - disc.origin_,
+           .coord_in_radius(b.c_radius_.origin_ - disk.origin_,
                             std::sqrt(b.c_radius_.radius2_) +
-                                std::sqrt(disc.radius2_))
+                                std::sqrt(disk.radius2_))
            .first)
     return false;
-  return tiles_within_range(a, b, disc.origin_, disc.radius2_);
+  return tiles_within_range(a, b, disk.origin_, disk.radius2_);
 }
 
 bool conservative_point(const Mask<Coord2D> &bp, const Coord2D &coord,
                         const Tile<Coord2D> &tile) {
-  const Coord2D shifted = coord + bp.bounding_disc_.origin_;
+  const Coord2D shifted = coord + bp.bounding_disk_.origin_;
   return tile.coord_in_tile(shifted) ||
          leq_test(distance2(shifted, tile.project_point_to_surface(shifted)),
-                  bp.bounding_disc_.radius2_);
+                  bp.bounding_disk_.radius2_);
 }
 
 // B1 accepts a subset of the pairs the conservative filter accepted, and the
@@ -196,7 +196,7 @@ void check_subset(const Mask<Coord2D> &bp, const Tile<Coord2D> &a,
 
 // A point strictly inside the shape, relative to the anchor
 P interior_point(const Shape2D &shape) {
-  // For the annulus the centre only serves as the origin of radial rays
+  // For the annulus the center only serves as the origin of radial rays
   if (shape.is_round() || shape.is_annulus())
     return {0, 0};
   P sum{0, 0};
@@ -276,9 +276,9 @@ void test_oracle() {
     long robust_unsampled = 0, robust = 0;
     for (int k = 0; k < 2000; ++k) {
       std::vector<P> corners;
-      const P centre = P{unit(rng), unit(rng)} * (1.5 * reach);
+      const P center = P{unit(rng), unit(rng)} * (1.5 * reach);
       for (int c = 0; c < 3 + k % 2; ++c)
-        corners.emplace_back(centre + P{unit(rng), unit(rng)} * (0.5 * reach));
+        corners.emplace_back(center + P{unit(rng), unit(rng)} * (0.5 * reach));
       const auto region = convex_hull(corners);
       if (region.size() < 3)
         continue;
@@ -286,7 +286,7 @@ void test_oracle() {
       const bool sampled = sampled_meets(shape, region, 400);
       require(v.possible || !sampled,
               "sampled overlap the analytic oracle excludes: " +
-                  describe(def, centre));
+                  describe(def, center));
       robust += v.robust;
       robust_unsampled += v.robust && !sampled;
     }
@@ -302,14 +302,14 @@ void test_source_target(const std::vector<NamedTile> &catalog) {
   std::uniform_real_distribution<double> unit(-1, 1);
 
   for (const auto *root : roots_of(catalog)) {
-    const P centre = from(root->c_radius_.origin_);
+    const P center = from(root->c_radius_.origin_);
     const double tile_radius = std::sqrt(root->c_radius_.radius2_);
     for (const auto &def : MASKS) {
       const auto shape = Oracle::shape(def);
       auto &t = b2_tally(def.shape);
       const double reach = tile_radius + extent(def);
       for (int k = 0; k < 24; ++k) {
-        const P origin = centre + P{unit(rng), unit(rng)} * reach;
+        const P origin = center + P{unit(rng), unit(rng)} * reach;
         const P offset = k % 3 ? P{0, 0} : P{unit(rng), unit(rng)} * 0.5;
         const auto mask = source_mask(def, origin, offset);
         const auto where = describe(def, origin + offset);
@@ -326,12 +326,12 @@ void test_source_target(const std::vector<NamedTile> &catalog) {
                    near_boundary(shape, origin + offset, polygon(*tile))),
               where);
 
-          // The exact last stage accepts a subset of the disc stage, the
+          // The exact last stage accepts a subset of the disk stage, the
           // same tiles for circular masks
           const bool now = mask.overlap_with_tile_surface(*tile);
           const bool before = conservative_surface(mask, *tile);
           require(!now || before,
-                  "B2 surface stage accepts what the disc stage rejects: " +
+                  "B2 surface stage accepts what the disk stage rejects: " +
                       where);
           require(def.shape != MASK_SHAPE::CIRCULAR || now == before,
                   "circular B2 surface verdict changed: " + where);
@@ -570,7 +570,7 @@ void test_analytic() {
 
   // c - a = [2, 4] x [-1, 1]: the vertex differences of the two squares are
   // collinear on its edges, e.g. (3, 1) mid-edge; a circle of radius 0.5
-  // centred 0.5 above that point touches it
+  // centered 0.5 above that point touches it
   require(blueprint(circle, {3., 1.5}).tiles_within_mask_range(a, c),
           "circle on collinear hull point");
   require(!blueprint({MASK_SHAPE::CIRCULAR, {0.5 - 1e-6}}, {3., 1.5})
@@ -603,7 +603,7 @@ bool constructs(const std::vector<space_t> &params) {
 }
 
 // Annular masks with known answers: the closed ring, the hole, small annuli
-// inside big tiles (the centre lies in the tile, which the outer disc alone
+// inside big tiles (the center lies in the tile, which the outer disk alone
 // decides) and small tiles inside the hole
 void test_annulus() {
   const auto rect = [](const double x, const double y, const double side) {
@@ -653,10 +653,10 @@ void test_annulus() {
     require(level(source_mask(ring(0.1, 0.3), at), big) ==
                 OVERLAP_LEVEL::PARTIAL,
             "small annulus inside a big tile");
-  // The centre in the tile, all its vertices in the ring: still partial
+  // The center in the tile, all its vertices in the ring: still partial
   require(level(source_mask(ring(0.1, 0.9), {0.5, 0.5}), a) ==
               OVERLAP_LEVEL::PARTIAL,
-          "tile holding the centre");
+          "tile holding the center");
 
   // Small tile inside the hole
   require(level(source_mask(ring(1.5, 2.5), {0.5, 0.5}), a) ==
@@ -683,19 +683,19 @@ void test_annulus() {
           "pair vertex on the inner circle");
 
   // r_in = 0 behaves like the circle of the outer radius
-  const MaskDef disc = ring(0., 0.7), circle{MASK_SHAPE::CIRCULAR, {0.7}};
+  const MaskDef disk = ring(0., 0.7), circle{MASK_SHAPE::CIRCULAR, {0.7}};
   for (const double x : {-0.9, 0., 0.4, 1., 1.5, 1.7, 3.})
     for (const double y : {-0.5, 0.5, 1.2, 1.7, 2.5}) {
       for (const auto *t : {&a, &big}) {
-        require(level(source_mask(disc, {x, y}), *t) ==
+        require(level(source_mask(disk, {x, y}), *t) ==
                     level(source_mask(circle, {x, y}), *t),
                 "r_in = 0 tile_overlap");
-        require(blueprint(disc, {x, y}).tiles_within_mask_range(a, *t) ==
+        require(blueprint(disk, {x, y}).tiles_within_mask_range(a, *t) ==
                     blueprint(circle, {x, y}).tiles_within_mask_range(a, *t),
                 "r_in = 0 tiles_within_mask_range");
       }
       const auto c = construct_coord_2D(x * 0.3, y * 0.3);
-      require(source_mask(disc, {0., 0.}).coord_in_mask(c).first ==
+      require(source_mask(disk, {0., 0.}).coord_in_mask(c).first ==
                   source_mask(circle, {0., 0.}).coord_in_mask(c).first,
               "r_in = 0 coord_in_mask");
     }

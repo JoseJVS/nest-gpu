@@ -33,7 +33,7 @@
 //   from the anchor and its nearest point at most r_out, since the distance
 //   to the anchor takes every value in between on the connected polygon).
 // Two independent deciders:
-//   analytic: an ellipse maps to the unit disc by its inverse affine map, which
+//   analytic: an ellipse maps to the unit disk by its inverse affine map, which
 //             keeps the region convex, so it meets the region iff the mapped
 //             region holds the origin or lies within distance 1 of it;
 //             polygons are separated by an edge normal of either, which
@@ -168,8 +168,8 @@ inline double polygon_separation(const std::vector<P> &u,
   return distance;
 }
 
-// Whether the ellipse scaled about its centre meets the convex region: its
-// inverse affine map takes the ellipse to the unit disc and keeps the region
+// Whether the ellipse scaled about its center meets the convex region: its
+// inverse affine map takes the ellipse to the unit disk and keeps the region
 // convex
 inline bool ellipse_meets(const Shape2D &s, const double scale,
                           const std::vector<P> &region) {
@@ -180,7 +180,7 @@ inline bool ellipse_meets(const Shape2D &s, const double scale,
   return in_convex(origin, unit) || perimeter_distance(origin, unit) <= 1;
 }
 
-// Analytic decider. Ellipses scale about their centre (the anchor); polygons
+// Analytic decider. Ellipses scale about their center (the anchor); polygons
 // use the separation against an absolute margin, since scaling about the
 // anchor would not move the triangle edges through its anchor vertex.
 inline OracleVerdict shape_verdict(const Shape2D &s,
@@ -287,7 +287,7 @@ template <> struct GeometryOracle<sapi::Coord2D> {
     return s;
   }
 
-  // Definition of -shape: the centred shapes are symmetric, the triangle flips
+  // Definition of -shape: the centered shapes are symmetric, the triangle flips
   static MaskDef reflected(const MaskDef &def) {
     MaskDef r = def;
     if (def.shape == sapi::MASK_SHAPE::TRIANGULAR)

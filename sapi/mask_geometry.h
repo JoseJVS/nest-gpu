@@ -154,14 +154,14 @@ OptDisp<CoordT> coord_in_mask(const CoordT &a, const CoordT &b,
 }
 
 // Absolute margin of the exact (GJK) tile tests: EXACT_FILTER_REL_TOL times
-// the size of the given discs (mask, tiles, nodes) and of their coordinates.
+// the size of the given disks (mask, tiles, nodes) and of their coordinates.
 // The rounding of the node tests and of the query grows with all of them, so
 // the margin covers it and no pair the node test accepts is rejected; it stays
 // far below real gaps.
-template <typename... Discs>
-inline space_t exact_filter_margin(const Discs &...discs) {
+template <typename... Disks>
+inline space_t exact_filter_margin(const Disks &...disks) {
   return EXACT_FILTER_REL_TOL *
-         std::sqrt(((discs.radius2_ + vector_norm2(discs.origin_)) + ...));
+         std::sqrt(((disks.radius2_ + vector_norm2(disks.origin_)) + ...));
 }
 
 // Overlap of a source/target mask with a tile whose vertices all lie in it

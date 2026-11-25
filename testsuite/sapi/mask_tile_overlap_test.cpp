@@ -94,11 +94,11 @@ void check_overlap(const Mask<Coord2D> &mask, const MaskDef &def,
   default:
     if (def.shape == MASK_SHAPE::CIRCULAR)
       assert(
-          region_distance(from(mask.bounding_disc_.origin_), polygon(tile)) <=
+          region_distance(from(mask.bounding_disk_.origin_), polygon(tile)) <=
           def.params[0] * (1 + 1e-5) + 1e-6);
     else if (def.shape == MASK_SHAPE::ANNULAR)
       assert(
-          region_distance(from(mask.bounding_disc_.origin_), polygon(tile)) <=
+          region_distance(from(mask.bounding_disk_.origin_), polygon(tile)) <=
           def.params[1] * (1 + 1e-5) + 1e-6);
     break;
   }
@@ -117,7 +117,7 @@ void test_catalog() {
     for (const auto &def : MASKS) {
       const double mask_radius =
           std::sqrt(construct_mask<Coord2D>(def.shape, {0., 0.}, def.params, {})
-                        .bounding_disc_.radius2_);
+                        .bounding_disk_.radius2_);
       for (int k = 0; k < 40; ++k) {
         const P c =
             from(nt.tile->c_radius_.origin_) +
@@ -188,7 +188,7 @@ void test_annulus() {
   // All vertices and the whole tile in the ring
   assert(ring.tile_overlap(rectangle_tile(1.1, 0., 0.4, 0.4)) ==
          OVERLAP_LEVEL::FULL);
-  // Holding the centre
+  // Holding the center
   assert(ring.tile_overlap(rectangle_tile(0., 0., 4., 4.)) ==
          OVERLAP_LEVEL::PARTIAL);
   assert(ring.tile_overlap(rectangle_tile(0.1, 0., 0.5, 0.5)) !=
@@ -196,7 +196,7 @@ void test_annulus() {
   // Straddling the outer circle
   assert(ring.tile_overlap(rectangle_tile(1.6, 0., 1., 1.)) ==
          OVERLAP_LEVEL::PARTIAL);
-  // Wholly inside the hole, and wholly outside the outer disc
+  // Wholly inside the hole, and wholly outside the outer disk
   assert(ring.tile_overlap(rectangle_tile(0.1, 0.05, 0.2, 0.2)) ==
          OVERLAP_LEVEL::NONE);
   assert(ring.tile_overlap(rectangle_tile(3., 0., 1., 1.)) ==
@@ -236,11 +236,11 @@ void test_annulus() {
   for (const auto &tile : tiles)
     for (const double r : {0.35, 1., 1.5})
       for (const P &c : {P{0., 0.}, P{0.5, -0.3}, P{1.3, 1.1}}) {
-        const auto disc = annulus(0., r, c.x, c.y);
+        const auto disk = annulus(0., r, c.x, c.y);
         const auto circle =
             construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {c.x, c.y}, {r}, {});
-        assert(disc.tile_overlap(tile) == circle.tile_overlap(tile));
-        assert(disc.coord_in_mask(tile.c_radius_.origin_).first ==
+        assert(disk.tile_overlap(tile) == circle.tile_overlap(tile));
+        assert(disk.coord_in_mask(tile.c_radius_.origin_).first ==
                circle.coord_in_mask(tile.c_radius_.origin_).first);
       }
 

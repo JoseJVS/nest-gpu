@@ -73,30 +73,30 @@ bool region_meets_blueprint(const Mask<Coord2D> &blueprint,
   return false;
 }
 
-// Centre of the blueprint's bounding disc in the frame of the displacement
-// regions (relative to the anchor): zero for the centred shapes
-P disc_centre(const Mask<Coord2D> &blueprint) {
-  return from(blueprint.bounding_disc_.origin_) - from(blueprint.anchor_);
+// Center of the blueprint's bounding disk in the frame of the displacement
+// regions (relative to the anchor): zero for the centered shapes
+P disk_center(const Mask<Coord2D> &blueprint) {
+  return from(blueprint.bounding_disk_.origin_) - from(blueprint.anchor_);
 }
 
-// distance is measured from the bounding disc centre
+// distance is measured from the bounding disk center
 void check_verdict(const bool verdict, const double distance,
                    const Mask<Coord2D> &blueprint, const BlueprintDef &def,
                    const std::vector<P> &region) {
-  const double radius = std::sqrt(blueprint.bounding_disc_.radius2_);
+  const double radius = std::sqrt(blueprint.bounding_disk_.radius2_);
   if (def.shape == MASK_SHAPE::CIRCULAR) {
     if (verdict)
       assert(distance <= radius * (1 + 1e-5) + 1e-6);
     else
       assert(distance >= radius * (1 - 1e-5) - 1e-6);
   } else if (def.shape == MASK_SHAPE::ANNULAR) {
-    // Exact up to the margins: the region meets the outer disc and is not
-    // inside the inner one. Its farthest point from the centre is a vertex.
-    const P centre = disc_centre(blueprint);
+    // Exact up to the margins: the region meets the outer disk and is not
+    // inside the inner one. Its farthest point from the center is a vertex.
+    const P center = disk_center(blueprint);
     double farthest = 0.;
     for (const auto &v : region)
       farthest =
-          std::fmax(farthest, std::hypot(v.x - centre.x, v.y - centre.y));
+          std::fmax(farthest, std::hypot(v.x - center.x, v.y - center.y));
     const double inner = def.params[0];
     if (verdict) {
       assert(distance <= radius * (1 + 1e-5) + 1e-6);
@@ -116,7 +116,7 @@ void check_pair(const Tile<Coord2D> &a, const Tile<Coord2D> &b,
                 const Mask<Coord2D> &blueprint, const BlueprintDef &def) {
   const auto d = minkowski_difference(a, b, from(blueprint.anchor_));
   check_verdict(blueprint.tiles_within_mask_range(a, b),
-                region_distance(disc_centre(blueprint), d), blueprint, def, d);
+                region_distance(disk_center(blueprint), d), blueprint, def, d);
 }
 
 // A point at coord drives: pool points b in tile B with b - coord - anchor in
@@ -127,7 +127,7 @@ void check_point(const Coord2D &coord, const Tile<Coord2D> &b,
   for (const auto &v : polygon(b))
     d.push_back(v - from(coord) - from(blueprint.anchor_));
   check_verdict(blueprint.overlap_with_tile_surface(coord, b),
-                region_distance(disc_centre(blueprint), d), blueprint, def, d);
+                region_distance(disk_center(blueprint), d), blueprint, def, d);
 }
 
 void test_grids() {
@@ -185,13 +185,13 @@ void test_grids() {
           for (const auto &[i, j] : pairs)
             check_pair(*level[i], *level[j], blueprint, def);
 
-          const double radius = std::sqrt(blueprint.bounding_disc_.radius2_);
+          const double radius = std::sqrt(blueprint.bounding_disk_.radius2_);
           for (std::size_t i = 0; i < level.size(); i += 1 + level.size() / 8) {
             const auto &b = *level[i];
             const double reach = std::sqrt(b.c_radius_.radius2_) + radius;
             for (int k = 0; k < 4; ++k)
               check_point(to_coord(from(b.c_radius_.origin_) -
-                                   from(blueprint.bounding_disc_.origin_) +
+                                   from(blueprint.bounding_disk_.origin_) +
                                    P{unit(rng), unit(rng)} * (1.2 * reach)),
                           b, blueprint, def);
           }
@@ -248,7 +248,7 @@ void test_annulus() {
                                    {x, y});
   };
 
-  // Displacements of (a, a) lie in [-1, 1]^2, within 1.42 of the centre
+  // Displacements of (a, a) lie in [-1, 1]^2, within 1.42 of the center
   assert(!ring(1.5, 2., 0., 0.).tiles_within_mask_range(a, a));
   assert(ring(1., 2., 0., 0.).tiles_within_mask_range(a, a));
   assert(ring(0.3, 0.9, 0., 0.).tiles_within_mask_range(a, a));
@@ -282,12 +282,12 @@ void test_annulus() {
   for (const auto *x : {&a, &b, &c, &big, &small})
     for (const auto *y : {&a, &b, &c, &big, &small})
       for (const P &o : {P{0., 0.}, P{1., 0.}, P{-0.5, 2.}}) {
-        const auto disc = ring(0., 1.2, o.x, o.y);
+        const auto disk = ring(0., 1.2, o.x, o.y);
         const auto circle = construct_mask<Coord2D>(MASK_SHAPE::CIRCULAR, {},
                                                     {1.2}, {o.x, o.y});
-        assert(disc.tiles_within_mask_range(*x, *y) ==
+        assert(disk.tiles_within_mask_range(*x, *y) ==
                circle.tiles_within_mask_range(*x, *y));
-        assert(disc.overlap_with_tile_surface(x->c_radius_.origin_, *y) ==
+        assert(disk.overlap_with_tile_surface(x->c_radius_.origin_, *y) ==
                circle.overlap_with_tile_surface(x->c_radius_.origin_, *y));
       }
 }

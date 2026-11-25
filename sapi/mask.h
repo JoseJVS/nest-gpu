@@ -38,14 +38,14 @@ template <Coordinate CoordT> struct Mask {
   // it lies in the mask; the per-shape tests of the convex shapes, which
   // contain it, do. Source/target masks are built with an origin and placed
   // absolutely (origin + offset); the one-argument methods use them.
-  // Blueprints have no origin: anchor_ and bounding_disc_ are offsets from the
+  // Blueprints have no origin: anchor_ and bounding_disk_ are offsets from the
   // driver node (the offset), used by the two-argument methods.
   CoordT anchor_;
-  // Disc containing the whole shape, in the frame of anchor_: centred on the
-  // anchor for centred shapes (circle, ellipse, parallelogram, annulus, whose
-  // anchor is the centre and lies outside the ring), on the shape
-  // otherwise (smallest enclosing disc of a triangle)
-  CircumscribedRadius<CoordT> bounding_disc_;
+  // Disk containing the whole shape, in the frame of anchor_: centered on the
+  // anchor for centered shapes (circle, ellipse, parallelogram, annulus, whose
+  // anchor is the center and lies outside the ring), on the shape
+  // otherwise (smallest enclosing disk of a triangle)
+  CircumscribedRadius<CoordT> bounding_disk_;
   std::vector<CoordT> helper_vectors_;
   std::vector<space_t> helper_scalars_;
 
@@ -92,7 +92,7 @@ Mask<CoordT> construct_mask(const MASK_SHAPE shape,
                   ? offset
                   : CoordT::copy_from_vec(mask_origin.begin()) + offset;
 
-  // The shape initializers set the bounding disc in the frame of anchor_
+  // The shape initializers set the bounding disk in the frame of anchor_
   initialize_mask_helpers(m, mask_params);
 
   return m;
@@ -113,7 +113,7 @@ inline OptDisp<CoordT> Mask<CoordT>::coord_in_mask(const CoordT &a,
 // defer to the dimension- and shape-aware tests (mask_geometry.h), which are
 // exact up to exact_filter_margin and never reject what the node test accepts.
 
-// Last stage of tile_overlap, after its vertex and centre tests
+// Last stage of tile_overlap, after its vertex and center tests
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
@@ -121,7 +121,7 @@ Mask<CoordT>::overlap_with_tile_surface(const Tile<CoordT> &tile) const {
 }
 
 // Two-argument (blueprint) methods: the driver node places the mask, so anchor_
-// and bounding_disc_ are relative to it.
+// and bounding_disk_ are relative to it.
 template <Coordinate CoordT>
 inline bool
 Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
@@ -132,12 +132,12 @@ Mask<CoordT>::overlap_with_tile_surface(const CoordT &coord,
 template <Coordinate CoordT>
 inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
                                                   const Tile<CoordT> &b) const {
-  // The circumscribed circles of A + disc centre and B too far apart for the
-  // bounding disc
+  // The circumscribed circles of A + disk center and B too far apart for the
+  // bounding disk
   if (!a.c_radius_
-           .coord_in_radius(b.c_radius_.origin_ - bounding_disc_.origin_,
+           .coord_in_radius(b.c_radius_.origin_ - bounding_disk_.origin_,
                             std::sqrt(b.c_radius_.radius2_) +
-                                std::sqrt(bounding_disc_.radius2_))
+                                std::sqrt(bounding_disk_.radius2_))
            .first)
     return false;
 
@@ -147,7 +147,7 @@ inline bool Mask<CoordT>::tiles_within_mask_range(const Tile<CoordT> &a,
 template <Coordinate CoordT>
 OVERLAP_LEVEL Mask<CoordT>::tile_overlap(const Tile<CoordT> &tile) const {
 
-  if (!bounding_disc_.overlapping_radi(tile.c_radius_).first)
+  if (!bounding_disk_.overlapping_radi(tile.c_radius_).first)
     return OVERLAP_LEVEL::NONE;
 
   bool fully_in_mask = true;

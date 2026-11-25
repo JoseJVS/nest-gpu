@@ -130,6 +130,11 @@ inline CoordT projection_vector(const CoordT &vectorBA,
   return vectorBC * projection_coeff<CoordT, clamp>(vectorBA, vectorBC);
 }
 
+// Projection of A onto the line BC, on the segment when clamped. The
+// coefficient snaps to 0 or 1 within almost_zero/almost_equal; the tile
+// perimeter projection relies on it (its results are pinned by the geometry
+// bit records). GJK uses closest_edge_point instead, which reports no clamping
+// and keeps the near-touching rounding (plan §7, doxygen note 25).
 template <Coordinate CoordT, bool clamp>
 inline CoordT projection_coord(const CoordT &coordA, const CoordT &coordB,
                                const CoordT &coordC) {
@@ -151,15 +156,17 @@ inline Coord2D rotate_displacement(const Coord2D &displacement,
                             cross_2D(angular_coord, displacement));
 }
 
-template <Coordinate CoordT, bool triangular_comparison>
-bool algebraic_projection_comparison(const CoordT &vectorBA,
-                                     const CoordT &vectorBC,
-                                     const CoordT &vectorBD,
+// Whether BA = s BC + t BD has 0 < s, t < 1 (and s + t <= 1 for a triangle),
+// by Cramer's rule with the precomputed determinant det_BCD = BC x BD. 2D only:
+// the 3D shapes (parallelepiped, tetrahedron) need three coefficients from
+// scalar triple products, a different primitive.
+template <bool triangular_comparison>
+bool algebraic_projection_comparison(const Coord2D &vectorBA,
+                                     const Coord2D &vectorBC,
+                                     const Coord2D &vectorBD,
                                      const space_t det_BCD) {
-  // Solving comparison as equation system form
-  // with pre-computed determinant
-  const space_t cross_ABC = vector_cross(vectorBC, vectorBA).sum();
-  const space_t cross_ABD = vector_cross(vectorBA, vectorBD).sum();
+  const space_t cross_ABC = cross_2D(vectorBC, vectorBA);
+  const space_t cross_ABD = cross_2D(vectorBA, vectorBD);
 
   const bool cross_ABC_az = almost_zero(cross_ABC);
   const bool cross_ABC_aeq_det_BCD = almost_equal(cross_ABC, det_BCD);
@@ -444,7 +451,10 @@ inline CoordT farthest_point(const PointRange &points,
 // Point a + ab * (t / length2) of an edge, the closest one to the origin.
 // Near touching it is much shorter than a, so in 2D it is taken along the edge
 // normal: its direction then carries the rounding of ab only, which GJK's
-// separating-plane test needs; a + ab * t would cancel it away.
+// separating-plane test needs; a + ab * t would cancel it away. Only for the
+// edge interior: the callers classify the endpoint regions, since GJK reduces
+// the simplex to the feature holding the point. projection_coord<clamp> is the
+// clamping, snapping variant for the tile perimeter (plan §7, doxygen note 25).
 template <Coordinate CoordT>
 inline CoordT closest_edge_point(const CoordT &a, const CoordT &ab,
                                  const space_t t, const space_t length2) {

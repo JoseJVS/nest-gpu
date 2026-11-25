@@ -102,11 +102,11 @@ void test_updated_dist_check() {
   c.y_ = 1;
 
   assert(construct_circumscribed_radius<Coord2D>(Coord2D(),
-                                                 pmask.bounding_disc_.radius2_)
+                                                 pmask.bounding_disk_.radius2_)
              .coord_in_radius(c)
              .first &&
          construct_circumscribed_radius<Coord2D>(Coord2D(),
-                                                 emask.bounding_disc_.radius2_)
+                                                 emask.bounding_disk_.radius2_)
              .coord_in_radius(c)
              .first);
 
@@ -192,10 +192,10 @@ void test_annular_mask() {
   const Mask<Coord2D> amask =
       construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {1, 2}, {0.5, 1}, {});
   assert(amask.anchor_ == construct_coord_2D(1, 2));
-  assert(amask.bounding_disc_.origin_ == construct_coord_2D(1, 2) &&
-         almost_equal(amask.bounding_disc_.radius2_, 1) &&
+  assert(amask.bounding_disk_.origin_ == construct_coord_2D(1, 2) &&
+         almost_equal(amask.bounding_disk_.radius2_, 1) &&
          amask.helper_scalars_.size() == 1 &&
-         almost_equal(annulus_inner_radius2(amask), 0.25));
+         almost_equal(amask.helper_scalars_[0], 0.25));
 
   // Ring points and both boundary circles are in, the hole and the outside out
   for (const auto &c :
@@ -258,7 +258,7 @@ void test_annular_tiles() {
   const Mask<Coord2D> amask =
       construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, {0.5, 1}, {});
 
-  // Small annulus inside a big tile: the tile holds the centre and meets the
+  // Small annulus inside a big tile: the tile holds the center and meets the
   // ring
   const Mask<Coord2D> small =
       construct_mask<Coord2D>(MASK_SHAPE::ANNULAR, {0, 0}, {0.1, 0.2}, {});

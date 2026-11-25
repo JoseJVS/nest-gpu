@@ -54,7 +54,7 @@ typedef uint64_t
 // Numerics constants
 constexpr static const uint8_t TOLERANCE = 2;
 constexpr static const uint8_t RELATIVE_TOLERANCE = 8;
-// Relative margin by which conservative mask filters (bounding discs, exact
+// Relative margin by which conservative mask filters (bounding disks, exact
 // tile tests) are widened: far above the rounding slack of the node-level
 // tests, far below any real gap, so a filter never rejects what the node test
 // accepts
